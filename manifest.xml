@@ -12,6 +12,10 @@
   <depend package="roscpp"/>
   <depend package="nav_msgs"/>
   <depend package="tf"/>
+  <depend package="sensor_msgs"/>
+  <depend package="image_transport"/>
+  <depend package="message_filters"/>
+  <depend package="database_interface"/>
 
 </package>
 
