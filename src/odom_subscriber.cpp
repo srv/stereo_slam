@@ -8,10 +8,13 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <image_transport/subscriber_filter.h>
-
 #include "map_node.h"
 
-class OdomSubscriber{
+namespace stereo_localization
+{
+
+class OdomSubscriber
+{
 
   public:
     double max_displacement;
@@ -39,7 +42,7 @@ class OdomSubscriber{
     message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
 };
 
-OdomSubscriber::OdomSubscriber(ros::NodeHandle nh, ros::NodeHandle nhp) : nh_(nh), nh_private_(nhp), first_message_(true)
+stereo_localization::OdomSubscriber::OdomSubscriber(ros::NodeHandle nh, ros::NodeHandle nhp) : nh_(nh), nh_private_(nhp), first_message_(true)
 {
 
   nh_private_.param("max_displacement", max_displacement, 2.0);
@@ -76,7 +79,7 @@ OdomSubscriber::OdomSubscriber(ros::NodeHandle nh, ros::NodeHandle nhp) : nh_(nh
                   sensor_msgs::CameraInfo, 
                   sensor_msgs::Image, 
                   sensor_msgs::CameraInfo> sync(odom_sub_, left_sub_, left_info_sub_, right_sub_, right_info_sub_, 3);
-  sync.registerCallback(boost::bind(&OdomSubscriber::odomCallback, this, _1, _2, _3, _4, _5));
+  sync.registerCallback(boost::bind(&stereo_localization::OdomSubscriber::odomCallback, this, _1, _2, _3, _4, _5));
 
 
 
@@ -91,7 +94,7 @@ OdomSubscriber::OdomSubscriber(ros::NodeHandle nh, ros::NodeHandle nhp) : nh_(nh
   ROS_INFO("Database connected successfully!");
 }
 
-void OdomSubscriber::odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
+void stereo_localization::OdomSubscriber::odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::ImageConstPtr& left_msg,
                                   const sensor_msgs::CameraInfoConstPtr& left_info_msg,
                                   const sensor_msgs::ImageConstPtr& right_msg,
@@ -117,13 +120,15 @@ void OdomSubscriber::odomCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   }
 }
 
+} // Namespace
+
 int main(int argc, char** argv)
 {
-  ros::init(argc,argv,"odom_to_tf_node");
+  ros::init(argc,argv,"stereo_localization");
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
 
-  OdomSubscriber odomSubscriber(nh,nh_private);
+  stereo_localization::OdomSubscriber odomSubscriber(nh,nh_private);
 
   ros::spin();
 

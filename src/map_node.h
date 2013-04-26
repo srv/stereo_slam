@@ -4,6 +4,9 @@
 #include <string>
 #include <database_interface/db_class.h>
 
+namespace stereo_localization
+{
+
 // all database classes must inherit from database_interface::DBClass
 class MapNode : public database_interface::DBClass
 {
@@ -76,5 +79,7 @@ public:
     //from the database
   }
 };
+
+} // Namespace
 
 #endif
