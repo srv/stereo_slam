@@ -28,6 +28,35 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #rosbuild_link_boost(${PROJECT_NAME} thread)
 #rosbuild_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
+
+#check for libpq's configure tool
+find_program(PG_CONFIG NAMES pg_config DOC "libpq config tool")
+if (NOT PG_CONFIG)
+  message(FATAL_ERROR "Couldn't find pg_config. Is libpq installed?")
+endif(NOT PG_CONFIG)
+
+#get the libpq include and lib directories
+execute_process( 
+  COMMAND pg_config --includedir
+  ERROR_VARIABLE IGNORE_VAR 
+  OUTPUT_VARIABLE PQ_INCLUDE_DIR 
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process( 
+  COMMAND pg_config --libdir
+  ERROR_VARIABLE IGNORE_VAR 
+  OUTPUT_VARIABLE PQ_LIB_DIR 
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+include(CheckIncludeFiles)
+set(CMAKE_REQUIRED_INCLUDES ${PQ_INCLUDE_DIR})
+check_include_files(libpq-fe.h HAVE_LIBPQ)
+if (NOT HAVE_LIBPQ)
+  message(FATAL_ERROR "Error: PostgreSQL implementation cannot find libpq-fe.h")
+endif(NOT HAVE_LIBPQ)
+
+link_directories(${PQ_LIB_DIR})
+include_directories(${PQ_INCLUDE_DIR})
+
 rosbuild_add_boost_directories()
 
 rosbuild_add_executable(graph_constructor 
@@ -36,5 +65,6 @@ rosbuild_add_executable(graph_constructor
 rosbuild_add_executable(graph_updater 
 												src/graph_updater.cpp)
 
+target_link_libraries(graph_constructor pq)
 rosbuild_link_boost(graph_constructor  signals)
 rosbuild_link_boost(graph_updater signals)

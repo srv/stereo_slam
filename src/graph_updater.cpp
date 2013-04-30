@@ -77,7 +77,7 @@ void stereo_localization::GraphUpdater::msgsCallback(
                                   const sensor_msgs::CameraInfoConstPtr& left_info_msg,
                                   const sensor_msgs::CameraInfoConstPtr& right_info_msg)
 {
-  ROS_INFO("[GraphUpdater:] Callback");
+  
 }
 
 } // Namespace

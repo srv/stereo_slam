@@ -11,6 +11,7 @@
 #include <opencv2/features2d/features2d.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
+#include <libpq-fe.h>
 #include "postgresql_interface.h"
 #include "utils.h"
 
@@ -45,6 +46,7 @@ class GraphConstructor
     boost::shared_ptr<ExactSync> exact_sync_;
     image_transport::SubscriberFilter image_sub_;
     message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
+    PGconn* connection_init_;
 };
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
@@ -87,9 +89,41 @@ nh_(nh), nh_private_(nhp), first_message_(true)
   pg_db_ptr_ = db_ptr;
 
   if (!pg_db_ptr_->isConnected())
+  {
     ROS_ERROR("[GraphConstructor:] Database failed to connect");
+  }
   else
+  {
     ROS_INFO("[GraphConstructor:] Database connected successfully!");
+
+    // Database table creation. New connection is needed due to the interface design
+    std::string conn_info = "host=" + db_host_ + " port=" + db_port_ + 
+      " user=" + db_user_ + " password=" + db_pass_ + " dbname=" + db_name_;
+    connection_init_= PQconnectdb(conn_info.c_str());
+    if (PQstatus(connection_init_)!=CONNECTION_OK) 
+    {
+      ROS_ERROR("Database connection failed with error message: %s", PQerrorMessage(connection_init_));
+    }
+    else
+    {
+      // Create the table (if no exists)
+      std::string query_create("CREATE TABLE IF NOT EXISTS graph_nodes"
+                        "( "
+                          "id bigserial primary key, "
+                          "pose_x double precision NOT NULL, "
+                          "pose_y double precision NOT NULL, "
+                          "pose_z double precision NOT NULL, "
+                          "pose_rotation double precision[4] NOT NULL, "
+                          "descriptors double precision[][] "
+                        ")");
+      PQexec(connection_init_, query_create.c_str());
+      
+      // Delete all rows of the new table (to start clean)
+      std::string query_delete("DELETE FROM graph_nodes");
+      PQexec(connection_init_, query_delete.c_str());
+      ROS_INFO("[GraphConstructor:] graph_nodes table created successfully!");
+    }
+  }
 }
 
 /** \brief Messages callback. This function is called when syncronized odometry and image
