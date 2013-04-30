@@ -16,8 +16,9 @@ namespace stereo_localization
 
 class Utils
 {
-  public:
 
+public:
+	
   /** \brief Compute the centroid of a point cloud
   	* @return a vector with the x,y,z centroid
     * \param point_cloud the source PointCloud
@@ -28,7 +29,7 @@ class Utils
     * \param min_z minimum z value to take into account
     * \param max_z maximum z value to take into account
     */
-  tf::Vector3 computeCentroid(PointCloud::Ptr point_cloud, double min_x, double max_x,
+  static tf::Vector3 computeCentroid(PointCloud::Ptr point_cloud, double min_x, double max_x,
 	double min_y, double max_y, double min_z, double max_z)
 	{
 	  double mean_x, mean_y, mean_z;
@@ -74,7 +75,7 @@ class Utils
     * \param image the source image
     * \param key_points is the pointer for the resulting image key_points
     */
-	void keypointDetector(const cv::Mat& image, std::vector<cv::KeyPoint>& key_points)
+	static void keypointDetector(const cv::Mat& image, std::vector<cv::KeyPoint>& key_points)
 	{
 		cv::initModule_nonfree();
 		cv::Ptr<cv::FeatureDetector> cv_detector_;
@@ -88,13 +89,40 @@ class Utils
     * \param key_points keypoints of the source image
     * \param descriptors is the pointer for the resulting image descriptors
     */
-	void descriptorExtraction(const cv::Mat& image, std::vector<cv::KeyPoint>& key_points, cv::Mat& descriptors)
+	static void descriptorExtraction(const cv::Mat& image,
+	 std::vector<cv::KeyPoint>& key_points, cv::Mat& descriptors)
 	{
-		cv::initModule_nonfree();
 	  cv::Ptr<cv::DescriptorExtractor> cv_extractor_;
 	  cv_extractor_ = cv::DescriptorExtractor::create("SIFT");
 	  cv_extractor_->compute(image, key_points, descriptors);
-	}	
+	}
+
+	/** \brief round the points of cv::Mat matrix to 6 decimals and return it as std::vector
+  	* @return rounded input matrix as std::vector of doubles
+    * \param input the input cv::Mat
+    */
+	static std::vector< std::vector<double> > matrixRound(cv::Mat input)
+	{
+		std::vector< std::vector<double> > output;
+		for (int i=0; i<input.rows; i++)
+		{
+		  std::vector<double> vec;
+		  for (int j=0; j<input.cols; j++)
+		  {
+		    vec.push_back(floor(input.at<double>(i,j) * 1000000) / 1000000);
+		  }
+		  output.push_back(vec);
+
+		  /*
+		  // Pointer to the i-th row
+		  const double* p = input.ptr<double>(i);
+		  // Copy data to a vector.  Note that (p + mat.cols) points to the end of the row
+		  std::vector<double> vec(p, p + input.cols);
+		  output.push_back(vec);
+		  */
+		}
+		return output;
+	}
 };
 
 } // namespace

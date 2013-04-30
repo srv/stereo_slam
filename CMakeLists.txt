@@ -30,8 +30,11 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #target_link_libraries(example ${PROJECT_NAME})
 rosbuild_add_boost_directories()
 
-rosbuild_add_executable(odom_subscriber 
-												src/odom_subscriber.cpp
-												src/matching_process.cpp)
+rosbuild_add_executable(graph_constructor 
+												src/graph_constructor.cpp)
 
-rosbuild_link_boost(odom_subscriber signals)
+rosbuild_add_executable(graph_updater 
+												src/graph_updater.cpp)
+
+rosbuild_link_boost(graph_constructor  signals)
+rosbuild_link_boost(graph_updater signals)
