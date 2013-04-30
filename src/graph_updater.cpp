@@ -35,9 +35,15 @@ class GraphUpdater {
     message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
 };
 
+/** \brief Class constructor. Reads node parameters and initialize some properties.
+  * @return 
+  * \param nh public node handler
+  * \param nhp private node handler
+  */
 stereo_localization::GraphUpdater::GraphUpdater(ros::NodeHandle nh, ros::NodeHandle nhp): 
 nh_(nh), nh_private_(nhp)
 {
+  // Resolve topics regarding stereo camera and image
 	std::string stereo_ns = nh_.resolveName("stereo");
 	std::string left_topic = ros::names::clean(stereo_ns + "/left/" + nh_.resolveName("image"));
 	std::string right_topic = ros::names::clean(stereo_ns + "/right/" + nh_.resolveName("image"));
@@ -47,6 +53,7 @@ nh_(nh), nh_private_(nhp)
 
 	std::string odom_topic = nh_.resolveName("odom");
 
+  // Get the queue size param
 	nh_private_.param("queue_size", queue_size_, 5);
 
 	// Subscribe to five input topics.
@@ -65,11 +72,20 @@ nh_(nh), nh_private_(nhp)
   exact_sync_.reset(new ExactSync(ExactPolicy(queue_size_),
                   odom_sub_, left_sub_, right_sub_, left_info_sub_, right_info_sub_) );
 
+  // Set the callback
   exact_sync_->registerCallback(boost::bind(&stereo_localization::GraphUpdater::msgsCallback, 
                   this, _1, _2, _3, _4, _5));
 }
 
-
+/** \brief Messages callback. This function is called when syncronized odometry and image
+  * message are received.
+  * @return 
+  * \param odom_msg ros odometry message of type nav_msgs::Odometry
+  * \param left_msg ros left image message of type sensor_msgs::Image
+  * \param right_msg ros right image message of type sensor_msgs::Image
+  * \param left_info_msg ros left camera info message of type sensor_msgs::Image
+  * \param right_info_msg ros right camera info message of type sensor_msgs::Image
+  */
 void stereo_localization::GraphUpdater::msgsCallback(
 																	const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::ImageConstPtr& left_msg,
