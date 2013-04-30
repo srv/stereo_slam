@@ -32,7 +32,6 @@ class GraphConstructor
     tf::Vector3 previous_position_;
     double max_displacement_;
     bool first_message_;
-    bool basta_;
     int queue_size_;
     boost::shared_ptr<database_interface::PostgresqlDatabase> pg_db_ptr_;
     std::vector< boost::shared_ptr<GraphNodes> > map_nodes_;
@@ -54,7 +53,7 @@ class GraphConstructor
   * \param nhp private node handler
   */
 stereo_localization::GraphConstructor::GraphConstructor(ros::NodeHandle nh, ros::NodeHandle nhp) : 
-nh_(nh), nh_private_(nhp), first_message_(true), basta_(false)
+nh_(nh), nh_private_(nhp), first_message_(true)
 {
 
   // Database parameters
