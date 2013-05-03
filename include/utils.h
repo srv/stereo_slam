@@ -78,9 +78,9 @@ public:
 	static void keypointDetector(const cv::Mat& image, std::vector<cv::KeyPoint>& key_points)
 	{
 		cv::initModule_nonfree();
-		cv::Ptr<cv::FeatureDetector> cv_detector_;
-		cv_detector_ = cv::FeatureDetector::create("SIFT");
-  	cv_detector_->detect(image, key_points);
+		cv::Ptr<cv::FeatureDetector> cv_detector;
+		cv_detector = cv::FeatureDetector::create("SIFT");
+  	cv_detector->detect(image, key_points);
 	}
 
 	/** \brief extract the sift descriptors of some image
@@ -92,37 +92,97 @@ public:
 	static void descriptorExtraction(const cv::Mat& image,
 	 std::vector<cv::KeyPoint>& key_points, cv::Mat& descriptors)
 	{
-	  cv::Ptr<cv::DescriptorExtractor> cv_extractor_;
-	  cv_extractor_ = cv::DescriptorExtractor::create("SIFT");
-	  cv_extractor_->compute(image, key_points, descriptors);
+	  cv::Ptr<cv::DescriptorExtractor> cv_extractor;
+	  cv_extractor = cv::DescriptorExtractor::create("SIFT");
+	  cv_extractor->compute(image, key_points, descriptors);
 	}
 
-	/** \brief round the points of cv::Mat matrix to 6 decimals and return it as std::vector
-  	* @return rounded input matrix as std::vector of doubles
-    * \param input the input cv::Mat
+	/** \brief match descriptors of 2 images by threshold
+  	* @return 
+    * \param descriptors1 descriptors of image1
+    * \param descriptors2 descriptors of image2
+    * \param matches between both descriptors
+    * \param matching_threshold threshold to determine correct matchings
     */
-	static std::vector< std::vector<double> > matrixRound(cv::Mat input)
+	static void thresholdMatching(const cv::Mat& descriptors1, 
+		const cv::Mat& descriptors2, std::vector<cv::DMatch>& matches, 
+		double matching_threshold)
 	{
-		std::vector< std::vector<double> > output;
+		std::vector<std::vector<cv::DMatch> > matches12;
+
+		cv::Ptr<cv::DescriptorMatcher> descriptorMatcher;
+		descriptorMatcher = cv::DescriptorMatcher::create("FlannBased");
+
+	  matches.clear();
+	  matches12.clear();
+	  int knn = 2;
+	  descriptorMatcher->knnMatch(descriptors1, descriptors2, matches12, knn);
+	  for( size_t m = 0; m < matches12.size(); m++ )
+	  {
+	    if (matches12[m].size() == 1)
+	    {
+	      matches.push_back(matches12[m][0]);
+	    }
+	    else if (matches12[m].size() == 2) // normal case
+	    {
+	      if (matches12[m][0].distance / matches12[m][1].distance 
+	          < matching_threshold)
+	      {
+	        matches.push_back(matches12[m][0]);
+	      }
+	    }
+	  }
+	}
+
+	/** \brief convert a matrix of type cv::Mat to std::vector
+  	* @return std::vector matrix
+    * \param input of type cv::Mat
+    */
+	static std::vector< std::vector<float> > cvMatToStdMatrix(cv::Mat input)
+	{
+		int round_zeros = 1000000000;
+
+		std::vector< std::vector<float> > output;
 		for (int i=0; i<input.rows; i++)
 		{
-		  std::vector<double> vec;
+		  std::vector<float> vec;
 		  for (int j=0; j<input.cols; j++)
 		  {
-		    vec.push_back(floor(input.at<double>(i,j) * 1000000) / 1000000);
+		  	float val = round((float)input.at<float>(i,j)*round_zeros)/round_zeros;
+		    vec.push_back(val);
 		  }
 		  output.push_back(vec);
-
-		  /*
-		  // Pointer to the i-th row
-		  const double* p = input.ptr<double>(i);
-		  // Copy data to a vector.  Note that (p + mat.cols) points to the end of the row
-		  std::vector<double> vec(p, p + input.cols);
-		  output.push_back(vec);
-		  */
 		}
 		return output;
 	}
+
+	/** \brief convert a matrix of type std::vector to cv::Mat
+  	* @return cv::Mat matrix
+    * \param input of type std::vector< std::vector<float> >
+    */
+	static cv::Mat stdMatrixToCvMat(std::vector< std::vector<float> > input)
+	{
+		if (input.size() > 0)
+		{
+			std::vector<float> row0 = input[0];
+			cv::Mat output(input.size(), row0.size(), cv::DataType<float>::type);
+
+			for (unsigned int i=0; i<input.size(); i++)
+			{
+				std::vector<float> row = (std::vector<float>)input[i];
+				for (unsigned int j=0; j<row.size(); j++)
+				{
+					output.at<float>(i,j) = (float)row[j];
+				}
+			}
+			return output;
+		}
+		else
+		{
+			cv::Mat empty;
+			return empty;
+		}
+	}	
 };
 
 } // namespace

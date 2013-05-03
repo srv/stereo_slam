@@ -16,24 +16,27 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 #set the default path for built libraries to the "lib" directory
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
-#uncomment if you have defined messages
-#rosbuild_genmsg()
-#uncomment if you have defined services
-#rosbuild_gensrv()
-
-#common commands for building c++ executables and libraries
-#rosbuild_add_library(${PROJECT_NAME} src/example.cpp)
-#target_link_libraries(${PROJECT_NAME} another_library)
-#rosbuild_add_boost_directories()
-#rosbuild_link_boost(${PROJECT_NAME} thread)
-#rosbuild_add_executable(example examples/example.cpp)
-#target_link_libraries(example ${PROJECT_NAME})
-
-#check for libpq's configure tool
-find_program(PG_CONFIG NAMES pg_config DOC "libpq config tool")
-if (NOT PG_CONFIG)
-  message(FATAL_ERROR "Couldn't find pg_config. Is libpq installed?")
-endif(NOT PG_CONFIG)
+#g2o library
+find_package(libg2o REQUIRED)
+include_directories(${EIGEN_INCLUDE_DIRS} ${libg2o_INCLUDE_DIRS})
+include_directories(/usr/include/suitesparse/)
+set(G2O_LIBRARIES cholmod 
+									g2o_cli 
+									g2o_core 
+									g2o_incremental 
+									g2o_interactive 
+									g2o_interface 
+									g2o_parser 
+									g2o_solver_cholmod 
+									g2o_solver_csparse 
+									g2o_solver_dense 
+									g2o_solver_pcg 
+									g2o_stuff 
+									g2o_types_icp 
+									g2o_types_sba 
+									g2o_types_sim3 
+									g2o_types_slam2d 
+									g2o_types_slam3d)
 
 #get the libpq include and lib directories
 execute_process( 
@@ -46,25 +49,23 @@ execute_process(
   ERROR_VARIABLE IGNORE_VAR 
   OUTPUT_VARIABLE PQ_LIB_DIR 
   OUTPUT_STRIP_TRAILING_WHITESPACE)
-
 include(CheckIncludeFiles)
 set(CMAKE_REQUIRED_INCLUDES ${PQ_INCLUDE_DIR})
 check_include_files(libpq-fe.h HAVE_LIBPQ)
-if (NOT HAVE_LIBPQ)
-  message(FATAL_ERROR "Error: PostgreSQL implementation cannot find libpq-fe.h")
-endif(NOT HAVE_LIBPQ)
-
 link_directories(${PQ_LIB_DIR})
 include_directories(${PQ_INCLUDE_DIR})
 
+#add bost directories
 rosbuild_add_boost_directories()
 
+#executables
 rosbuild_add_executable(graph_constructor 
 												src/graph_constructor.cpp)
 
 rosbuild_add_executable(graph_updater 
 												src/graph_updater.cpp)
 
-target_link_libraries(graph_constructor pq)
-rosbuild_link_boost(graph_constructor  signals)
+#link with libraries
+target_link_libraries(graph_constructor pq ${G2O_LIBRARIES})
+rosbuild_link_boost(graph_constructor signals)
 rosbuild_link_boost(graph_updater signals)

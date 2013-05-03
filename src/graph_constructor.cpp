@@ -12,8 +12,17 @@
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
 #include <libpq-fe.h>
+#include <g2o/core/sparse_optimizer.h>
+#include <g2o/core/block_solver.h>
+#include <g2o/solvers/cholmod/linear_solver_cholmod.h>
+#include <g2o/core/optimization_algorithm_gauss_newton.h>
+#include <g2o/types/slam3d/edge_se3.h>
+#include <Eigen/Geometry>
 #include "postgresql_interface.h"
 #include "utils.h"
+
+typedef g2o::BlockSolver< g2o::BlockSolverTraits<-1, -1> >  SlamBlockSolver;
+typedef g2o::LinearSolverCholmod<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
 
 namespace enc = sensor_msgs::image_encodings;
 
@@ -30,12 +39,13 @@ class GraphConstructor
   private:
     void msgsCallback(const nav_msgs::Odometry::ConstPtr& msg,
                       const sensor_msgs::ImageConstPtr& image_msg);
-    tf::Vector3 previous_position_;
+    tf::Transform previous_tf_;
     double max_displacement_;
     bool first_message_;
+    bool first_node_;
     int queue_size_;
+    int node_counter_;
     boost::shared_ptr<database_interface::PostgresqlDatabase> pg_db_ptr_;
-    std::vector< boost::shared_ptr<GraphNodes> > map_nodes_;
     std::string db_host_;
     std::string db_port_;
     std::string db_user_;
@@ -47,6 +57,8 @@ class GraphConstructor
     image_transport::SubscriberFilter image_sub_;
     message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
     PGconn* connection_init_;
+    g2o::SparseOptimizer graph_optimizer_;
+    std::vector<g2o::VertexSE3*> graph_nodes_;
 };
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
@@ -55,7 +67,7 @@ class GraphConstructor
   * \param nhp private node handler
   */
 stereo_localization::GraphConstructor::GraphConstructor(ros::NodeHandle nh, ros::NodeHandle nhp) : 
-nh_(nh), nh_private_(nhp), first_message_(true)
+nh_(nh), nh_private_(nhp), first_message_(true), first_node_(true), node_counter_(0)
 {
 
   // Database parameters
@@ -66,13 +78,13 @@ nh_(nh), nh_private_(nhp), first_message_(true)
   nh_private_.param<std::string>("db_name", db_name_, "graph");
 
   // Functional parameters
-  nh_private_.param("max_displacement", max_displacement_, 0.5);
+  nh_private_.param("max_displacement", max_displacement_, 0.2);
   nh_private_.param("queue_size", queue_size_, 5);
 
   // Topic parameters
-  std::string image_topic, odom_topic;
-  nh_private_.param("image_topic", image_topic, std::string("/left/image_rect_color"));
+  std::string odom_topic, image_topic;
   nh_private_.param("odom_topic", odom_topic, std::string("/odometry"));
+  nh_private_.param("image_topic", image_topic, std::string("/left/image_rect_color"));
 
   // Topics subscriptions
   image_transport::ImageTransport it(nh_);
@@ -82,6 +94,13 @@ nh_(nh), nh_private_(nhp), first_message_(true)
   exact_sync_->registerCallback(boost::bind(
                   &stereo_localization::GraphConstructor::msgsCallback, 
                   this, _1, _2));
+
+  // Initialize the g2o graph optimizer
+  SlamLinearSolver* linearSolver = new SlamLinearSolver();
+  linearSolver->setBlockOrdering(false);
+  SlamBlockSolver* blockSolver = new SlamBlockSolver(linearSolver);
+  g2o::OptimizationAlgorithmGaussNewton* solverGauss = new g2o::OptimizationAlgorithmGaussNewton(blockSolver);
+  graph_optimizer_.setAlgorithm(solverGauss);
 
   // Database initialization
   boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr( 
@@ -110,10 +129,6 @@ nh_(nh), nh_private_(nhp), first_message_(true)
       std::string query_create("CREATE TABLE IF NOT EXISTS graph_nodes"
                         "( "
                           "id bigserial primary key, "
-                          "pose_x double precision NOT NULL, "
-                          "pose_y double precision NOT NULL, "
-                          "pose_z double precision NOT NULL, "
-                          "pose_rotation double precision[4] NOT NULL, "
                           "descriptors double precision[][] "
                         ")");
       PQexec(connection_init_, query_create.c_str());
@@ -137,26 +152,31 @@ void stereo_localization::GraphConstructor::msgsCallback(
                                   const sensor_msgs::ImageConstPtr& image_msg)
 {
 
-  // Get the current odometry for this images
-  tf::Vector3 current_position = tf::Vector3( odom_msg->pose.pose.position.x,
-                                              odom_msg->pose.pose.position.y,
-                                              odom_msg->pose.pose.position.z);
+  // Get the current odometry for these images
+  tf::Vector3 tf_trans( odom_msg->pose.pose.position.x,
+                        odom_msg->pose.pose.position.y,
+                        odom_msg->pose.pose.position.z);
+  tf::Quaternion tf_q(  odom_msg->pose.pose.orientation.x,
+                        odom_msg->pose.pose.orientation.y,
+                        odom_msg->pose.pose.orientation.z,
+                        odom_msg->pose.pose.orientation.w);
+  tf::Transform current_tf(tf_q, tf_trans);
 
   // First message
-  if(first_message_)
+  if (first_message_)
   {
-    previous_position_ = current_position;
+    // Save the transform
+    previous_tf_ = current_tf;
     first_message_ = false;
   }
   else
   {
     // Check if difference between images is larger than maximum displacement
-    tf::Vector3 d = current_position - previous_position_;
+    tf::Vector3 d = current_tf.getOrigin() - previous_tf_.getOrigin();
     double norm = sqrt(d.x()*d.x() + d.y()*d.y() + d.z()*d.z());
-    if(norm > max_displacement_)
+    if (norm > max_displacement_)
     {
       // The image properties and pose must be saved into the database
-      ROS_INFO_STREAM("[GraphConstructor:] Odometry threshold passed. Displacement from previous is " << norm);
       
       // Convert message to cv::Mat
       cv_bridge::CvImagePtr cv_ptr;
@@ -172,36 +192,79 @@ void stereo_localization::GraphConstructor::msgsCallback(
 
       // Extract keypoints and descriptors of image
       std::vector<cv::KeyPoint> key_points;
-      cv::Mat descriptors;
+      cv::Mat descriptors = cv::Mat_<std::vector<float> >();
       stereo_localization::Utils::keypointDetector(cv_ptr->image, key_points);
       stereo_localization::Utils::descriptorExtraction(cv_ptr->image, key_points, descriptors);
       ROS_INFO_STREAM("[GraphConstructor:] Descriptor size: " << descriptors.rows << ", " << descriptors.cols);
 
-      // Round and transform descriptors to std::vector
-      std::vector< std::vector<double> > descriptors_std = stereo_localization::Utils::matrixRound(descriptors);
+      // Transform descriptors to std::vector
+      std::vector< std::vector<float> > descriptors_std = 
+      stereo_localization::Utils::cvMatToStdMatrix(descriptors);
 
-      // Save node into the database
-      std::vector<double> rot;
-      rot.push_back(odom_msg->pose.pose.orientation.x);
-      rot.push_back(odom_msg->pose.pose.orientation.y);
-      rot.push_back(odom_msg->pose.pose.orientation.z);
-      rot.push_back(odom_msg->pose.pose.orientation.w);
-      stereo_localization::GraphNodes new_node;
-      new_node.pose_x_.data() = current_position.x();
-      new_node.pose_y_.data() = current_position.y();
-      new_node.pose_z_.data() = current_position.z();
-      new_node.pose_rotation_.data() = rot;
-      new_node.descriptors_.data() = descriptors_std;
-
-      if (!pg_db_ptr_->insertIntoDatabase(&new_node))
+      // Save node descriptors into the database
+      stereo_localization::GraphNodes node_data;
+      node_data.descriptors_.data() = descriptors_std;
+      if (!pg_db_ptr_->insertIntoDatabase(&node_data))
       {
         ROS_ERROR("[GraphConstructor:] Node insertion failed");
       }
       else
       {
-        // Save previous
-        previous_position_ = current_position;
-        ROS_INFO("[GraphConstructor:] Node insertion succeeded");
+        // Everything is ok, save the node into the graph
+
+        // Build the pose
+        Eigen::Vector3d t(    odom_msg->pose.pose.position.x,
+                              odom_msg->pose.pose.position.y,
+                              odom_msg->pose.pose.position.z);
+        Eigen::Quaterniond q( odom_msg->pose.pose.orientation.x,
+                              odom_msg->pose.pose.orientation.y,
+                              odom_msg->pose.pose.orientation.z,
+                              odom_msg->pose.pose.orientation.w);
+        g2o::SE3Quat pose(q,t);
+
+        // Build the node
+        g2o::VertexSE3* v_se3 = new g2o::VertexSE3();
+        v_se3->setId(node_data.id_.data());
+        v_se3->setEstimate(pose);
+        if (first_node_)
+        {
+          // First time, no edges.
+          v_se3->setFixed(true);
+          graph_optimizer_.addVertex(v_se3);
+          first_node_ = false;
+        }
+        else
+        {
+          // When graph has been initialized get the transform between current and previous pose
+          // and save it as an edge
+          tf::Transform tfCurrentToPrevious = current_tf.inverseTimes(previous_tf_);
+          tf::Vector3 tCurrentToPrevious = tfCurrentToPrevious.getOrigin();
+          tf::Quaternion qCurrentToPrevious = tfCurrentToPrevious.getRotation();
+          Eigen::Vector3d t_e(    tCurrentToPrevious.x(),
+                                  tCurrentToPrevious.y(),
+                                  tCurrentToPrevious.z());
+          Eigen::Quaterniond q_e( qCurrentToPrevious.x(),
+                                  qCurrentToPrevious.y(),
+                                  qCurrentToPrevious.z(),
+                                  qCurrentToPrevious.w());
+          g2o::SE3Quat transform(q_e,t_e);
+
+          // Create new edge
+          g2o::EdgeSE3* edge = new g2o::EdgeSE3();
+          edge->setVertex(0, v_se3);
+          edge->setVertex(1, graph_nodes_.at(node_counter_));
+          edge->setMeasurement(transform);
+          graph_optimizer_.addEdge(edge);
+        }
+        
+        // Save the node into vector
+        graph_nodes_.push_back(v_se3);
+        node_counter_++;
+
+        // Save the transform
+        previous_tf_ = current_tf;
+
+        ROS_INFO_STREAM("[GraphConstructor:] Node " << node_data.id_.data() << " insertion succeeded");
       }
     }
   }

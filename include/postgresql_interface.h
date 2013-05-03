@@ -3,7 +3,6 @@
 
 #include <string>
 #include <database_interface/db_class.h>
-#include <opencv2/features2d/features2d.hpp>
 
 namespace stereo_localization
 {
@@ -15,24 +14,11 @@ public:
 
   // Table columns
   database_interface::DBField<int> id_;
-
-  database_interface::DBField<double> pose_x_;
-  database_interface::DBField<double> pose_y_;
-  database_interface::DBField<double> pose_z_;
-  database_interface::DBField< std::vector<double> > pose_rotation_;
-  database_interface::DBField< std::vector< std::vector<double> > > descriptors_;  
+  database_interface::DBField< std::vector< std::vector<float> > > descriptors_;  
 
   GraphNodes() : 
     id_(database_interface::DBFieldBase::TEXT, 
 		this, "id", "graph_nodes", true),
-    pose_x_(database_interface::DBFieldBase::TEXT, 
-		    this, "pose_x", "graph_nodes", true),
-    pose_y_(database_interface::DBFieldBase::TEXT, 
-        this, "pose_y", "graph_nodes", true),
-    pose_z_(database_interface::DBFieldBase::TEXT, 
-        this, "pose_z", "graph_nodes", true),
-    pose_rotation_(database_interface::DBFieldBase::TEXT, 
-        this, "pose_rotation", "graph_nodes", true),
     descriptors_(database_interface::DBFieldBase::TEXT, 
         this, "descriptors", "graph_nodes", true)
   {
@@ -40,10 +26,6 @@ public:
     primary_key_field_ = &id_;
 
     // All other fields go into the fields_ array of the DBClass
-    fields_.push_back(&pose_x_);
-    fields_.push_back(&pose_y_);
-    fields_.push_back(&pose_z_);
-    fields_.push_back(&pose_rotation_);
     fields_.push_back(&descriptors_);
 
     //optional: let all fields be read automatically when an instance 
