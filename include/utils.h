@@ -8,6 +8,8 @@
 #include <std_msgs/Float32.h>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/nonfree/nonfree.hpp>
+#include <g2o/types/slam3d/edge_se3.h>
+#include <image_geometry/stereo_camera_model.h>
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 
@@ -70,8 +72,8 @@ public:
 		return centroid;
 	}
 
-	/** \brief extract the keypoints of some image
-  	* @return 
+  /** \brief extract the keypoints of some image
+    * @return 
     * \param image the source image
     * \param key_points is the pointer for the resulting image key_points
     */
@@ -83,8 +85,8 @@ public:
   	cv_detector->detect(image, key_points);
 	}
 
-	/** \brief extract the sift descriptors of some image
-  	* @return 
+  /** \brief extract the sift descriptors of some image
+    * @return 
     * \param image the source image
     * \param key_points keypoints of the source image
     * \param descriptors is the pointer for the resulting image descriptors
@@ -97,8 +99,8 @@ public:
 	  cv_extractor->compute(image, key_points, descriptors);
 	}
 
-	/** \brief match descriptors of 2 images by threshold
-  	* @return 
+  /** \brief match descriptors of 2 images by threshold
+    * @return 
     * \param descriptors1 descriptors of image1
     * \param descriptors2 descriptors of image2
     * \param matches between both descriptors
@@ -135,7 +137,58 @@ public:
 	}
 
 	/** \brief convert a matrix of type cv::Mat to std::vector
-  	* @return std::vector matrix
+	  * @return std::vector matrix
+	  * \param input of type cv::Mat
+	  */
+	static void calculate3DPoint(	const image_geometry::StereoCameraModel stereo_camera_model,
+																const cv::Point2d& left_point, 
+																const cv::Point2d& right_point, 
+																cv::Point3d& world_point)
+	{
+	  double disparity = left_point.x - right_point.x;
+	  stereo_camera_model.projectDisparityTo3d(left_point, disparity, world_point);
+	}
+
+  /** \brief convert a matrix of type std::vector<cv::Point3f> to std::vector
+    * @return std::vector< std::vector<float> > matrix
+    * \param input of type std::vector<cv::Point3f>
+    */
+	static std::vector< std::vector<float> > cvPoint3fToStdMatrix(std::vector<cv::Point3f> input)
+	{
+		std::vector< std::vector<float> > output;
+		for (unsigned int i=0; i<input.size(); i++)
+		{
+		  cv::Point3f point = input[i];
+		  std::vector<float> p_std;
+		  p_std[0] = point.x;
+		  p_std[1] = point.y;
+		  p_std[2] = point.z;
+		  output.push_back(p_std);
+		}
+		return output;
+	}
+
+	  /** \brief convert a matrix of type std::vector to std::vector<cv::Point3f>
+	    * @return std::vector<cv::Point3f> matrix
+	    * \param input of type std::vector
+	    */
+		static std::vector<cv::Point3f>stdMatrixToCvPoint3f(std::vector< std::vector<float> > input)
+		{
+			std::vector<cv::Point3f> output;
+			for (unsigned int i=0; i<input.size(); i++)
+			{
+				std::vector<float> point = input[i];
+			  cv::Point3f p_cv;
+			  p_cv.x = point[0];
+			  p_cv.y = point[1];
+			  p_cv.z = point[2];
+			  output.push_back(p_cv);
+			}
+			return output;
+		}
+
+  /** \brief convert a matrix of type cv::Mat to std::vector
+    * @return std::vector matrix
     * \param input of type cv::Mat
     */
 	static std::vector< std::vector<float> > cvMatToStdMatrix(cv::Mat input)
@@ -156,8 +209,8 @@ public:
 		return output;
 	}
 
-	/** \brief convert a matrix of type std::vector to cv::Mat
-  	* @return cv::Mat matrix
+  /** \brief convert a matrix of type std::vector to cv::Mat
+    * @return cv::Mat matrix
     * \param input of type std::vector< std::vector<float> >
     */
 	static cv::Mat stdMatrixToCvMat(std::vector< std::vector<float> > input)
@@ -182,7 +235,62 @@ public:
 			cv::Mat empty;
 			return empty;
 		}
-	}	
+	}
+
+	/** \brief convert a tf::transform to Eigen::Isometry3d
+	  * @return Eigen::Isometry3d matrix
+	  * \param in of type tf::transform
+	  */
+	static Eigen::Isometry3d tfToEigen(tf::Transform in)
+	{
+		tf::Vector3 t_in = in.getOrigin();
+		tf::Quaternion q_in = in.getRotation();
+		Eigen::Vector3d t_out(t_in.x(), t_in.y(), t_in.z());
+		Eigen::Quaterniond q_out;
+		q_out.x() = q_in.x();
+		q_out.y() = q_in.y();
+		q_out.z() = q_in.z();
+		q_out.w() = q_in.w();
+		Eigen::Isometry3d out = (Eigen::Isometry3d)q_out;
+		out.translation() = t_out;
+		return out;
+	}
+
+	/** \brief convert a Eigen::Isometry3d to tf::transform
+	  * @return tf::transform matrix
+	  * \param in of type Eigen::Isometry3d
+	  */
+	static tf::Transform eigenToTf(Eigen::Isometry3d in)
+	{
+		Eigen::Vector3d t_in = in.translation();
+		Eigen::Quaterniond q_in = (Eigen::Quaterniond)in.rotation();
+		tf::Vector3 t_out(t_in.x(), t_in.y(), t_in.z());
+		tf::Quaternion q_out(q_in.x(), q_in.y(), q_in.z(), q_in.w());
+		tf::Transform out(q_out, t_out);
+		return out;
+	}
+
+  /** \brief get the pose of node in format tf::Transform
+    * @return tf::Transform pose matrix
+    * \param node of type g2o::VertexSE3
+    */
+  static tf::Transform getNodePose(g2o::VertexSE3* node)
+  {
+  	Eigen::Isometry3d pose_eigen = node->estimate();
+  	tf::Transform pose_tf = stereo_localization::Utils::eigenToTf(pose_eigen);
+  	return pose_tf;
+  }
+
+  /** \brief compute the absolute diference between 2 poses
+    * @return the norm between two poses
+    * \param pose_1 transformation matrix of pose 1
+    * \param pose_2 transformation matrix of pose 2
+    */
+  static double poseDiff(tf::Transform pose_1, tf::Transform pose_2)
+  {
+  	tf::Vector3 d = pose_1.getOrigin() - pose_2.getOrigin();
+  	return sqrt(d.x()*d.x() + d.y()*d.y() + d.z()*d.z());
+  }
 };
 
 } // namespace

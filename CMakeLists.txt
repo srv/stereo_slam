@@ -62,10 +62,6 @@ rosbuild_add_boost_directories()
 rosbuild_add_executable(graph_constructor 
 												src/graph_constructor.cpp)
 
-rosbuild_add_executable(graph_updater 
-												src/graph_updater.cpp)
-
 #link with libraries
 target_link_libraries(graph_constructor pq ${G2O_LIBRARIES})
 rosbuild_link_boost(graph_constructor signals)
-rosbuild_link_boost(graph_updater signals)
