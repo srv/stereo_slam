@@ -149,6 +149,42 @@ public:
 	  stereo_camera_model.projectDisparityTo3d(left_point, disparity, world_point);
 	}
 
+	  /** \brief convert a matrix of type std::vector<cv::KeyPoint> to std::vector
+	    * @return std::vector< std::vector<float> > matrix
+	    * \param input of type std::vector<cv::KeyPoint>
+	    */
+		static std::vector< std::vector<float> > cvPoint2fToStdMatrix(std::vector<cv::Point2f> input)
+		{
+			std::vector< std::vector<float> > output;
+			for (unsigned int i=0; i<input.size(); i++)
+			{
+			  cv::Point2f point = input[i];
+			  std::vector<float> p_std(2);
+			  p_std[0] = point.x;
+			  p_std[1] = point.y;
+			  output.push_back(p_std);
+			}
+			return output;
+		}
+
+	  /** \brief convert a matrix of type std::vector to std::vector<cv::Point2f>
+	    * @return std::vector<cv::Point2f> matrix
+	    * \param input of type std::vector
+	    */
+		static std::vector<cv::Point2f>stdMatrixToCvPoint2f(std::vector< std::vector<float> > input)
+		{
+			std::vector<cv::Point2f> output;
+			for (unsigned int i=0; i<input.size(); i++)
+			{
+				std::vector<float> point = input[i];
+			  cv::Point2f p_cv;
+			  p_cv.x = point[0];
+			  p_cv.y = point[1];
+			  output.push_back(p_cv);
+			}
+			return output;
+		}
+
   /** \brief convert a matrix of type std::vector<cv::Point3f> to std::vector
     * @return std::vector< std::vector<float> > matrix
     * \param input of type std::vector<cv::Point3f>
@@ -159,7 +195,7 @@ public:
 		for (unsigned int i=0; i<input.size(); i++)
 		{
 		  cv::Point3f point = input[i];
-		  std::vector<float> p_std;
+		  std::vector<float> p_std(3);
 		  p_std[0] = point.x;
 		  p_std[1] = point.y;
 		  p_std[2] = point.z;
@@ -168,24 +204,24 @@ public:
 		return output;
 	}
 
-	  /** \brief convert a matrix of type std::vector to std::vector<cv::Point3f>
-	    * @return std::vector<cv::Point3f> matrix
-	    * \param input of type std::vector
-	    */
-		static std::vector<cv::Point3f>stdMatrixToCvPoint3f(std::vector< std::vector<float> > input)
+  /** \brief convert a matrix of type std::vector to std::vector<cv::Point3f>
+    * @return std::vector<cv::Point3f> matrix
+    * \param input of type std::vector
+    */
+	static std::vector<cv::Point3f>stdMatrixToCvPoint3f(std::vector< std::vector<float> > input)
+	{
+		std::vector<cv::Point3f> output;
+		for (unsigned int i=0; i<input.size(); i++)
 		{
-			std::vector<cv::Point3f> output;
-			for (unsigned int i=0; i<input.size(); i++)
-			{
-				std::vector<float> point = input[i];
-			  cv::Point3f p_cv;
-			  p_cv.x = point[0];
-			  p_cv.y = point[1];
-			  p_cv.z = point[2];
-			  output.push_back(p_cv);
-			}
-			return output;
+			std::vector<float> point = input[i];
+		  cv::Point3f p_cv;
+		  p_cv.x = point[0];
+		  p_cv.y = point[1];
+		  p_cv.z = point[2];
+		  output.push_back(p_cv);
 		}
+		return output;
+	}
 
   /** \brief convert a matrix of type cv::Mat to std::vector
     * @return std::vector matrix
@@ -291,6 +327,28 @@ public:
   	tf::Vector3 d = pose_1.getOrigin() - pose_2.getOrigin();
   	return sqrt(d.x()*d.x() + d.y()*d.y() + d.z()*d.z());
   }
+
+  /** \brief compose the transformation matrix using 2 cv::Mat as inputs:
+  	* one for rotation and one for translation
+    * @return the trasnformation matrix
+    * \param rvec cv matrix with the rotation angles
+    * \param tvec cv matrix with the transformation x y z
+    */
+  static tf::Transform buildTransformation(cv::Mat rvec, cv::Mat tvec)
+	{
+	  if (rvec.empty() || tvec.empty())
+	    return tf::Transform();
+
+	  tf::Vector3 axis(rvec.at<double>(0, 0), rvec.at<double>(1, 0), 
+	      rvec.at<double>(2, 0));
+	  double angle = cv::norm(rvec);
+	  tf::Quaternion quaternion(axis, angle);
+
+	  tf::Vector3 translation(tvec.at<double>(0, 0), tvec.at<double>(1, 0), 
+	      tvec.at<double>(2, 0));
+
+	  return tf::Transform(quaternion, translation);
+	}
 };
 
 } // namespace

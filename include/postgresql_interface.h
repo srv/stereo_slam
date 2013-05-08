@@ -14,12 +14,15 @@ public:
 
   // Table columns
   database_interface::DBField<int> id_;
+  database_interface::DBField< std::vector< std::vector<float> > > keypoints_;
   database_interface::DBField< std::vector< std::vector<float> > > descriptors_;
   database_interface::DBField< std::vector< std::vector<float> > > points3d_;
 
   GraphNodes() : 
     id_(database_interface::DBFieldBase::TEXT, 
 		this, "id", "graph_nodes", true),
+    keypoints_(database_interface::DBFieldBase::TEXT, 
+        this, "keypoints", "graph_nodes", true),
     descriptors_(database_interface::DBFieldBase::TEXT, 
         this, "descriptors", "graph_nodes", true),
     points3d_(database_interface::DBFieldBase::TEXT, 
@@ -29,6 +32,7 @@ public:
     primary_key_field_ = &id_;
 
     // All other fields go into the fields_ array of the DBClass
+    fields_.push_back(&keypoints_);
     fields_.push_back(&descriptors_);
     fields_.push_back(&points3d_);
 
