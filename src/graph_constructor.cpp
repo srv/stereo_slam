@@ -56,9 +56,11 @@ class GraphConstructor
     bool first_message_;
     bool first_node_;
     bool block_update_;
+    bool go2_verbose_;
     int queue_size_;
     int ids_;
     int last_pub_pose_;
+    int go2_opt_max_iter_;
     image_geometry::StereoCameraModel stereo_camera_model_;
     cv::Mat camera_matrix_;
     boost::shared_ptr<database_interface::PostgresqlDatabase> pg_db_ptr_;
@@ -90,6 +92,7 @@ class GraphConstructor
     g2o::SparseOptimizer graph_optimizer_;
     g2o::VertexSE3* prev_node_;
     ros::WallTimer timer_;
+    std::vector<cv::Point2i> false_candidates_;
 };
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
@@ -121,10 +124,14 @@ nh_(nh), nh_private_(nhp)
   nh_private_.param("candidate_threshold", candidate_threshold_, 0.51);
   nh_private_.param("descriptors_threshold", descriptors_threshold_, 0.8);
   nh_private_.param("matches_threshold", matches_threshold_, 70);
-  nh_private_.param("queue_size", queue_size_, 5);
+
+  // G2O parameters
+  nh_private_.param("go2_verbose", go2_verbose_, false);
+  nh_private_.param("go2_opt_max_iter", go2_opt_max_iter_, 10);
 
   // Topic parameters
   std::string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic;
+  nh_private_.param("queue_size", queue_size_, 5);
   nh_private_.param("odom_topic", odom_topic, std::string("/odometry"));
   nh_private_.param("left_topic", left_topic, std::string("/left/image_rect_color"));
   nh_private_.param("right_topic", right_topic, std::string("/right/image_rect_color"));
@@ -421,10 +428,14 @@ void stereo_localization::GraphConstructor::timerCallback(const ros::WallTimerEv
         }
       }
 
+      // Check if this have been discarted previously
+      bool false_cand = stereo_localization::Utils::searchFalseCandidates(false_candidates_, v_i->id(), v_j->id());
+
       // If no edges found connecting this nodes, try to find loop closures
-      if (!edge_found && stereo_localization::Utils::poseDiff(pose_i, pose_j) < candidate_threshold_)
+      if (!false_cand && 
+          !edge_found && stereo_localization::Utils::poseDiff(pose_i, pose_j) < candidate_threshold_)
       {
-        // Get the descriptors of both nodes from database
+        // Get the data of both nodes from database
         std::string where_i = "(id = " + boost::lexical_cast<std::string>(v_i->id() + 1) + ")";
         std::string where_j = "(id = " + boost::lexical_cast<std::string>(v_j->id() + 1) + ")";
         std::vector< boost::shared_ptr<stereo_localization::GraphNodes> > nodes_i;
@@ -485,6 +496,15 @@ void stereo_localization::GraphConstructor::timerCallback(const ros::WallTimerEv
           }
         }
       }
+      else
+      {
+        // Bad candidate, save to prevent future processes
+        if (!false_cand)
+        {
+          cv::Point2i nodes(v_i->id(), v_j->id());
+          false_candidates_.push_back(nodes);
+        }
+      }
     }
   }
 
@@ -492,8 +512,8 @@ void stereo_localization::GraphConstructor::timerCallback(const ros::WallTimerEv
   {
     ROS_INFO("[GraphConstructor:] Optimizing global pose graph...");
     graph_optimizer_.initializeOptimization();
-    graph_optimizer_.setVerbose(false);
-    graph_optimizer_.optimize(10);
+    graph_optimizer_.setVerbose(go2_verbose_);
+    graph_optimizer_.optimize(go2_opt_max_iter_);
     ROS_INFO("[GraphConstructor:] Optimization done.");
   }
 

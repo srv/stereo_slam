@@ -349,6 +349,28 @@ public:
 
 	  return tf::Transform(quaternion, translation);
 	}
+
+  /** \brief seach correspondences between nodes and false candidates
+    * @return true if nodes have been found in false candidates vector, false otherwise
+    * \param false_candidates vector with the ids of false candidates
+    * \param id_i id of node i
+    * \param id_j id of node j
+    */
+  static bool searchFalseCandidates(std::vector<cv::Point2i> false_candidates, int id_i, int id_j)
+	{
+		bool found = false;
+	  for (unsigned int i=0; i<false_candidates.size(); i++)
+	  {
+	  	cv::Point2i nodes = false_candidates[i];
+	  	if ( (nodes.x == id_i && nodes.y == id_j) ||
+	  			 (nodes.x == id_j && nodes.y == id_i) )
+	  	{
+	  		found = true;
+	  		break;
+	  	}
+	  }
+	  return found;
+	}
 };
 
 } // namespace
