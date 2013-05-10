@@ -293,22 +293,37 @@ void stereo_localization::StereoLocalizationBase::timerCallback(const ros::WallT
               // Good! Loop closure, get the transformation matrix
               tf::Transform cl_edge = stereo_localization::Utils::buildTransformation(rvec, tvec);
 
-              // Add the new edge to graph
-              g2o::EdgeSE3* e = new g2o::EdgeSE3();
-              Eigen::Isometry3d t = stereo_localization::Utils::tfToEigen(cl_edge);
-              e->setVertex(0, v_j);
-              e->setVertex(1, v_i);
-              e->setMeasurement(t);
-              graph_optimizer_.addEdge(e);
-              edge_added = true;
+              // To prevent for possible errors, compare previous transform with the new edge found
+              Eigen::Isometry3d t = v_i->estimate().inverse() * v_j->estimate();
+              tf::Transform cl_edge_prev = stereo_localization::Utils::eigenToTf(t);
 
-              ROS_INFO_STREAM("[StereoLocalization:] Loop closed between nodes " << v_i->id() << " and " << v_j->id());
+              if (stereo_localization::Utils::poseDiff(cl_edge, cl_edge_prev) < max_edge_error_)
+              {
+                // Add the new edge to graph
+                g2o::EdgeSE3* e = new g2o::EdgeSE3();
+                Eigen::Isometry3d t = stereo_localization::Utils::tfToEigen(cl_edge);
+                e->setVertex(0, v_j);
+                e->setVertex(1, v_i);
+                e->setMeasurement(t);
+                graph_optimizer_.addEdge(e);
+                edge_added = true;
+
+                ROS_INFO_STREAM("[StereoLocalization:] Loop closed between nodes " << v_i->id() << " and " << v_j->id());
+              }
+            }
+            else
+            {
+              is_false = true;
             }
           }
           else
           {
             is_false = true;
           }
+        }
+        else
+        {
+          is_false = true;
         }
       }
       else
@@ -373,6 +388,7 @@ void stereo_localization::StereoLocalizationBase::readParameters()
   nh_private_.param("max_inliers", max_inliers_, 2000);
   nh_private_.param("max_solvepnp_iter", max_solvepnp_iter_, 1000);
   nh_private_.param("allowed_reprojection_error", allowed_reprojection_error_, 5.0);
+  nh_private_.param("max_edge_error", max_edge_error_, 100.0);
   nh_private_.param("stereo_vision_verbose", stereo_vision_verbose_, false);
 
   // G2O parameters

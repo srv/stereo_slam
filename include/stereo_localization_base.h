@@ -86,6 +86,7 @@ private:
   int max_inliers_;                 //!> Maximum number of inliers for solvePnPRansac, stop if more inliers than this are found.
   int max_solvepnp_iter_;           //!> Maximum number of interations of the solvePnPRansac algorithm.
   double allowed_reprojection_error_; //!> Maximum reprojection error allowd in solvePnPRansa algorithm.
+  double max_edge_error_;           //!> Maximum pose difference to take the new edge as valid.
   bool stereo_vision_verbose_;      //!> True to output the messages of stereo matching process, false otherwise.
   image_geometry::StereoCameraModel 
   	stereo_camera_model_;						//!> Object to save the image camera model
