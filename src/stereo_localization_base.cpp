@@ -81,14 +81,14 @@ void stereo_localization::StereoLocalizationBase::msgsCallback(
     std::vector<cv::KeyPoint> l_kp, r_kp;
     cv::Mat l_desc = cv::Mat_<std::vector<float> >();
     cv::Mat r_desc = cv::Mat_<std::vector<float> >();
-    stereo_localization::Utils::keypointDetector(l_ptr->image, l_kp);
-    stereo_localization::Utils::keypointDetector(r_ptr->image, r_kp);
-    stereo_localization::Utils::descriptorExtraction(l_ptr->image, l_kp, l_desc);
-    stereo_localization::Utils::descriptorExtraction(r_ptr->image, r_kp, r_desc);
+    stereo_localization::Utils::keypointDetector(l_ptr->image, l_kp, descriptor_type_);
+    stereo_localization::Utils::keypointDetector(r_ptr->image, r_kp, descriptor_type_);
+    stereo_localization::Utils::descriptorExtraction(l_ptr->image, l_kp, l_desc, descriptor_type_);
+    stereo_localization::Utils::descriptorExtraction(r_ptr->image, r_kp, r_desc, descriptor_type_);
 
     // Find matching between stereo images
     std::vector<cv::DMatch> matches;
-    stereo_localization::Utils::thresholdMatching(l_desc, r_desc, matches, descriptors_threshold_);
+    stereo_localization::Utils::thresholdMatching(l_desc, r_desc, matches, descriptor_threshold_);
 
     // Compute 3D points
     std::vector<cv::Point2f> matched_keypoints;
@@ -228,6 +228,7 @@ void stereo_localization::StereoLocalizationBase::timerCallback(const ros::WallT
       }
 
       // Check if this have been discarted previously
+      bool is_false = false;
       bool false_cand = stereo_localization::Utils::searchFalseCandidates(false_candidates_, v_i->id(), v_j->id());
 
       // If no edges found connecting this nodes, try to find loop closures
@@ -250,7 +251,12 @@ void stereo_localization::StereoLocalizationBase::timerCallback(const ros::WallT
 
           // Compute matchings
           std::vector<cv::DMatch> matches;
-          stereo_localization::Utils::thresholdMatching(desc_i, desc_j, matches, descriptors_threshold_);
+          stereo_localization::Utils::thresholdMatching(desc_i, desc_j, matches, descriptor_threshold_);
+
+          if (stereo_vision_verbose_)
+            ROS_INFO_STREAM("[StereoLocalization:] Found " << matches.size() <<
+               " matches between nodes " << v_i->id() << " and " << v_j->id() <<
+               " (matches_threshold is: " << matches_threshold_ << ")");
 
           if ((int)matches.size() > matches_threshold_)
           {
@@ -274,9 +280,15 @@ void stereo_localization::StereoLocalizationBase::timerCallback(const ros::WallT
             std::vector<int> inliers;
             cv::solvePnPRansac(matched_3d_points, matched_keypoints, camera_matrix_, 
                                cv::Mat(), rvec, tvec, false, 
-                               1000, 5.0, 10000, inliers);
+                               max_solvepnp_iter_, allowed_reprojection_error_, 
+                               max_inliers_, inliers);
 
-            if (static_cast<int>(inliers.size()) >= 10)
+            if (stereo_vision_verbose_)
+              ROS_INFO_STREAM("[StereoLocalization:] Found " << inliers.size() <<
+               " inliers between nodes " << v_i->id() << " and " << v_j->id() <<
+               " (min_inliers is: " << min_inliers_ << ")");
+
+            if (static_cast<int>(inliers.size()) >= min_inliers_)
             {
               // Good! Loop closure, get the transformation matrix
               tf::Transform cl_edge = stereo_localization::Utils::buildTransformation(rvec, tvec);
@@ -293,16 +305,22 @@ void stereo_localization::StereoLocalizationBase::timerCallback(const ros::WallT
               ROS_INFO_STREAM("[StereoLocalization:] Loop closed between nodes " << v_i->id() << " and " << v_j->id());
             }
           }
+          else
+          {
+            is_false = true;
+          }
         }
       }
       else
       {
-        // Bad candidate, save to prevent future processes
-        if (!false_cand)
-        {
-          cv::Point2i nodes(v_i->id(), v_j->id());
-          false_candidates_.push_back(nodes);
-        }
+        is_false = true;
+      }
+
+      // Bad candidate, save to prevent future processes
+      if (is_false && !false_cand)
+      {
+        cv::Point2i nodes(v_i->id(), v_j->id());
+        false_candidates_.push_back(nodes);
       }
     }
   }
@@ -348,8 +366,14 @@ void stereo_localization::StereoLocalizationBase::readParameters()
   nh_private_.param("update_rate", update_rate_, 0.5);
   nh_private_.param("min_displacement", min_displacement_, 0.5);
   nh_private_.param("min_candidate_threshold", min_candidate_threshold_, 0.51);
-  nh_private_.param("descriptors_threshold", descriptors_threshold_, 0.8);
+  nh_private_.param("descriptor_threshold", descriptor_threshold_, 0.8);
+  nh_private_.param<std::string>("descriptor_type", descriptor_type_, "SIFT");
   nh_private_.param("matches_threshold", matches_threshold_, 70);
+  nh_private_.param("min_inliers", min_inliers_, 10);
+  nh_private_.param("max_inliers", max_inliers_, 2000);
+  nh_private_.param("max_solvepnp_iter", max_solvepnp_iter_, 1000);
+  nh_private_.param("allowed_reprojection_error", allowed_reprojection_error_, 5.0);
+  nh_private_.param("stereo_vision_verbose", stereo_vision_verbose_, false);
 
   // G2O parameters
   nh_private_.param("g2o_algorithm", g2o_algorithm_, 0);

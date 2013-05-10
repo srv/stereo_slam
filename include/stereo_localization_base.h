@@ -78,9 +78,15 @@ private:
   std::vector<cv::Point2i> 
   	false_candidates_;							//!> Vector of detected false candidates to prevent re-calculation.
 
-  // Computer vision properties
-  double descriptors_threshold_;		//!> Matching descriptors threshold used to find loop closures between images.
+  // stereo vision properties
+  double descriptor_threshold_;		  //!> Matching descriptors threshold used to find loop closures between images.
+  std::string descriptor_type_;     //!> Can be: "FAST", "STAR", "SIFT", "SURF", "ORB", "BRISK", "MSER", "GFTT", "HARRIS", "Dense", "SimpleBlob".
   int matches_threshold_;						//!> Minimum number of matches to consider that there is overlap between two images.
+  int min_inliers_;                 //!> Minimum number of inliers found by solvePnPRansac to take into account the edge in the graph.
+  int max_inliers_;                 //!> Maximum number of inliers for solvePnPRansac, stop if more inliers than this are found.
+  int max_solvepnp_iter_;           //!> Maximum number of interations of the solvePnPRansac algorithm.
+  double allowed_reprojection_error_; //!> Maximum reprojection error allowd in solvePnPRansa algorithm.
+  bool stereo_vision_verbose_;      //!> True to output the messages of stereo matching process, false otherwise.
   image_geometry::StereoCameraModel 
   	stereo_camera_model_;						//!> Object to save the image camera model
   cv::Mat camera_matrix_;						//!> Used to save the camera matrix

@@ -77,25 +77,26 @@ public:
     * \param image the source image
     * \param key_points is the pointer for the resulting image key_points
     */
-	static void keypointDetector(const cv::Mat& image, std::vector<cv::KeyPoint>& key_points)
+	static void keypointDetector(const cv::Mat& image, 
+		std::vector<cv::KeyPoint>& key_points, std::string type)
 	{
 		cv::initModule_nonfree();
 		cv::Ptr<cv::FeatureDetector> cv_detector;
-		cv_detector = cv::FeatureDetector::create("SIFT");
+		cv_detector = cv::FeatureDetector::create(type);
   	cv_detector->detect(image, key_points);
 	}
 
-  /** \brief extract the sift descriptors of some image
+  /** \brief extract descriptors of some image
     * @return 
     * \param image the source image
     * \param key_points keypoints of the source image
     * \param descriptors is the pointer for the resulting image descriptors
     */
 	static void descriptorExtraction(const cv::Mat& image,
-	 std::vector<cv::KeyPoint>& key_points, cv::Mat& descriptors)
+	 std::vector<cv::KeyPoint>& key_points, cv::Mat& descriptors, std::string type)
 	{
 	  cv::Ptr<cv::DescriptorExtractor> cv_extractor;
-	  cv_extractor = cv::DescriptorExtractor::create("SIFT");
+	  cv_extractor = cv::DescriptorExtractor::create(type);
 	  cv_extractor->compute(image, key_points, descriptors);
 	}
 
