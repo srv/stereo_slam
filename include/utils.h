@@ -83,7 +83,14 @@ public:
 		cv::initModule_nonfree();
 		cv::Ptr<cv::FeatureDetector> cv_detector;
 		cv_detector = cv::FeatureDetector::create(type);
-  	cv_detector->detect(image, key_points);
+		try
+    {
+  		cv_detector->detect(image, key_points);
+  	}
+  	catch (cv::Exception& e)
+  	{
+  		ROS_WARN("[StereoLocalization:] cv_detector exception: %s", e.what());
+  	}
 	}
 
   /** \brief extract descriptors of some image
@@ -97,7 +104,14 @@ public:
 	{
 	  cv::Ptr<cv::DescriptorExtractor> cv_extractor;
 	  cv_extractor = cv::DescriptorExtractor::create(type);
-	  cv_extractor->compute(image, key_points, descriptors);
+	  try
+	  {
+	  	cv_extractor->compute(image, key_points, descriptors);
+	  }
+	  catch (cv::Exception& e)
+	  {
+	  	ROS_WARN("[StereoLocalization:] cv_extractor exception: %s", e.what());
+	  }
 	}
 
   /** \brief match descriptors of 2 images by threshold
@@ -119,22 +133,29 @@ public:
 	  matches.clear();
 	  matches12.clear();
 	  int knn = 2;
-	  descriptorMatcher->knnMatch(descriptors1, descriptors2, matches12, knn);
-	  for( size_t m = 0; m < matches12.size(); m++ )
+	  try
 	  {
-	    if (matches12[m].size() == 1)
-	    {
-	      matches.push_back(matches12[m][0]);
-	    }
-	    else if (matches12[m].size() == 2) // normal case
-	    {
-	      if (matches12[m][0].distance / matches12[m][1].distance 
-	          < matching_threshold)
-	      {
-	        matches.push_back(matches12[m][0]);
-	      }
-	    }
+	  	descriptorMatcher->knnMatch(descriptors1, descriptors2, matches12, knn);
+	  	for( size_t m = 0; m < matches12.size(); m++ )
+	  	{
+	  	  if (matches12[m].size() == 1)
+	  	  {
+	  	    matches.push_back(matches12[m][0]);
+	  	  }
+	  	  else if (matches12[m].size() == 2) // normal case
+	  	  {
+	  	    if (matches12[m][0].distance / matches12[m][1].distance 
+	  	        < matching_threshold)
+	  	    {
+	  	      matches.push_back(matches12[m][0]);
+	  	    }
+	  	  }
+	  	}
 	  }
+	  catch (cv::Exception& e)
+	  {
+	  	ROS_WARN("[StereoLocalization:] cv::DescriptorMatcher exception: %s", e.what());
+	  }	  
 	}
 
 	/** \brief convert a matrix of type cv::Mat to std::vector
