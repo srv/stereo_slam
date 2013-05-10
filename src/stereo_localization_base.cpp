@@ -1,102 +1,22 @@
-#include <ros/ros.h>
-#include <tf/transform_broadcaster.h>
-#include <nav_msgs/Odometry.h>
-#include <database_interface/postgresql_database.h>
+#include "stereo_localization_base.h"
 #include <boost/shared_ptr.hpp>
-#include <message_filters/subscriber.h>
-#include <message_filters/time_synchronizer.h>
-#include <message_filters/sync_policies/exact_time.h>
-#include <message_filters/sync_policies/approximate_time.h>
-#include <sensor_msgs/Image.h>
-#include <image_transport/subscriber_filter.h>
-#include <opencv2/features2d/features2d.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
-#include <image_geometry/stereo_camera_model.h>
 #include <libpq-fe.h>
-#include <g2o/core/sparse_optimizer.h>
-#include <g2o/core/block_solver.h>
-#include <g2o/solvers/cholmod/linear_solver_cholmod.h>
-#include <g2o/core/optimization_algorithm_gauss_newton.h>
-#include <g2o/types/slam3d/edge_se3.h>
-#include <g2o/core/optimization_algorithm_levenberg.h>
-#include <g2o/solvers/dense/linear_solver_dense.h>
 #include <Eigen/Geometry>
 #include "postgresql_interface.h"
 #include "utils.h"
 
 typedef g2o::BlockSolver< g2o::BlockSolverTraits<-1, -1> >  SlamBlockSolver;
 typedef g2o::LinearSolverCholmod<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
-
 namespace enc = sensor_msgs::image_encodings;
-
-namespace stereo_localization
-{
-
-class StereoLocalization
-{
-  public:
-    StereoLocalization(ros::NodeHandle nh, ros::NodeHandle nhp);
-  protected:
-    ros::NodeHandle nh_;
-    ros::NodeHandle nh_private_;
-    void timerCallback(const ros::WallTimerEvent& event);
-  private:
-    void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
-                      const sensor_msgs::ImageConstPtr& l_img,
-                      const sensor_msgs::ImageConstPtr& r_img,
-                      const sensor_msgs::CameraInfoConstPtr& l_info,
-                      const sensor_msgs::CameraInfoConstPtr& r_info);
-    tf::Transform previous_pose_;
-    double update_rate_;
-    double max_displacement_;
-    double candidate_threshold_;
-    double descriptors_threshold_;
-    int matches_threshold_;
-    bool first_message_;
-    bool first_node_;
-    bool block_update_;
-    bool go2_verbose_;
-    int queue_size_;
-    int g2o_algorithm_;
-    int go2_opt_max_iter_;
-    image_geometry::StereoCameraModel stereo_camera_model_;
-    cv::Mat camera_matrix_;
-    boost::shared_ptr<database_interface::PostgresqlDatabase> pg_db_ptr_;
-    std::string db_host_, db_port_, db_user_, db_pass_, db_name_;
-    typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry, 
-                                                      sensor_msgs::Image, 
-                                                      sensor_msgs::Image, 
-                                                      sensor_msgs::CameraInfo, 
-                                                      sensor_msgs::CameraInfo> ExactPolicy;
-    typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry, 
-                                                      sensor_msgs::Image, 
-                                                      sensor_msgs::Image, 
-                                                      sensor_msgs::CameraInfo, 
-                                                      sensor_msgs::CameraInfo> ApproximatePolicy;
-    typedef message_filters::Synchronizer<ExactPolicy> ExactSync;
-    typedef message_filters::Synchronizer<ApproximatePolicy> ApproximateSync;
-    boost::shared_ptr<ExactSync> exact_sync_;
-    boost::shared_ptr<ApproximateSync> approximate_sync_;
-    image_transport::SubscriberFilter left_sub_, right_sub_;
-    message_filters::Subscriber<sensor_msgs::CameraInfo> left_info_sub_, right_info_sub_;
-    message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
-    ros::Publisher odom_pub_;
-    std::string map_frame_id_, base_link_frame_id_;
-    PGconn* connection_init_;
-    g2o::SparseOptimizer graph_optimizer_;
-    g2o::VertexSE3* prev_node_;
-    ros::WallTimer timer_;
-    std::vector<cv::Point2i> false_candidates_;
-    tf::Transform acumulated_error_;
-};
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
   * @return 
   * \param nh public node handler
   * \param nhp private node handler
   */
-stereo_localization::StereoLocalization::StereoLocalization(ros::NodeHandle nh, ros::NodeHandle nhp) : 
+stereo_localization::StereoLocalizationBase::StereoLocalizationBase(ros::NodeHandle nh, ros::NodeHandle nhp) : 
 nh_(nh), nh_private_(nhp)
 {
 
@@ -104,7 +24,7 @@ nh_(nh), nh_private_(nhp)
   first_message_ = true;
   first_node_ = true;
   block_update_ = false;
-  acumulated_error_.setIdentity();
+  accumulated_error_.setIdentity();
 
   // Database parameters
   nh_private_.param<std::string>("db_host", db_host_, "localhost");
@@ -115,8 +35,8 @@ nh_(nh), nh_private_(nhp)
 
   // Functional parameters
   nh_private_.param("update_rate", update_rate_, 0.5);
-  nh_private_.param("max_displacement", max_displacement_, 0.5);
-  nh_private_.param("candidate_threshold", candidate_threshold_, 0.51);
+  nh_private_.param("min_displacement", min_displacement_, 0.5);
+  nh_private_.param("min_candidate_threshold", min_candidate_threshold_, 0.51);
   nh_private_.param("descriptors_threshold", descriptors_threshold_, 0.8);
   nh_private_.param("matches_threshold", matches_threshold_, 70);
 
@@ -151,14 +71,14 @@ nh_(nh), nh_private_(nhp)
   {
     approximate_sync_.reset(new ApproximateSync(ApproximatePolicy(queue_size_),
                                                 odom_sub_, left_sub_, right_sub_, left_info_sub_, right_info_sub_) );
-    approximate_sync_->registerCallback(boost::bind(&stereo_localization::StereoLocalization::msgsCallback,
+    approximate_sync_->registerCallback(boost::bind(&stereo_localization::StereoLocalizationBase::msgsCallback,
                     this, _1, _2, _3, _4, _5));
   }
   else
   {
     exact_sync_.reset(new ExactSync(ExactPolicy(queue_size_),
                     odom_sub_, left_sub_, right_sub_, left_info_sub_, right_info_sub_) );
-    exact_sync_->registerCallback(boost::bind(&stereo_localization::StereoLocalization::msgsCallback, 
+    exact_sync_->registerCallback(boost::bind(&stereo_localization::StereoLocalizationBase::msgsCallback, 
                     this, _1, _2, _3, _4, _5));
   }
 
@@ -234,7 +154,7 @@ nh_(nh), nh_private_(nhp)
 
   // Start timer for graph update
   timer_ = nh.createWallTimer(ros::WallDuration(update_rate_), 
-                            &stereo_localization::StereoLocalization::timerCallback,
+                            &stereo_localization::StereoLocalizationBase::timerCallback,
                             this);
 
   // Parameters check
@@ -251,7 +171,7 @@ nh_(nh), nh_private_(nhp)
   * \param odom_msg ros odometry message of type nav_msgs::Odometry
   * \param left_msg ros image message of type sensor_msgs::Image
   */
-void stereo_localization::StereoLocalization::msgsCallback(
+void stereo_localization::StereoLocalizationBase::msgsCallback(
                                   const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::ImageConstPtr& l_img,
                                   const sensor_msgs::ImageConstPtr& r_img,
@@ -274,10 +194,10 @@ void stereo_localization::StereoLocalization::msgsCallback(
   tf::Transform current_pose(tf_q, tf_trans);
 
   // Update current pose with error
-  current_pose = current_pose * acumulated_error_;
+  current_pose *= accumulated_error_;
 
   // Check if difference between images is larger than maximum displacement
-  if (stereo_localization::Utils::poseDiff(current_pose, previous_pose_) > max_displacement_
+  if (stereo_localization::Utils::poseDiff(current_pose, previous_pose_) > min_displacement_
       || first_message_)
   {
     // The image properties and pose must be saved into the database
@@ -364,19 +284,22 @@ void stereo_localization::StereoLocalization::msgsCallback(
       {
         // When graph has been initialized get the transform between current and previous nodes
         // and save it as an edge
+
+        // Get last node
+        g2o::VertexSE3* prev_node = dynamic_cast<g2o::VertexSE3*>(
+          graph_optimizer_.vertices()[graph_optimizer_.vertices().size() - 1]);
         graph_optimizer_.addVertex(cur_node);
 
         // Odometry edges
         g2o::EdgeSE3* e = new g2o::EdgeSE3();
-        Eigen::Isometry3d t = prev_node_->estimate().inverse() * cur_node->estimate();
-        e->setVertex(0, prev_node_);
+        Eigen::Isometry3d t = prev_node->estimate().inverse() * cur_node->estimate();
+        e->setVertex(0, prev_node);
         e->setVertex(1, cur_node);
         e->setMeasurement(t);
         graph_optimizer_.addEdge(e);
       }
 
       // Save for next iteration
-      prev_node_ = cur_node;
       previous_pose_ = current_pose;
       first_message_ = false;
       ROS_INFO_STREAM("[StereoLocalization:] Node " << node_data.id_.data() << " insertion succeeded");
@@ -399,7 +322,7 @@ void stereo_localization::StereoLocalization::msgsCallback(
   * @return 
   * \param event is the timer event object
   */
-void stereo_localization::StereoLocalization::timerCallback(const ros::WallTimerEvent& event)
+void stereo_localization::StereoLocalizationBase::timerCallback(const ros::WallTimerEvent& event)
 {
   // Check if callback is currently executed
   if (block_update_)
@@ -446,7 +369,7 @@ void stereo_localization::StereoLocalization::timerCallback(const ros::WallTimer
 
       // If no edges found connecting this nodes, try to find loop closures
       if (!false_cand && 
-          !edge_found && stereo_localization::Utils::poseDiff(pose_i, pose_j) < candidate_threshold_)
+          !edge_found && stereo_localization::Utils::poseDiff(pose_i, pose_j) < min_candidate_threshold_)
       {
         // Get the data of both nodes from database
         std::string where_i = "(id = " + boost::lexical_cast<std::string>(v_i->id() + 1) + ")";
@@ -540,24 +463,8 @@ void stereo_localization::StereoLocalization::timerCallback(const ros::WallTimer
     tf::Transform error = last_pose_before.inverse() * last_pose_after;
 
     // Acumulate the error
-    acumulated_error_ = acumulated_error_ * error;
+    accumulated_error_ *= error;
   }
 
   block_update_ = false;
-}
-
-} // Namespace
-
-
-int main(int argc, char** argv)
-{
-  ros::init(argc,argv,"stereo_localization");
-  ros::NodeHandle nh;
-  ros::NodeHandle nh_private("~");
-
-  stereo_localization::StereoLocalization stereo_localization(nh,nh_private);
-
-  ros::spin();
-
-  return 0;
 }

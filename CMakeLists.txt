@@ -60,7 +60,8 @@ rosbuild_add_boost_directories()
 
 #executables
 rosbuild_add_executable(stereo_localization 
-												src/stereo_localization.cpp)
+												src/stereo_localization_node.cpp
+												src/stereo_localization_base.cpp)
 
 #link with libraries
 target_link_libraries(stereo_localization pq ${G2O_LIBRARIES})
