@@ -59,9 +59,9 @@ include_directories(${PQ_INCLUDE_DIR})
 rosbuild_add_boost_directories()
 
 #executables
-rosbuild_add_executable(graph_constructor 
-												src/graph_constructor.cpp)
+rosbuild_add_executable(stereo_localization 
+												src/stereo_localization.cpp)
 
 #link with libraries
-target_link_libraries(graph_constructor pq ${G2O_LIBRARIES})
-rosbuild_link_boost(graph_constructor signals)
+target_link_libraries(stereo_localization pq ${G2O_LIBRARIES})
+rosbuild_link_boost(stereo_localization signals)
