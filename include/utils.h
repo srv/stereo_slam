@@ -283,6 +283,7 @@ public:
 		tf::Quaternion q_in = in.getRotation();
 		Eigen::Vector3d t_out(t_in.x(), t_in.y(), t_in.z());
 		Eigen::Quaterniond q_out;
+		q_out.setIdentity();
 		q_out.x() = q_in.x();
 		q_out.y() = q_in.y();
 		q_out.z() = q_in.z();

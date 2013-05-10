@@ -33,10 +33,10 @@ namespace enc = sensor_msgs::image_encodings;
 namespace stereo_localization
 {
 
-class GraphConstructor
+class StereoLocalization
 {
   public:
-    GraphConstructor(ros::NodeHandle nh, ros::NodeHandle nhp);
+    StereoLocalization(ros::NodeHandle nh, ros::NodeHandle nhp);
   protected:
     ros::NodeHandle nh_;
     ros::NodeHandle nh_private_;
@@ -58,17 +58,12 @@ class GraphConstructor
     bool block_update_;
     bool go2_verbose_;
     int queue_size_;
-    int ids_;
-    int last_pub_pose_;
+    int g2o_algorithm_;
     int go2_opt_max_iter_;
     image_geometry::StereoCameraModel stereo_camera_model_;
     cv::Mat camera_matrix_;
     boost::shared_ptr<database_interface::PostgresqlDatabase> pg_db_ptr_;
-    std::string db_host_;
-    std::string db_port_;
-    std::string db_user_;
-    std::string db_pass_;
-    std::string db_name_;
+    std::string db_host_, db_port_, db_user_, db_pass_, db_name_;
     typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry, 
                                                       sensor_msgs::Image, 
                                                       sensor_msgs::Image, 
@@ -86,13 +81,14 @@ class GraphConstructor
     image_transport::SubscriberFilter left_sub_, right_sub_;
     message_filters::Subscriber<sensor_msgs::CameraInfo> left_info_sub_, right_info_sub_;
     message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
-    ros::Publisher pose_pub_;
-    std::string map_frame_id_;
+    ros::Publisher odom_pub_;
+    std::string map_frame_id_, base_link_frame_id_;
     PGconn* connection_init_;
     g2o::SparseOptimizer graph_optimizer_;
     g2o::VertexSE3* prev_node_;
     ros::WallTimer timer_;
     std::vector<cv::Point2i> false_candidates_;
+    tf::Transform acumulated_error_;
 };
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
@@ -100,7 +96,7 @@ class GraphConstructor
   * \param nh public node handler
   * \param nhp private node handler
   */
-stereo_localization::GraphConstructor::GraphConstructor(ros::NodeHandle nh, ros::NodeHandle nhp) : 
+stereo_localization::StereoLocalization::StereoLocalization(ros::NodeHandle nh, ros::NodeHandle nhp) : 
 nh_(nh), nh_private_(nhp)
 {
 
@@ -108,8 +104,7 @@ nh_(nh), nh_private_(nhp)
   first_message_ = true;
   first_node_ = true;
   block_update_ = false;
-  ids_ = 0;
-  last_pub_pose_ = -1;
+  acumulated_error_.setIdentity();
 
   // Database parameters
   nh_private_.param<std::string>("db_host", db_host_, "localhost");
@@ -126,6 +121,7 @@ nh_(nh), nh_private_(nhp)
   nh_private_.param("matches_threshold", matches_threshold_, 70);
 
   // G2O parameters
+  nh_private_.param("g2o_algorithm", g2o_algorithm_, 0);
   nh_private_.param("go2_verbose", go2_verbose_, false);
   nh_private_.param("go2_opt_max_iter", go2_opt_max_iter_, 10);
 
@@ -138,6 +134,7 @@ nh_(nh), nh_private_(nhp)
   nh_private_.param("left_info_topic", left_info_topic, std::string("/left/camera_info"));
   nh_private_.param("right_info_topic", right_info_topic, std::string("/right/camera_info"));
   nh_private_.param("map_frame_id", map_frame_id_, std::string("/map"));
+  nh_private_.param("base_link_frame_id", base_link_frame_id_, std::string("/base_link"));
 
   // Topics subscriptions
   image_transport::ImageTransport it(nh_);
@@ -154,34 +151,45 @@ nh_(nh), nh_private_(nhp)
   {
     approximate_sync_.reset(new ApproximateSync(ApproximatePolicy(queue_size_),
                                                 odom_sub_, left_sub_, right_sub_, left_info_sub_, right_info_sub_) );
-    approximate_sync_->registerCallback(boost::bind(&stereo_localization::GraphConstructor::msgsCallback,
+    approximate_sync_->registerCallback(boost::bind(&stereo_localization::StereoLocalization::msgsCallback,
                     this, _1, _2, _3, _4, _5));
   }
   else
   {
     exact_sync_.reset(new ExactSync(ExactPolicy(queue_size_),
                     odom_sub_, left_sub_, right_sub_, left_info_sub_, right_info_sub_) );
-    exact_sync_->registerCallback(boost::bind(&stereo_localization::GraphConstructor::msgsCallback, 
+    exact_sync_->registerCallback(boost::bind(&stereo_localization::StereoLocalization::msgsCallback, 
                     this, _1, _2, _3, _4, _5));
   }
 
   // Advertise topics
-  pose_pub_ = nh_private_.advertise<geometry_msgs::PoseStamped>("pose", 1);
+  odom_pub_ = nh_private_.advertise<nav_msgs::Odometry>("odometry", 1);
 
   // Initialize the g2o graph optimizer
-  /*
-  SlamLinearSolver* linear_solver_ptr = new SlamLinearSolver();
-  linear_solver_ptr->setBlockOrdering(false);
-  SlamBlockSolver* block_solver_ptr = new SlamBlockSolver(linear_solver_ptr);
-  g2o::OptimizationAlgorithmGaussNewton* solver_gauss_ptr = 
-  new g2o::OptimizationAlgorithmGaussNewton(block_solver_ptr);
-  graph_optimizer_.setAlgorithm(solver_gauss_ptr);
-  */
-  g2o::BlockSolverX::LinearSolverType * linear_solver_ptr;
-  linear_solver_ptr = new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>();
-  g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(linear_solver_ptr);
-  g2o::OptimizationAlgorithmLevenberg * solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
-  graph_optimizer_.setAlgorithm(solver);
+  if (g2o_algorithm_ == 0)
+  {
+    // Slam linear solver with gauss-newton
+    SlamLinearSolver* linear_solver_ptr = new SlamLinearSolver();
+    linear_solver_ptr->setBlockOrdering(false);
+    SlamBlockSolver* block_solver_ptr = new SlamBlockSolver(linear_solver_ptr);
+    g2o::OptimizationAlgorithmGaussNewton* solver_gauss_ptr = 
+    new g2o::OptimizationAlgorithmGaussNewton(block_solver_ptr);
+    graph_optimizer_.setAlgorithm(solver_gauss_ptr);
+  }
+  else if (g2o_algorithm_ == 1)
+  {
+    // Linear solver with Levenberg
+    g2o::BlockSolverX::LinearSolverType * linear_solver_ptr;
+    linear_solver_ptr = new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>();
+    g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(linear_solver_ptr);
+    g2o::OptimizationAlgorithmLevenberg * solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+    graph_optimizer_.setAlgorithm(solver);
+  }
+  else
+  {
+    ROS_ERROR("[StereoLocalization:] ");
+  }  
+  graph_optimizer_.setVerbose(go2_verbose_);  
 
   // Database initialization
   boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr( 
@@ -190,11 +198,11 @@ nh_(nh), nh_private_(nhp)
 
   if (!pg_db_ptr_->isConnected())
   {
-    ROS_ERROR("[GraphConstructor:] Database failed to connect");
+    ROS_ERROR("[StereoLocalization:] Database failed to connect");
   }
   else
   {
-    ROS_INFO("[GraphConstructor:] Database connected successfully!");
+    ROS_INFO("[StereoLocalization:] Database connected successfully!");
 
     // Database table creation. New connection is needed due to the interface design
     std::string conn_info = "host=" + db_host_ + " port=" + db_port_ + 
@@ -209,7 +217,7 @@ nh_(nh), nh_private_(nhp)
       // Drop the table (to start clean)
       std::string query_delete("DROP TABLE IF EXISTS graph_nodes");
       PQexec(connection_init_, query_delete.c_str());
-      ROS_INFO("[GraphConstructor:] graph_nodes table droped successfully!");
+      ROS_INFO("[StereoLocalization:] graph_nodes table droped successfully!");
 
       // Create the table (if no exists)
       std::string query_create("CREATE TABLE IF NOT EXISTS graph_nodes"
@@ -220,13 +228,13 @@ nh_(nh), nh_private_(nhp)
                           "points3d double precision[][] "
                         ")");
       PQexec(connection_init_, query_create.c_str());
-      ROS_INFO("[GraphConstructor:] graph_nodes table created successfully!");
+      ROS_INFO("[StereoLocalization:] graph_nodes table created successfully!");
     }
   }
 
   // Start timer for graph update
   timer_ = nh.createWallTimer(ros::WallDuration(update_rate_), 
-                            &stereo_localization::GraphConstructor::timerCallback,
+                            &stereo_localization::StereoLocalization::timerCallback,
                             this);
 
   // Parameters check
@@ -243,7 +251,7 @@ nh_(nh), nh_private_(nhp)
   * \param odom_msg ros odometry message of type nav_msgs::Odometry
   * \param left_msg ros image message of type sensor_msgs::Image
   */
-void stereo_localization::GraphConstructor::msgsCallback(
+void stereo_localization::StereoLocalization::msgsCallback(
                                   const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::ImageConstPtr& l_img,
                                   const sensor_msgs::ImageConstPtr& r_img,
@@ -265,120 +273,125 @@ void stereo_localization::GraphConstructor::msgsCallback(
                         odom_msg->pose.pose.orientation.w);
   tf::Transform current_pose(tf_q, tf_trans);
 
-  // First message
-  if (first_message_)
+  // Update current pose with error
+  current_pose = current_pose * acumulated_error_;
+
+  // Check if difference between images is larger than maximum displacement
+  if (stereo_localization::Utils::poseDiff(current_pose, previous_pose_) > max_displacement_
+      || first_message_)
   {
-    // Save the transform
-    previous_pose_ = current_pose;
-    first_message_ = false;
-  }
-  else
-  {
-    // Check if difference between images is larger than maximum displacement
-    if (stereo_localization::Utils::poseDiff(current_pose, previous_pose_) > max_displacement_)
+    // The image properties and pose must be saved into the database
+    
+    // Convert message to cv::Mat
+    cv_bridge::CvImagePtr l_ptr, r_ptr;
+    try
     {
-      // The image properties and pose must be saved into the database
-      
-      // Convert message to cv::Mat
-      cv_bridge::CvImagePtr l_ptr, r_ptr;
-      try
-      {
-        l_ptr = cv_bridge::toCvCopy(l_img, enc::BGR8);
-        r_ptr = cv_bridge::toCvCopy(r_img, enc::BGR8);
-      }
-      catch (cv_bridge::Exception& e)
-      {
-        ROS_ERROR("[GraphConstructor:] cv_bridge exception: %s", e.what());
-        return;
-      }
+      l_ptr = cv_bridge::toCvCopy(l_img, enc::BGR8);
+      r_ptr = cv_bridge::toCvCopy(r_img, enc::BGR8);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+      ROS_ERROR("[StereoLocalization:] cv_bridge exception: %s", e.what());
+      return;
+    }
 
-      // Extract keypoints and descriptors of images
-      std::vector<cv::KeyPoint> l_kp, r_kp;
-      cv::Mat l_desc = cv::Mat_<std::vector<float> >();
-      cv::Mat r_desc = cv::Mat_<std::vector<float> >();
-      stereo_localization::Utils::keypointDetector(l_ptr->image, l_kp);
-      stereo_localization::Utils::keypointDetector(r_ptr->image, r_kp);
-      stereo_localization::Utils::descriptorExtraction(l_ptr->image, l_kp, l_desc);
-      stereo_localization::Utils::descriptorExtraction(r_ptr->image, r_kp, r_desc);
+    // Extract keypoints and descriptors of images
+    std::vector<cv::KeyPoint> l_kp, r_kp;
+    cv::Mat l_desc = cv::Mat_<std::vector<float> >();
+    cv::Mat r_desc = cv::Mat_<std::vector<float> >();
+    stereo_localization::Utils::keypointDetector(l_ptr->image, l_kp);
+    stereo_localization::Utils::keypointDetector(r_ptr->image, r_kp);
+    stereo_localization::Utils::descriptorExtraction(l_ptr->image, l_kp, l_desc);
+    stereo_localization::Utils::descriptorExtraction(r_ptr->image, r_kp, r_desc);
 
-      // Find matching between stereo images
-      std::vector<cv::DMatch> matches;
-      stereo_localization::Utils::thresholdMatching(l_desc, r_desc, matches, descriptors_threshold_);
+    // Find matching between stereo images
+    std::vector<cv::DMatch> matches;
+    stereo_localization::Utils::thresholdMatching(l_desc, r_desc, matches, descriptors_threshold_);
 
-      // Compute 3D points
-      std::vector<cv::Point2f> matched_keypoints;
-      std::vector<cv::Point3f> matched_3d_points;
-      cv::Mat matched_descriptors;
-      for (size_t i = 0; i < matches.size(); ++i)
+    // Compute 3D points
+    std::vector<cv::Point2f> matched_keypoints;
+    std::vector<cv::Point3f> matched_3d_points;
+    cv::Mat matched_descriptors;
+    for (size_t i = 0; i < matches.size(); ++i)
+    {
+      int index_left = matches[i].queryIdx;
+      int index_right = matches[i].trainIdx;
+      cv::Point3d world_point;
+      stereo_localization::Utils::calculate3DPoint( stereo_camera_model_,
+                                                    l_kp[index_left].pt,
+                                                    r_kp[index_right].pt,
+                                                    world_point);
+      matched_3d_points.push_back(world_point);
+      matched_keypoints.push_back(l_kp[index_left].pt);
+      matched_descriptors.push_back(l_desc.row(index_left));
+    }
+
+    // Transform data to std::vector for database
+    std::vector< std::vector<float> > keypoints = 
+    stereo_localization::Utils::cvPoint2fToStdMatrix(matched_keypoints);
+    std::vector< std::vector<float> > descriptors = 
+    stereo_localization::Utils::cvMatToStdMatrix(matched_descriptors);
+    std::vector< std::vector<float> > points_3d = 
+    stereo_localization::Utils::cvPoint3fToStdMatrix(matched_3d_points);
+    // Save node data into the database
+    stereo_localization::GraphNodes node_data;
+    node_data.keypoints_.data() = keypoints;
+    node_data.descriptors_.data() = descriptors;
+    node_data.points3d_.data() = points_3d;
+    if (!pg_db_ptr_->insertIntoDatabase(&node_data))
+    {
+      ROS_ERROR("[StereoLocalization:] Node insertion failed");
+    }
+    else
+    {
+      // Everything is ok, save the node into the graph
+
+      // Build the pose
+      Eigen::Isometry3d pose = stereo_localization::Utils::tfToEigen(current_pose);
+
+      // Build the node
+      g2o::VertexSE3* cur_node = new g2o::VertexSE3();
+      cur_node->setId(node_data.id_.data() - 1);
+      cur_node->setEstimate(pose);
+      if (first_node_)
       {
-        int index_left = matches[i].queryIdx;
-        int index_right = matches[i].trainIdx;
-        cv::Point3d world_point;
-        stereo_localization::Utils::calculate3DPoint( stereo_camera_model_,
-                                                      l_kp[index_left].pt,
-                                                      r_kp[index_right].pt,
-                                                      world_point);
-        matched_3d_points.push_back(world_point);
-        matched_keypoints.push_back(l_kp[index_left].pt);
-        matched_descriptors.push_back(l_desc.row(index_left));
-      }
-
-      // Transform data to std::vector for database
-      std::vector< std::vector<float> > keypoints = 
-      stereo_localization::Utils::cvPoint2fToStdMatrix(matched_keypoints);
-      std::vector< std::vector<float> > descriptors = 
-      stereo_localization::Utils::cvMatToStdMatrix(matched_descriptors);
-      std::vector< std::vector<float> > points_3d = 
-      stereo_localization::Utils::cvPoint3fToStdMatrix(matched_3d_points);
-      // Save node data into the database
-      stereo_localization::GraphNodes node_data;
-      node_data.keypoints_.data() = keypoints;
-      node_data.descriptors_.data() = descriptors;
-      node_data.points3d_.data() = points_3d;
-      if (!pg_db_ptr_->insertIntoDatabase(&node_data))
-      {
-        ROS_ERROR("[GraphConstructor:] Node insertion failed");
+        // First time, no edges.
+        cur_node->setFixed(true);
+        graph_optimizer_.addVertex(cur_node);
+        first_node_ = false;
       }
       else
       {
-        // Everything is ok, save the node into the graph
+        // When graph has been initialized get the transform between current and previous nodes
+        // and save it as an edge
+        graph_optimizer_.addVertex(cur_node);
 
-        // Build the pose
-        Eigen::Isometry3d pose = stereo_localization::Utils::tfToEigen(current_pose);
-
-        // Build the node
-        g2o::VertexSE3* cur_node = new g2o::VertexSE3();
-        cur_node->setId(node_data.id_.data() - 1);
-        cur_node->setEstimate(pose);
-        if (first_node_)
-        {
-          // First time, no edges.
-          cur_node->setFixed(true);
-          graph_optimizer_.addVertex(cur_node);
-          first_node_ = false;
-        }
-        else
-        {
-          // When graph has been initialized get the transform between current and previous nodes
-          // and save it as an edge
-          graph_optimizer_.addVertex(cur_node);
-
-          // Odometry edges
-          g2o::EdgeSE3* e = new g2o::EdgeSE3();
-          Eigen::Isometry3d t = prev_node_->estimate().inverse() * cur_node->estimate();
-          e->setVertex(0, prev_node_);
-          e->setVertex(1, cur_node);
-          e->setMeasurement(t);
-          graph_optimizer_.addEdge(e);
-        }
-
-        // Save the transform and node
-        prev_node_ = cur_node;
-        previous_pose_ = current_pose;
-
-        ROS_INFO_STREAM("[GraphConstructor:] Node " << node_data.id_.data() << " insertion succeeded");
+        // Odometry edges
+        g2o::EdgeSE3* e = new g2o::EdgeSE3();
+        Eigen::Isometry3d t = prev_node_->estimate().inverse() * cur_node->estimate();
+        e->setVertex(0, prev_node_);
+        e->setVertex(1, cur_node);
+        e->setMeasurement(t);
+        graph_optimizer_.addEdge(e);
       }
+
+      // Save for next iteration
+      prev_node_ = cur_node;
+      previous_pose_ = current_pose;
+      first_message_ = false;
+      ROS_INFO_STREAM("[StereoLocalization:] Node " << node_data.id_.data() << " insertion succeeded");
     }
+  }  
+
+  // Publish map odometry
+  if (odom_pub_.getNumSubscribers() > 0)
+  {
+    nav_msgs::Odometry odometry_msg = *odom_msg;
+    odometry_msg.header.stamp = ros::Time::now();
+    odometry_msg.header.frame_id = map_frame_id_;
+    odometry_msg.child_frame_id = base_link_frame_id_;
+    tf::poseTFToMsg(current_pose, odometry_msg.pose.pose);
+    odom_pub_.publish(odometry_msg);
   }
 }
 
@@ -386,7 +399,7 @@ void stereo_localization::GraphConstructor::msgsCallback(
   * @return 
   * \param event is the timer event object
   */
-void stereo_localization::GraphConstructor::timerCallback(const ros::WallTimerEvent& event)
+void stereo_localization::StereoLocalization::timerCallback(const ros::WallTimerEvent& event)
 {
   // Check if callback is currently executed
   if (block_update_)
@@ -485,13 +498,13 @@ void stereo_localization::GraphConstructor::timerCallback(const ros::WallTimerEv
               // Add the new edge to graph
               g2o::EdgeSE3* e = new g2o::EdgeSE3();
               Eigen::Isometry3d t = stereo_localization::Utils::tfToEigen(cl_edge);
-              e->setVertex(0, v_i);
-              e->setVertex(1, v_j);
+              e->setVertex(0, v_j);
+              e->setVertex(1, v_i);
               e->setMeasurement(t);
               graph_optimizer_.addEdge(e);
               edge_added = true;
 
-              ROS_INFO_STREAM("[GraphConstructor:] Loop closed between nodes " << v_i->id() << " and " << v_j->id());
+              ROS_INFO_STREAM("[StereoLocalization:] Loop closed between nodes " << v_i->id() << " and " << v_j->id());
             }
           }
         }
@@ -510,28 +523,24 @@ void stereo_localization::GraphConstructor::timerCallback(const ros::WallTimerEv
 
   if (edge_added)
   {
-    ROS_INFO("[GraphConstructor:] Optimizing global pose graph...");
-    graph_optimizer_.initializeOptimization();
-    graph_optimizer_.setVerbose(go2_verbose_);
-    graph_optimizer_.optimize(go2_opt_max_iter_);
-    ROS_INFO("[GraphConstructor:] Optimization done.");
-  }
-
-  // Publish last pose
-  if (pose_pub_.getNumSubscribers() > 0 &&
-      (int)(graph_optimizer_.vertices().size()-1) > last_pub_pose_ )
-  {
-    g2o::VertexSE3* last_node =  dynamic_cast<g2o::VertexSE3*>
+    // Save last graph pose before optimization
+    g2o::VertexSE3* last_node_before =  dynamic_cast<g2o::VertexSE3*>
       (graph_optimizer_.vertices()[graph_optimizer_.vertices().size()-1]);
-    tf::Transform last_pose = stereo_localization::Utils::getNodePose(last_node);
+    tf::Transform last_pose_before = stereo_localization::Utils::getNodePose(last_node_before);
 
-    geometry_msgs::PoseStamped pose_msg;
-    pose_msg.header.stamp = ros::Time::now();
-    pose_msg.header.frame_id = map_frame_id_;
-    tf::poseTFToMsg(last_pose, pose_msg.pose);
-    pose_pub_.publish(pose_msg);
+    ROS_INFO_STREAM("[StereoLocalization:] Optimizing global pose graph with " << graph_optimizer_.vertices().size() << " nodes...");
+    graph_optimizer_.initializeOptimization();    
+    graph_optimizer_.optimize(go2_opt_max_iter_);
+    ROS_INFO("[StereoLocalization:] Optimization done.");
 
-    last_pub_pose_ = graph_optimizer_.vertices().size()-1;
+    // Has the last node moved?
+    g2o::VertexSE3* last_node_after =  dynamic_cast<g2o::VertexSE3*>
+      (graph_optimizer_.vertices()[graph_optimizer_.vertices().size()-1]);
+    tf::Transform last_pose_after = stereo_localization::Utils::getNodePose(last_node_after);
+    tf::Transform error = last_pose_before.inverse() * last_pose_after;
+
+    // Acumulate the error
+    acumulated_error_ = acumulated_error_ * error;
   }
 
   block_update_ = false;
@@ -542,11 +551,11 @@ void stereo_localization::GraphConstructor::timerCallback(const ros::WallTimerEv
 
 int main(int argc, char** argv)
 {
-  ros::init(argc,argv,"graph_constructor");
+  ros::init(argc,argv,"stereo_localization");
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
 
-  stereo_localization::GraphConstructor graphConstructor(nh,nh_private);
+  stereo_localization::StereoLocalization stereo_localization(nh,nh_private);
 
   ros::spin();
 
