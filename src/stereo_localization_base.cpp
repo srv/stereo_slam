@@ -16,153 +16,15 @@ namespace enc = sensor_msgs::image_encodings;
   * \param nh public node handler
   * \param nhp private node handler
   */
-stereo_localization::StereoLocalizationBase::StereoLocalizationBase(ros::NodeHandle nh, ros::NodeHandle nhp) : 
-nh_(nh), nh_private_(nhp)
+stereo_localization::StereoLocalizationBase::StereoLocalizationBase(
+  ros::NodeHandle nh, ros::NodeHandle nhp) : nh_(nh), nh_private_(nhp)
 {
+  // Read the node parameters
+  readParameters();
 
-  // Initializations
-  first_message_ = true;
-  first_node_ = true;
-  block_update_ = false;
-  accumulated_error_.setIdentity();
+  // Initialize the stereo localization
+  initializeStereoLocalization();
 
-  // Database parameters
-  nh_private_.param<std::string>("db_host", db_host_, "localhost");
-  nh_private_.param<std::string>("db_port", db_port_, "5432");
-  nh_private_.param<std::string>("db_user", db_user_, "postgres");
-  nh_private_.param<std::string>("db_pass", db_pass_, "postgres");
-  nh_private_.param<std::string>("db_name", db_name_, "graph");
-
-  // Functional parameters
-  nh_private_.param("update_rate", update_rate_, 0.5);
-  nh_private_.param("min_displacement", min_displacement_, 0.5);
-  nh_private_.param("min_candidate_threshold", min_candidate_threshold_, 0.51);
-  nh_private_.param("descriptors_threshold", descriptors_threshold_, 0.8);
-  nh_private_.param("matches_threshold", matches_threshold_, 70);
-
-  // G2O parameters
-  nh_private_.param("g2o_algorithm", g2o_algorithm_, 0);
-  nh_private_.param("go2_verbose", go2_verbose_, false);
-  nh_private_.param("go2_opt_max_iter", go2_opt_max_iter_, 10);
-
-  // Topic parameters
-  std::string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic;
-  nh_private_.param("queue_size", queue_size_, 5);
-  nh_private_.param("odom_topic", odom_topic, std::string("/odometry"));
-  nh_private_.param("left_topic", left_topic, std::string("/left/image_rect_color"));
-  nh_private_.param("right_topic", right_topic, std::string("/right/image_rect_color"));
-  nh_private_.param("left_info_topic", left_info_topic, std::string("/left/camera_info"));
-  nh_private_.param("right_info_topic", right_info_topic, std::string("/right/camera_info"));
-  nh_private_.param("map_frame_id", map_frame_id_, std::string("/map"));
-  nh_private_.param("base_link_frame_id", base_link_frame_id_, std::string("/base_link"));
-
-  // Topics subscriptions
-  image_transport::ImageTransport it(nh_);
-  odom_sub_ .subscribe(nh_, odom_topic, 1);
-  left_sub_ .subscribe(it, left_topic, 1);
-  right_sub_.subscribe(it, right_topic, 1);
-  left_info_sub_.subscribe(nh_, left_info_topic, 1);
-  right_info_sub_.subscribe(nh_, right_info_topic, 1);
-
-  // Callback syncronization
-  bool approx;
-  nh_private_.param("approximate_sync", approx, false);
-  if (approx)
-  {
-    approximate_sync_.reset(new ApproximateSync(ApproximatePolicy(queue_size_),
-                                                odom_sub_, left_sub_, right_sub_, left_info_sub_, right_info_sub_) );
-    approximate_sync_->registerCallback(boost::bind(&stereo_localization::StereoLocalizationBase::msgsCallback,
-                    this, _1, _2, _3, _4, _5));
-  }
-  else
-  {
-    exact_sync_.reset(new ExactSync(ExactPolicy(queue_size_),
-                    odom_sub_, left_sub_, right_sub_, left_info_sub_, right_info_sub_) );
-    exact_sync_->registerCallback(boost::bind(&stereo_localization::StereoLocalizationBase::msgsCallback, 
-                    this, _1, _2, _3, _4, _5));
-  }
-
-  // Advertise topics
-  odom_pub_ = nh_private_.advertise<nav_msgs::Odometry>("odometry", 1);
-
-  // Initialize the g2o graph optimizer
-  if (g2o_algorithm_ == 0)
-  {
-    // Slam linear solver with gauss-newton
-    SlamLinearSolver* linear_solver_ptr = new SlamLinearSolver();
-    linear_solver_ptr->setBlockOrdering(false);
-    SlamBlockSolver* block_solver_ptr = new SlamBlockSolver(linear_solver_ptr);
-    g2o::OptimizationAlgorithmGaussNewton* solver_gauss_ptr = 
-    new g2o::OptimizationAlgorithmGaussNewton(block_solver_ptr);
-    graph_optimizer_.setAlgorithm(solver_gauss_ptr);
-  }
-  else if (g2o_algorithm_ == 1)
-  {
-    // Linear solver with Levenberg
-    g2o::BlockSolverX::LinearSolverType * linear_solver_ptr;
-    linear_solver_ptr = new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>();
-    g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(linear_solver_ptr);
-    g2o::OptimizationAlgorithmLevenberg * solver = new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
-    graph_optimizer_.setAlgorithm(solver);
-  }
-  else
-  {
-    ROS_ERROR("[StereoLocalization:] ");
-  }  
-  graph_optimizer_.setVerbose(go2_verbose_);  
-
-  // Database initialization
-  boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr( 
-    new database_interface::PostgresqlDatabase(db_host_, db_port_, db_user_, db_pass_, db_name_));
-  pg_db_ptr_ = db_ptr;
-
-  if (!pg_db_ptr_->isConnected())
-  {
-    ROS_ERROR("[StereoLocalization:] Database failed to connect");
-  }
-  else
-  {
-    ROS_INFO("[StereoLocalization:] Database connected successfully!");
-
-    // Database table creation. New connection is needed due to the interface design
-    std::string conn_info = "host=" + db_host_ + " port=" + db_port_ + 
-      " user=" + db_user_ + " password=" + db_pass_ + " dbname=" + db_name_;
-    connection_init_= PQconnectdb(conn_info.c_str());
-    if (PQstatus(connection_init_)!=CONNECTION_OK) 
-    {
-      ROS_ERROR("Database connection failed with error message: %s", PQerrorMessage(connection_init_));
-    }
-    else
-    {
-      // Drop the table (to start clean)
-      std::string query_delete("DROP TABLE IF EXISTS graph_nodes");
-      PQexec(connection_init_, query_delete.c_str());
-      ROS_INFO("[StereoLocalization:] graph_nodes table droped successfully!");
-
-      // Create the table (if no exists)
-      std::string query_create("CREATE TABLE IF NOT EXISTS graph_nodes"
-                        "( "
-                          "id bigserial primary key, "
-                          "keypoints double precision[][], "
-                          "descriptors double precision[][], "
-                          "points3d double precision[][] "
-                        ")");
-      PQexec(connection_init_, query_create.c_str());
-      ROS_INFO("[StereoLocalization:] graph_nodes table created successfully!");
-    }
-  }
-
-  // Start timer for graph update
-  timer_ = nh.createWallTimer(ros::WallDuration(update_rate_), 
-                            &stereo_localization::StereoLocalizationBase::timerCallback,
-                            this);
-
-  // Parameters check
-  if (matches_threshold_ < 5)
-  {
-    ROS_WARN("Parameter 'matches_threshold' must be greater than 5. Set to 6.");
-    matches_threshold_ = 6;
-  }
 }
 
 /** \brief Messages callback. This function is called when syncronized odometry and image
@@ -253,6 +115,7 @@ void stereo_localization::StereoLocalizationBase::msgsCallback(
     stereo_localization::Utils::cvMatToStdMatrix(matched_descriptors);
     std::vector< std::vector<float> > points_3d = 
     stereo_localization::Utils::cvPoint3fToStdMatrix(matched_3d_points);
+
     // Save node data into the database
     stereo_localization::GraphNodes node_data;
     node_data.keypoints_.data() = keypoints;
@@ -467,4 +330,175 @@ void stereo_localization::StereoLocalizationBase::timerCallback(const ros::WallT
   }
 
   block_update_ = false;
+}
+
+/** \brief Reads the stereo localization node parameters
+  * @return
+  */
+void stereo_localization::StereoLocalizationBase::readParameters()
+{
+  // Database parameters
+  nh_private_.param<std::string>("db_host", db_host_, "localhost");
+  nh_private_.param<std::string>("db_port", db_port_, "5432");
+  nh_private_.param<std::string>("db_user", db_user_, "postgres");
+  nh_private_.param<std::string>("db_pass", db_pass_, "postgres");
+  nh_private_.param<std::string>("db_name", db_name_, "graph");
+
+  // Functional parameters
+  nh_private_.param("update_rate", update_rate_, 0.5);
+  nh_private_.param("min_displacement", min_displacement_, 0.5);
+  nh_private_.param("min_candidate_threshold", min_candidate_threshold_, 0.51);
+  nh_private_.param("descriptors_threshold", descriptors_threshold_, 0.8);
+  nh_private_.param("matches_threshold", matches_threshold_, 70);
+
+  // G2O parameters
+  nh_private_.param("g2o_algorithm", g2o_algorithm_, 0);
+  nh_private_.param("go2_verbose", go2_verbose_, false);
+  nh_private_.param("go2_opt_max_iter", go2_opt_max_iter_, 10);
+
+  // Topic parameters
+  std::string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic;
+  nh_private_.param("queue_size", queue_size_, 5);
+  nh_private_.param("odom_topic", odom_topic, std::string("/odometry"));
+  nh_private_.param("left_topic", left_topic, std::string("/left/image_rect_color"));
+  nh_private_.param("right_topic", right_topic, std::string("/right/image_rect_color"));
+  nh_private_.param("left_info_topic", left_info_topic, std::string("/left/camera_info"));
+  nh_private_.param("right_info_topic", right_info_topic, std::string("/right/camera_info"));
+  nh_private_.param("map_frame_id", map_frame_id_, std::string("/map"));
+  nh_private_.param("base_link_frame_id", base_link_frame_id_, std::string("/base_link"));
+
+  // Topics subscriptions
+  image_transport::ImageTransport it(nh_);
+  odom_sub_ .subscribe(nh_, odom_topic, 1);
+  left_sub_ .subscribe(it, left_topic, 1);
+  right_sub_.subscribe(it, right_topic, 1);
+  left_info_sub_.subscribe(nh_, left_info_topic, 1);
+  right_info_sub_.subscribe(nh_, right_info_topic, 1);
+}
+
+/** \brief Initializates the stereo localization node
+  * @return
+  */
+bool stereo_localization::StereoLocalizationBase::initializeStereoLocalization()
+{
+  // Operational initializations
+  first_message_ = true;
+  first_node_ = true;
+  block_update_ = false;
+  accumulated_error_.setIdentity();
+
+  // Callback syncronization
+  bool approx;
+  nh_private_.param("approximate_sync", approx, false);
+  if (approx)
+  {
+    approximate_sync_.reset(new ApproximateSync(ApproximatePolicy(queue_size_),
+                                    odom_sub_, 
+                                    left_sub_, 
+                                    right_sub_, 
+                                    left_info_sub_, 
+                                    right_info_sub_) );
+    approximate_sync_->registerCallback(boost::bind(
+        &stereo_localization::StereoLocalizationBase::msgsCallback,
+        this, _1, _2, _3, _4, _5));
+  }
+  else
+  {
+    exact_sync_.reset(new ExactSync(ExactPolicy(queue_size_),
+                                    odom_sub_, 
+                                    left_sub_, 
+                                    right_sub_, 
+                                    left_info_sub_, 
+                                    right_info_sub_) );
+    exact_sync_->registerCallback(boost::bind(
+        &stereo_localization::StereoLocalizationBase::msgsCallback, 
+        this, _1, _2, _3, _4, _5));
+  }
+
+  // Advertise topics
+  odom_pub_ = nh_private_.advertise<nav_msgs::Odometry>("odometry", 1);
+
+  // Initialize the g2o graph optimizer
+  if (g2o_algorithm_ == 0)
+  {
+    // Slam linear solver with gauss-newton
+    SlamLinearSolver* linear_solver_ptr = new SlamLinearSolver();
+    linear_solver_ptr->setBlockOrdering(false);
+    SlamBlockSolver* block_solver_ptr = new SlamBlockSolver(linear_solver_ptr);
+    g2o::OptimizationAlgorithmGaussNewton* solver_gauss_ptr = 
+      new g2o::OptimizationAlgorithmGaussNewton(block_solver_ptr);
+    graph_optimizer_.setAlgorithm(solver_gauss_ptr);
+  }
+  else if (g2o_algorithm_ == 1)
+  {
+    // Linear solver with Levenberg
+    g2o::BlockSolverX::LinearSolverType * linear_solver_ptr;
+    linear_solver_ptr = new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>();
+    g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(linear_solver_ptr);
+    g2o::OptimizationAlgorithmLevenberg * solver = 
+      new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+    graph_optimizer_.setAlgorithm(solver);
+  }
+  else
+  {
+    ROS_ERROR("[StereoLocalization:] g2o_algorithm parameter must be 0 or 1.");
+    return false;
+  }  
+  graph_optimizer_.setVerbose(go2_verbose_);  
+
+  // Database initialization
+  boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr( 
+    new database_interface::PostgresqlDatabase(db_host_, db_port_, db_user_, db_pass_, db_name_));
+  pg_db_ptr_ = db_ptr;
+
+  if (!pg_db_ptr_->isConnected())
+  {
+    ROS_ERROR("[StereoLocalization:] Database failed to connect");
+  }
+  else
+  {
+    ROS_INFO("[StereoLocalization:] Database connected successfully!");
+
+    // Database table creation. New connection is needed due to the interface design
+    std::string conn_info = "host=" + db_host_ + " port=" + db_port_ + 
+      " user=" + db_user_ + " password=" + db_pass_ + " dbname=" + db_name_;
+    connection_init_= PQconnectdb(conn_info.c_str());
+    if (PQstatus(connection_init_)!=CONNECTION_OK) 
+    {
+      ROS_ERROR("Database connection failed with error message: %s", PQerrorMessage(connection_init_));
+      return false;
+    }
+    else
+    {
+      // Drop the table (to start clean)
+      std::string query_delete("DROP TABLE IF EXISTS graph_nodes");
+      PQexec(connection_init_, query_delete.c_str());
+      ROS_INFO("[StereoLocalization:] graph_nodes table droped successfully!");
+
+      // Create the table (if no exists)
+      std::string query_create("CREATE TABLE IF NOT EXISTS graph_nodes"
+                        "( "
+                          "id bigserial primary key, "
+                          "keypoints double precision[][], "
+                          "descriptors double precision[][], "
+                          "points3d double precision[][] "
+                        ")");
+      PQexec(connection_init_, query_create.c_str());
+      ROS_INFO("[StereoLocalization:] graph_nodes table created successfully!");
+    }
+  }
+
+  // Start timer for graph update
+  timer_ = nh_.createWallTimer(ros::WallDuration(update_rate_), 
+                            &stereo_localization::StereoLocalizationBase::timerCallback,
+                            this);
+
+  // Parameters check
+  if (matches_threshold_ < 5)
+  {
+    ROS_WARN("Parameter 'matches_threshold' must be greater than 5. Set to 6.");
+    matches_threshold_ = 6;
+    return false;
+  }
+  return true;
 }

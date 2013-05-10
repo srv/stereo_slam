@@ -42,7 +42,7 @@ protected:
 
   // Protected functions and callbacks
   bool initializeStereoLocalization();
-  bool readParameters();
+  void readParameters();
   void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                     const sensor_msgs::ImageConstPtr& l_img,
                     const sensor_msgs::ImageConstPtr& r_img,
