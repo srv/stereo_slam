@@ -10,6 +10,7 @@
 #include <tf/transform_broadcaster.h>
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/Image.h>
+#include <std_srvs/Empty.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/sync_policies/exact_time.h>
@@ -49,6 +50,7 @@ protected:
                     const sensor_msgs::CameraInfoConstPtr& l_info,
                     const sensor_msgs::CameraInfoConstPtr& r_info);
   void timerCallback(const ros::WallTimerEvent& event);
+  bool saveGraph();
 
 private:
 	// Database properties
@@ -58,7 +60,10 @@ private:
 
 	// Transform properties
   tf::Transform previous_pose_;			//!> Previous node pose
-  tf::Transform accumulated_error_;	//!> Accumulated error in the optimization process (this is the key!)
+  std::vector<cv::Point2i> 
+    false_candidates_;              //!> Vector of detected false candidates to prevent re-calculation.
+  std::vector<tf::Transform> 
+    pose_history_;                  //!> Vector to save the pose history
 
   // G2O Optimization
   double update_rate_;							//!> Timer callback rate (in seconds) to optimize the graph.
@@ -68,6 +73,7 @@ private:
   g2o::SparseOptimizer 
   	graph_optimizer_;								//!> G2O graph optimizer
   ros::WallTimer timer_;						//!> Timer to optimize the graph while it is updated
+  int last_node_optimized_;         //!> Indicates the id of the last optimized node
 
   // Operational properties
   double min_displacement_;					//!> Minimum odometry displacement between poses to be saved as graph nodes. 
@@ -75,8 +81,6 @@ private:
   bool first_message_;							//!> True when first message is received, false for any other instant.
   bool first_node_;									//!> True when first node is inserted into graph, false for any other instant.
   bool block_update_;								//!> Used to block the timer re-calls when it is executed.
-  std::vector<cv::Point2i> 
-  	false_candidates_;							//!> Vector of detected false candidates to prevent re-calculation.
 
   // stereo vision properties
   double descriptor_threshold_;		  //!> Matching descriptors threshold used to find loop closures between images.
@@ -116,6 +120,10 @@ private:
   typedef message_filters::Synchronizer<ApproximatePolicy> ApproximateSync;
   boost::shared_ptr<ExactSync> exact_sync_;
   boost::shared_ptr<ApproximateSync> approximate_sync_;
+
+  // Graph to file properties
+  bool save_graph_to_file_;         //!> True if user wants to save the graph into file.
+  std::string file_path_;           //!> Path where save the graph data.
 };
 
 } // namespace

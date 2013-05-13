@@ -4,6 +4,8 @@
 #include <sensor_msgs/image_encodings.h>
 #include <libpq-fe.h>
 #include <Eigen/Geometry>
+#include <iostream>
+#include <fstream>
 #include "postgresql_interface.h"
 #include "utils.h"
 
@@ -24,7 +26,6 @@ stereo_localization::StereoLocalizationBase::StereoLocalizationBase(
 
   // Initialize the stereo localization
   initializeStereoLocalization();
-
 }
 
 /** \brief Messages callback. This function is called when syncronized odometry and image
@@ -54,12 +55,26 @@ void stereo_localization::StereoLocalizationBase::msgsCallback(
                         odom_msg->pose.pose.orientation.z,
                         odom_msg->pose.pose.orientation.w);
   tf::Transform current_pose(tf_q, tf_trans);
+  tf::Transform corrected_pose = current_pose;
 
-  // Update current pose with error
-  current_pose *= accumulated_error_;
+  // Compute the corrected pose with the optimized graph
+  if (pose_history_.size() > 0 && last_node_optimized_ >= 0)
+  {
+    // Compute the tf between last original pose before optimization and current.
+    tf::Transform last_original_pose = pose_history_.at(last_node_optimized_);
+    tf::Transform diff = last_original_pose.inverse() * current_pose;
+
+    // Get the last optimized pose
+    g2o::VertexSE3* last_node =  dynamic_cast<g2o::VertexSE3*>
+          (graph_optimizer_.vertices()[last_node_optimized_]);
+    tf::Transform last_optimized_pose = stereo_localization::Utils::getNodePose(last_node);
+
+    // Compute the corrected pose
+    corrected_pose = last_optimized_pose * diff;
+  }
 
   // Check if difference between images is larger than maximum displacement
-  if (stereo_localization::Utils::poseDiff(current_pose, previous_pose_) > min_displacement_
+  if (stereo_localization::Utils::poseDiff(corrected_pose, previous_pose_) > min_displacement_
       || first_message_)
   {
     // The image properties and pose must be saved into the database
@@ -130,7 +145,7 @@ void stereo_localization::StereoLocalizationBase::msgsCallback(
       // Everything is ok, save the node into the graph
 
       // Build the pose
-      Eigen::Isometry3d pose = stereo_localization::Utils::tfToEigen(current_pose);
+      Eigen::Isometry3d pose = stereo_localization::Utils::tfToEigen(corrected_pose);
 
       // Build the node
       g2o::VertexSE3* cur_node = new g2o::VertexSE3();
@@ -162,8 +177,11 @@ void stereo_localization::StereoLocalizationBase::msgsCallback(
         graph_optimizer_.addEdge(e);
       }
 
+      // Save original pose history
+      pose_history_.push_back(current_pose);
+
       // Save for next iteration
-      previous_pose_ = current_pose;
+      previous_pose_ = corrected_pose;
       first_message_ = false;
       ROS_INFO_STREAM("[StereoLocalization:] Node " << node_data.id_.data() << " insertion succeeded");
     }
@@ -176,7 +194,7 @@ void stereo_localization::StereoLocalizationBase::msgsCallback(
     odometry_msg.header.stamp = ros::Time::now();
     odometry_msg.header.frame_id = map_frame_id_;
     odometry_msg.child_frame_id = base_link_frame_id_;
-    tf::poseTFToMsg(current_pose, odometry_msg.pose.pose);
+    tf::poseTFToMsg(corrected_pose, odometry_msg.pose.pose);
     odom_pub_.publish(odometry_msg);
   }
 }
@@ -342,24 +360,15 @@ void stereo_localization::StereoLocalizationBase::timerCallback(const ros::WallT
 
   if (edge_added)
   {
-    // Save last graph pose before optimization
-    g2o::VertexSE3* last_node_before =  dynamic_cast<g2o::VertexSE3*>
-      (graph_optimizer_.vertices()[graph_optimizer_.vertices().size()-1]);
-    tf::Transform last_pose_before = stereo_localization::Utils::getNodePose(last_node_before);
-
     ROS_INFO_STREAM("[StereoLocalization:] Optimizing global pose graph with " << graph_optimizer_.vertices().size() << " nodes...");
-    graph_optimizer_.initializeOptimization();    
+    graph_optimizer_.initializeOptimization();
+    last_node_optimized_ = graph_optimizer_.vertices().size() - 1;
     graph_optimizer_.optimize(go2_opt_max_iter_);
     ROS_INFO("[StereoLocalization:] Optimization done.");
 
-    // Has the last node moved?
-    g2o::VertexSE3* last_node_after =  dynamic_cast<g2o::VertexSE3*>
-      (graph_optimizer_.vertices()[graph_optimizer_.vertices().size()-1]);
-    tf::Transform last_pose_after = stereo_localization::Utils::getNodePose(last_node_after);
-    tf::Transform error = last_pose_before.inverse() * last_pose_after;
-
-    // Acumulate the error
-    accumulated_error_ *= error;
+    // Save graph as odometry measurments in file?
+    if (save_graph_to_file_)
+      saveGraph();
   }
 
   block_update_ = false;
@@ -407,6 +416,10 @@ void stereo_localization::StereoLocalizationBase::readParameters()
   nh_private_.param("map_frame_id", map_frame_id_, std::string("/map"));
   nh_private_.param("base_link_frame_id", base_link_frame_id_, std::string("/base_link"));
 
+  // Graph to file parameters
+  nh_private_.param("save_graph_to_file", save_graph_to_file_, false);
+  nh_private_.param("file_path", file_path_, std::string("graph_data.txt"));
+
   // Topics subscriptions
   image_transport::ImageTransport it(nh_);
   odom_sub_ .subscribe(nh_, odom_topic, 1);
@@ -425,7 +438,7 @@ bool stereo_localization::StereoLocalizationBase::initializeStereoLocalization()
   first_message_ = true;
   first_node_ = true;
   block_update_ = false;
-  accumulated_error_.setIdentity();
+  last_node_optimized_ = -1;
 
   // Callback syncronization
   bool approx;
@@ -455,7 +468,7 @@ bool stereo_localization::StereoLocalizationBase::initializeStereoLocalization()
         this, _1, _2, _3, _4, _5));
   }
 
-  // Advertise topics
+  // Advertise topics and services
   odom_pub_ = nh_private_.advertise<nav_msgs::Odometry>("odometry", 1);
 
   // Initialize the g2o graph optimizer
@@ -539,6 +552,45 @@ bool stereo_localization::StereoLocalizationBase::initializeStereoLocalization()
     ROS_WARN("Parameter 'matches_threshold' must be greater than 5. Set to 6.");
     matches_threshold_ = 6;
     return false;
+  }
+
+  return true;
+}
+
+bool stereo_localization::StereoLocalizationBase::saveGraph()
+{
+  // Does file exist?
+  std::fstream f(file_path_.c_str(), std::ios::in);
+  if (f)
+  {
+    // Yes, truncate it
+    f.close();
+    f.open(file_path_.c_str(), std::ios::out | std::ios::trunc );
+    
+    // Fill the file
+    for (unsigned int i=0; i<graph_optimizer_.vertices().size(); i++)
+    {
+      g2o::VertexSE3* v = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
+      tf::Transform pose = stereo_localization::Utils::getNodePose(v);
+      f <<  ros::Time::now().toSec() << "," << 
+            boost::lexical_cast<std::string>(i) << "," << 
+            ros::Time::now().toSec() << "," << 
+            "" << "," << "" << "," << 
+            boost::lexical_cast<std::string>(pose.getOrigin().x()) << "," << 
+            boost::lexical_cast<std::string>(pose.getOrigin().y()) << "," << 
+            boost::lexical_cast<std::string>(pose.getOrigin().z()) << "," << 
+            boost::lexical_cast<std::string>(pose.getRotation().x()) << "," << 
+            boost::lexical_cast<std::string>(pose.getRotation().y()) << "," << 
+            boost::lexical_cast<std::string>(pose.getRotation().z()) << "," << 
+            boost::lexical_cast<std::string>(pose.getRotation().w()) <<  std::endl;
+    }
+    f.close();
+  }
+  else
+  {
+    // No, or file could not be modified
+    ROS_WARN_STREAM("Could not truncate " << file_path_);
+    f.close();
   }
   return true;
 }
