@@ -64,6 +64,8 @@ private:
     false_candidates_;              //!> Vector of detected false candidates to prevent re-calculation.
   std::vector<tf::Transform> 
     pose_history_;                  //!> Vector to save the pose history
+  std::vector<double> 
+    pose_history_stamp_;            //!> Vector to save the timestamp pose history
 
   // G2O Optimization
   double update_rate_;							//!> Timer callback rate (in seconds) to optimize the graph.
@@ -123,7 +125,7 @@ private:
 
   // Graph to file properties
   bool save_graph_to_file_;         //!> True if user wants to save the graph into file.
-  std::string file_path_;           //!> Path where save the graph data.
+  std::string files_path_;           //!> Path where save the graph data.
 };
 
 } // namespace

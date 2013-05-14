@@ -179,6 +179,7 @@ void stereo_localization::StereoLocalizationBase::msgsCallback(
 
       // Save original pose history
       pose_history_.push_back(current_pose);
+      pose_history_stamp_.push_back(odom_msg->header.stamp.toSec());
 
       // Save for next iteration
       previous_pose_ = corrected_pose;
@@ -418,7 +419,7 @@ void stereo_localization::StereoLocalizationBase::readParameters()
 
   // Graph to file parameters
   nh_private_.param("save_graph_to_file", save_graph_to_file_, false);
-  nh_private_.param("file_path", file_path_, std::string("graph_data.txt"));
+  nh_private_.param("files_path", files_path_, std::string("graph_data.txt"));
 
   // Topics subscriptions
   image_transport::ImageTransport it(nh_);
@@ -549,48 +550,84 @@ bool stereo_localization::StereoLocalizationBase::initializeStereoLocalization()
   // Parameters check
   if (matches_threshold_ < 5)
   {
-    ROS_WARN("Parameter 'matches_threshold' must be greater than 5. Set to 6.");
+    ROS_WARN("[StereoLocalization:] Parameter 'matches_threshold' must be greater than 5. Set to 6.");
     matches_threshold_ = 6;
     return false;
   }
+  if (files_path_[files_path_.length()-1] != '/')
+    files_path_ += "/";
 
   return true;
 }
 
+/** \brief Save the optimized graph into a file with the same format than odometry_msgs.
+  * It deletes all the file contents every time and re-write it with the last optimized.
+  * @return
+  */
 bool stereo_localization::StereoLocalizationBase::saveGraph()
 {
-  // Does file exist?
-  std::fstream f(file_path_.c_str(), std::ios::in);
-  if (f)
+  std::string vertices_file, edges_file;
+  vertices_file = files_path_ + "graph_vertices.txt";
+  edges_file = files_path_ + "graph_edges.txt";
+
+  // Open to append
+  std::fstream f_vertices(vertices_file.c_str(), std::ios::out | std::ios::trunc);
+  std::fstream f_edges(edges_file.c_str(), std::ios::out | std::ios::trunc);
+  
+  // Fill the vertices file
+  for (unsigned int i=0; i<graph_optimizer_.vertices().size(); i++)
   {
-    // Yes, truncate it
-    f.close();
-    f.open(file_path_.c_str(), std::ios::out | std::ios::trunc );
-    
-    // Fill the file
-    for (unsigned int i=0; i<graph_optimizer_.vertices().size(); i++)
+    // Compute timestamp
+    double timestamp = pose_history_stamp_.at(i);
+
+    g2o::VertexSE3* v = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
+    tf::Transform pose = stereo_localization::Utils::getNodePose(v);
+    f_vertices <<  std::setprecision(19) << 
+          timestamp  << "," << 
+          i << "," << 
+          timestamp << "," << 
+          map_frame_id_ << "," << 
+          base_link_frame_id_ << "," << 
+          std::setprecision(6) << 
+          pose.getOrigin().x() << "," << 
+          pose.getOrigin().y() << "," << 
+          pose.getOrigin().z() << "," << 
+          pose.getRotation().x() << "," << 
+          pose.getRotation().y() << "," << 
+          pose.getRotation().z() << "," << 
+          pose.getRotation().w() <<  std::endl;
+  }
+  f_vertices.close();
+
+  // Fill the edges file
+  int counter = 0;
+  for ( g2o::OptimizableGraph::EdgeSet::iterator it=graph_optimizer_.edges().begin();
+        it!=graph_optimizer_.edges().end(); it++)
+  {
+    g2o::EdgeSE3* e = dynamic_cast<g2o::EdgeSE3*> (*it);
+    if (e)
     {
-      g2o::VertexSE3* v = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
-      tf::Transform pose = stereo_localization::Utils::getNodePose(v);
-      f <<  ros::Time::now().toSec() << "," << 
-            boost::lexical_cast<std::string>(i) << "," << 
-            ros::Time::now().toSec() << "," << 
-            "" << "," << "" << "," << 
-            boost::lexical_cast<std::string>(pose.getOrigin().x()) << "," << 
-            boost::lexical_cast<std::string>(pose.getOrigin().y()) << "," << 
-            boost::lexical_cast<std::string>(pose.getOrigin().z()) << "," << 
-            boost::lexical_cast<std::string>(pose.getRotation().x()) << "," << 
-            boost::lexical_cast<std::string>(pose.getRotation().y()) << "," << 
-            boost::lexical_cast<std::string>(pose.getRotation().z()) << "," << 
-            boost::lexical_cast<std::string>(pose.getRotation().w()) <<  std::endl;
+      // Only take into account non-directed edges
+      if (abs(e->vertices()[0]->id() - e->vertices()[1]->id()) > 1 )
+      {
+        g2o::VertexSE3* v_0 = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[e->vertices()[0]->id()]);
+        g2o::VertexSE3* v_1 = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[e->vertices()[1]->id()]);
+        tf::Transform pose_0 = stereo_localization::Utils::getNodePose(v_0);
+        tf::Transform pose_1 = stereo_localization::Utils::getNodePose(v_1);
+
+        f_edges << counter << "," << 
+              std::setprecision(6) << 
+              pose_0.getOrigin().x() << "," << 
+              pose_0.getOrigin().y() << "," << 
+              pose_0.getOrigin().z() << "," << 
+              pose_1.getOrigin().x() << "," << 
+              pose_1.getOrigin().y() << "," << 
+              pose_1.getOrigin().z() <<  std::endl;
+        counter++;
+      }
     }
-    f.close();
   }
-  else
-  {
-    // No, or file could not be modified
-    ROS_WARN_STREAM("Could not truncate " << file_path_);
-    f.close();
-  }
+  f_edges.close();
+
   return true;
 }
