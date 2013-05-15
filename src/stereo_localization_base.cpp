@@ -136,7 +136,7 @@ void stereo_localization::StereoLocalizationBase::msgsCallback(
     node_data.keypoints_.data() = keypoints;
     node_data.descriptors_.data() = descriptors;
     node_data.points3d_.data() = points_3d;
-    if (!pg_db_ptr_->insertIntoDatabase(&node_data))
+    if (!pg_db_ptr_thread_1_->insertIntoDatabase(&node_data))
     {
       ROS_ERROR("[StereoLocalization:] Node insertion failed");
     }
@@ -186,7 +186,7 @@ void stereo_localization::StereoLocalizationBase::msgsCallback(
       first_message_ = false;
       ROS_INFO_STREAM("[StereoLocalization:] Node " << node_data.id_.data() << " insertion succeeded");
     }
-  }  
+  }
 
   // Publish map odometry
   if (odom_pub_.getNumSubscribers() > 0)
@@ -217,13 +217,14 @@ void stereo_localization::StereoLocalizationBase::timerCallback(const ros::WallT
   bool edge_added = false;
 
   // Find possible candidates for loop-closing
-  for (unsigned int i=0; i<graph_optimizer_.vertices().size(); i++)
+  unsigned int graph_size = graph_optimizer_.vertices().size();
+  for (unsigned int i=0; i<graph_size; i++)
   {
     // Extract the pose of node i
     g2o::VertexSE3* v_i = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
     tf::Transform pose_i = stereo_localization::Utils::getNodePose(v_i);
 
-    for (unsigned int j=i+1; j<graph_optimizer_.vertices().size(); j++)
+    for (unsigned int j=i+2; j<graph_size; j++)
     {
       // Extract the pose of node j and compare
       g2o::VertexSE3* v_j = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[j]);
@@ -251,16 +252,17 @@ void stereo_localization::StereoLocalizationBase::timerCallback(const ros::WallT
       bool false_cand = stereo_localization::Utils::searchFalseCandidates(false_candidates_, v_i->id(), v_j->id());
 
       // If no edges found connecting this nodes, try to find loop closures
-      if (!false_cand && 
-          !edge_found && stereo_localization::Utils::poseDiff(pose_i, pose_j) < min_candidate_threshold_)
+      double pose_diff = stereo_localization::Utils::poseDiff(pose_i, pose_j);
+      if (!false_cand && !edge_found && 
+          pose_diff < min_candidate_threshold_)
       {
         // Get the data of both nodes from database
         std::string where_i = "(id = " + boost::lexical_cast<std::string>(v_i->id() + 1) + ")";
         std::string where_j = "(id = " + boost::lexical_cast<std::string>(v_j->id() + 1) + ")";
         std::vector< boost::shared_ptr<stereo_localization::GraphNodes> > nodes_i;
         std::vector< boost::shared_ptr<stereo_localization::GraphNodes> > nodes_j;
-        pg_db_ptr_->getList(nodes_i, where_i);
-        pg_db_ptr_->getList(nodes_j, where_j);
+        pg_db_ptr_thread_2_->getList(nodes_i, where_i);
+        pg_db_ptr_thread_2_->getList(nodes_j, where_j);
         if (nodes_i.size() == 1 && nodes_j.size() == 1)
         {
           cv::Mat desc_i = cv::Mat_<std::vector<float> >();
@@ -501,11 +503,14 @@ bool stereo_localization::StereoLocalizationBase::initializeStereoLocalization()
   graph_optimizer_.setVerbose(go2_verbose_);  
 
   // Database initialization
-  boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr( 
+  boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr_1( 
     new database_interface::PostgresqlDatabase(db_host_, db_port_, db_user_, db_pass_, db_name_));
-  pg_db_ptr_ = db_ptr;
+  boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr_2( 
+    new database_interface::PostgresqlDatabase(db_host_, db_port_, db_user_, db_pass_, db_name_));
+  pg_db_ptr_thread_1_ = db_ptr_1;
+  pg_db_ptr_thread_2_ = db_ptr_2;
 
-  if (!pg_db_ptr_->isConnected())
+  if (!pg_db_ptr_thread_1_->isConnected())
   {
     ROS_ERROR("[StereoLocalization:] Database failed to connect");
   }

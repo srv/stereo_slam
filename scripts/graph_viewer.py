@@ -33,25 +33,31 @@ def real_time_plot(odom_file, graph_vertices_file):
 
   # Load visual odometry data (saved with rostopic echo -p /stereo_odometer/odometry > file.txt)
   if (odom_file != "" and os.path.exists(odom_file)):
-    data = pylab.loadtxt(odom_file, delimiter=',', skiprows=1, usecols=(5,6,7))
-    # Remove old line collection
-    if (first_iter == False):
-      l = ax_odom.pop(0)
-      wl = weakref.ref(l)
-      l.remove()
-      del l
-    ax_odom = ax.plot(data[:,0], data[:,1], data[:,2], colors[1], label='Visual Odometry')
+    try:
+      data = pylab.loadtxt(odom_file, delimiter=',', skiprows=1, usecols=(5,6,7,8,9,10,11))
+      # Remove old line collection
+      if (first_iter == False):
+        l = ax_odom.pop(0)
+        wl = weakref.ref(l)
+        l.remove()
+        del l
+      ax_odom = ax.plot(data[:,0], data[:,1], data[:,2], colors[1], label='Visual Odometry')
+    except:
+      print "No data in ", odom_file
 
   # Load stereo localization vertices (file saved with node stereo_localization)
   if (graph_vertices_file != "" and os.path.exists(graph_vertices_file)):
-    data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(5,6,7))
-    # Remove old line collection
-    if (first_iter == False):
-      l = ax_vertices.pop(0)
-      wl = weakref.ref(l)
-      l.remove()
-      del l
-    ax_vertices = ax.plot(data[:,0], data[:,1], data[:,2], colors[2], label='Stereo Localization', marker='o')
+    try:
+      data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(5,6,7,8,9,10,11))
+      # Remove old line collection
+      if (first_iter == False):
+        l = ax_vertices.pop(0)
+        wl = weakref.ref(l)
+        l.remove()
+        del l
+      ax_vertices = ax.plot(data[:,0], data[:,1], data[:,2], colors[2], label='Stereo Localization', marker='o')
+    except:
+      print "No data in ", graph_vertices_file
 
   # Show the edges
   if (edges_shown == True):
@@ -70,26 +76,25 @@ def draw_edges():
 
   # Load stereo localization edges (file saved with node stereo_localization)
   if (graph_edges_file != "" and os.path.exists(graph_edges_file)):
-    data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(1,2,3,4,5,6))
-
-    # First, remove previous edges
-    remove_edges()
-
-    # Plot current
-    ax_edges = []
-    for i in range(len(data)):
-      vect = []
-      vect.append([data[i,0], data[i,1], data[i,2]])
-      vect.append([data[i,3], data[i,4], data[i,5]])
-      vect =  np.array(vect)
-      ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[2])
-      ax_edges.append(ax_edge)
-
+    try:
+      data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(1,2,3,4,5,6))
+      # First, remove previous edges
+      remove_edges()
+      # Plot current
+      ax_edges = []
+      for i in range(len(data)):
+        vect = []
+        vect.append([data[i,0], data[i,1], data[i,2]])
+        vect.append([data[i,3], data[i,4], data[i,5]])
+        vect =  np.array(vect)
+        ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[2])
+        ax_edges.append(ax_edge)
+    except:
+      print "No data in ", graph_edges_file
   edges_shown = True
 
 def remove_edges():
   global ax_edges, edges_shown
-
   # Remove old lines
   for i in range(len(ax_edges)):
     l = ax_edges[i].pop(0)
@@ -106,7 +111,6 @@ def onclick(event):
       remove_edges()
     else:
       draw_edges()
-
     # Update the plot
     pyplot.draw()
 

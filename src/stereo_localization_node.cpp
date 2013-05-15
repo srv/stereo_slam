@@ -15,7 +15,10 @@ int main(int argc, char **argv)
 
   stereo_localization::StereoLocalizationBase stereo_localization(nh,nh_private);
 
-  ros::spin();
+  // Use 2 async threads, one for every callback: messages and timer
+  ros::AsyncSpinner spinner(2);
+  spinner.start();
+	ros::waitForShutdown();
 
   return 0;
 }

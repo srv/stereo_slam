@@ -55,7 +55,8 @@ protected:
 private:
 	// Database properties
 	std::string db_host_, db_port_, db_user_, db_pass_, db_name_;
-	boost::shared_ptr<database_interface::PostgresqlDatabase> pg_db_ptr_;
+	boost::shared_ptr<database_interface::PostgresqlDatabase> pg_db_ptr_thread_1_;
+  boost::shared_ptr<database_interface::PostgresqlDatabase> pg_db_ptr_thread_2_;
 	PGconn* connection_init_;
 
 	// Transform properties
