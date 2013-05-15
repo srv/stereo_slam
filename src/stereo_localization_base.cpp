@@ -574,7 +574,7 @@ bool stereo_localization::StereoLocalizationBase::saveGraph()
   std::fstream f_vertices(vertices_file.c_str(), std::ios::out | std::ios::trunc);
   std::fstream f_edges(edges_file.c_str(), std::ios::out | std::ios::trunc);
   
-  // Fill the vertices file
+  // Output the vertices file
   for (unsigned int i=0; i<graph_optimizer_.vertices().size(); i++)
   {
     // Compute timestamp
@@ -599,7 +599,7 @@ bool stereo_localization::StereoLocalizationBase::saveGraph()
   }
   f_vertices.close();
 
-  // Fill the edges file
+  // Output the edges file
   int counter = 0;
   for ( g2o::OptimizableGraph::EdgeSet::iterator it=graph_optimizer_.edges().begin();
         it!=graph_optimizer_.edges().end(); it++)

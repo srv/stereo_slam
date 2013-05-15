@@ -13,22 +13,23 @@ from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
 
 # Global variables
+graph_edges_file = ""
 first_iter = True
 colors = ['g','r','b']
 ax_odom = None
 ax_vertices = None
 ax_edges = []
-ax_edge = None
+edges_shown = True
 
 class Error(Exception):
   """ Base class for exceptions in this module. """
   pass
 
-def real_time_plot(odom_file, graph_vertices_file, graph_edges_file):
+def real_time_plot(odom_file, graph_vertices_file):
   """
   Function to plot the data saved into the files in real time
   """
-  global first_iter, colors, ax_odom, ax_vertices, ax_edges, ax_edge
+  global first_iter, colors, ax_odom, ax_vertices, edges_shown
 
   # Load visual odometry data (saved with rostopic echo -p /stereo_odometer/odometry > file.txt)
   if (odom_file != "" and os.path.exists(odom_file)):
@@ -52,16 +53,27 @@ def real_time_plot(odom_file, graph_vertices_file, graph_edges_file):
       del l
     ax_vertices = ax.plot(data[:,0], data[:,1], data[:,2], colors[2], label='Stereo Localization', marker='o')
 
+  # Show the edges
+  if (edges_shown == True):
+    draw_edges()
+
+  # Update the plot
+  pyplot.draw()
+
+  # Show legend only once
+  if (first_iter == True):
+    ax.legend()
+    first_iter = False
+
+def draw_edges():
+  global graph_edges_file, ax_edges, edges_shown
+
   # Load stereo localization edges (file saved with node stereo_localization)
   if (graph_edges_file != "" and os.path.exists(graph_edges_file)):
     data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(1,2,3,4,5,6))
 
-    # Remove old lines
-    for i in range(len(ax_edges)):
-      l = ax_edges[i].pop(0)
-      wl = weakref.ref(l)
-      l.remove()
-      del l
+    # First, remove previous edges
+    remove_edges()
 
     # Plot current
     ax_edges = []
@@ -73,13 +85,30 @@ def real_time_plot(odom_file, graph_vertices_file, graph_edges_file):
       ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[2])
       ax_edges.append(ax_edge)
 
-  # Update the plot
-  pyplot.draw()
+  edges_shown = True
 
-  # Show legend only once
-  if (first_iter == True):
-    ax.legend()
-    first_iter = False
+def remove_edges():
+  global ax_edges, edges_shown
+
+  # Remove old lines
+  for i in range(len(ax_edges)):
+    l = ax_edges[i].pop(0)
+    wl = weakref.ref(l)
+    l.remove()
+    del l
+  ax_edges = []
+  edges_shown = False
+
+def onclick(event):
+  global edges_shown
+  if (event.button == 3):
+    if (edges_shown):
+      remove_edges()
+    else:
+      draw_edges()
+
+    # Update the plot
+    pyplot.draw()
 
 if __name__ == "__main__":
   import argparse
@@ -99,6 +128,9 @@ if __name__ == "__main__":
           default='3000')
   args = parser.parse_args()
 
+  # Save graph edges file into global
+  graph_edges_file = args.graph_edges_file
+
   # Init figure
   fig = pylab.figure(1)
   ax = Axes3D(fig)
@@ -113,11 +145,13 @@ if __name__ == "__main__":
     data = pylab.loadtxt(args.ground_truth_file, delimiter=',', skiprows=1, usecols=(5,6,7))
     ax.plot(data[:,0], data[:,1], data[:,2], colors[0], label='Ground Truth')
 
+  # Handle on click callback
+  fig.canvas.mpl_connect('button_press_event', onclick)
+
   # Start timer for real time plot
   timer = fig.canvas.new_timer(interval=args.time_step)
   timer.add_callback( real_time_plot, 
                       args.visual_odometry_file, 
-                      args.graph_vertices_file, 
-                      args.graph_edges_file)
+                      args.graph_vertices_file)
   timer.start()  
   pylab.show()

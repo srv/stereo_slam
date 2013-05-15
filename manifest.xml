@@ -23,6 +23,8 @@
   <depend package="std_srvs"/>
   
   <rosdep name="eigen"/>
+  <rosdep name="libg2o"/>
+  <rosdep name="sql_database"/>
 
 </package>
 
