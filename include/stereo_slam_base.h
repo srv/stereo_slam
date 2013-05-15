@@ -1,10 +1,10 @@
 /**
  * @file
- * @brief Stereo localization using visual odometry and g2o optimization (presentation).
+ * @brief Stereo slam using visual odometry and g2o optimization (presentation).
  */
 
-#ifndef STEREO_LOCALIZATION_BASE_H
-#define STEREO_LOCALIZATION_BASE_H
+#ifndef STEREO_SLAM_BASE_H
+#define STEREO_SLAM_BASE_H
 
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
@@ -27,14 +27,14 @@
 #include <g2o/solvers/dense/linear_solver_dense.h>
 #include <opencv2/features2d/features2d.hpp>
 
-namespace stereo_localization
+namespace stereo_slam
 {
 
-class StereoLocalizationBase
+class StereoSlamBase
 {
 public:
 	// Constructor
-  StereoLocalizationBase(ros::NodeHandle nh, ros::NodeHandle nhp);
+  StereoSlamBase(ros::NodeHandle nh, ros::NodeHandle nhp);
 
 protected:
 	// Node handlers
@@ -42,7 +42,7 @@ protected:
   ros::NodeHandle nh_private_;
 
   // Protected functions and callbacks
-  bool initializeStereoLocalization();
+  bool initializeStereoSlam();
   void readParameters();
   void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                     const sensor_msgs::ImageConstPtr& l_img,
@@ -131,4 +131,4 @@ private:
 
 } // namespace
 
-#endif // STEREO_LOCALIZATION_BASE_H
+#endif // STEREO_SLAM_BASE_H

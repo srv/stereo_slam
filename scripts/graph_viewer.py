@@ -45,7 +45,7 @@ def real_time_plot(odom_file, graph_vertices_file):
     except:
       print "No data in ", odom_file
 
-  # Load stereo localization vertices (file saved with node stereo_localization)
+  # Load stereo slam vertices (file saved with node stereo_slam)
   if (graph_vertices_file != "" and os.path.exists(graph_vertices_file)):
     try:
       data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(5,6,7,8,9,10,11))
@@ -55,7 +55,7 @@ def real_time_plot(odom_file, graph_vertices_file):
         wl = weakref.ref(l)
         l.remove()
         del l
-      ax_vertices = ax.plot(data[:,0], data[:,1], data[:,2], colors[2], label='Stereo Localization', marker='o')
+      ax_vertices = ax.plot(data[:,0], data[:,1], data[:,2], colors[2], label='Stereo slam', marker='o')
     except:
       print "No data in ", graph_vertices_file
 
@@ -74,7 +74,7 @@ def real_time_plot(odom_file, graph_vertices_file):
 def draw_edges():
   global graph_edges_file, ax_edges, edges_shown
 
-  # Load stereo localization edges (file saved with node stereo_localization)
+  # Load stereo slam edges (file saved with node stereo_slam)
   if (graph_edges_file != "" and os.path.exists(graph_edges_file)):
     try:
       data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(1,2,3,4,5,6))
@@ -124,9 +124,9 @@ if __name__ == "__main__":
   parser.add_argument('visual_odometry_file', 
           help='file with visual odometry')
   parser.add_argument('graph_vertices_file', 
-          help='file the vertices of stereo localization')
+          help='file the vertices of stereo slam')
   parser.add_argument('graph_edges_file', 
-          help='file the edges of stereo localization')
+          help='file the edges of stereo slam')
   parser.add_argument('-ts','--time-step',
           help='update frequency (in milliseconds)',
           default='3000')

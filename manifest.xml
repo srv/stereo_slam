@@ -1,13 +1,13 @@
 <package>
-  <description brief="stereo_localization">
+  <description brief="stereo_slam">
 
-     Stereo localization
+     Stereo slam
 
   </description>
   <author>Miquel Massot, Pep Lluís Negre</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
-  <url>http://ros.org/wiki/odom_corrector</url>
+  <url>http://ros.org/wiki/stereo_slam</url>
   
   <depend package="roscpp"/>
   <depend package="nav_msgs"/>

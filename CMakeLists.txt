@@ -59,10 +59,10 @@ include_directories(${PQ_INCLUDE_DIR})
 rosbuild_add_boost_directories()
 
 #executables
-rosbuild_add_executable(stereo_localization 
-												src/stereo_localization_node.cpp
-												src/stereo_localization_base.cpp)
+rosbuild_add_executable(stereo_slam 
+												src/stereo_slam_node.cpp
+												src/stereo_slam_base.cpp)
 
 #link with libraries
-target_link_libraries(stereo_localization pq ${G2O_LIBRARIES})
-rosbuild_link_boost(stereo_localization signals)
+target_link_libraries(stereo_slam pq ${G2O_LIBRARIES})
+rosbuild_link_boost(stereo_slam signals)

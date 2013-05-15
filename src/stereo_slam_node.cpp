@@ -1,19 +1,19 @@
 /**
  * @file
- * @brief ROS node for stereo_localization code
+ * @brief ROS node for stereo_slam code
  */
 
 
 #include <ros/ros.h>
-#include "stereo_localization_base.h"
+#include "stereo_slam_base.h"
 
 int main(int argc, char **argv)
 {
-  ros::init(argc,argv,"stereo_localization");
+  ros::init(argc,argv,"stereo_slam");
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
 
-  stereo_localization::StereoLocalizationBase stereo_localization(nh,nh_private);
+  stereo_slam::StereoSlamBase stereo_slam(nh,nh_private);
 
   // Use 2 async threads, one for every callback: messages and timer
   ros::AsyncSpinner spinner(2);

@@ -4,7 +4,7 @@
 #include <string>
 #include <database_interface/db_class.h>
 
-namespace stereo_localization
+namespace stereo_slam
 {
 
 class GraphNodes : public database_interface::DBClass

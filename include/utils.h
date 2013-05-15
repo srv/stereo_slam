@@ -13,7 +13,7 @@
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 
-namespace stereo_localization
+namespace stereo_slam
 {
 
 class Utils
@@ -89,7 +89,7 @@ public:
   	}
   	catch (cv::Exception& e)
   	{
-  		ROS_WARN("[StereoLocalization:] cv_detector exception: %s", e.what());
+  		ROS_WARN("[StereoSlam:] cv_detector exception: %s", e.what());
   	}
 	}
 
@@ -110,7 +110,7 @@ public:
 	  }
 	  catch (cv::Exception& e)
 	  {
-	  	ROS_WARN("[StereoLocalization:] cv_extractor exception: %s", e.what());
+	  	ROS_WARN("[StereoSlam:] cv_extractor exception: %s", e.what());
 	  }
 	}
 
@@ -154,7 +154,7 @@ public:
 	  }
 	  catch (cv::Exception& e)
 	  {
-	  	ROS_WARN("[StereoLocalization:] cv::DescriptorMatcher exception: %s", e.what());
+	  	ROS_WARN("[StereoSlam:] cv::DescriptorMatcher exception: %s", e.what());
 	  }	  
 	}
 
@@ -336,7 +336,7 @@ public:
   static tf::Transform getNodePose(g2o::VertexSE3* node)
   {
   	Eigen::Isometry3d pose_eigen = node->estimate();
-  	tf::Transform pose_tf = stereo_localization::Utils::eigenToTf(pose_eigen);
+  	tf::Transform pose_tf = stereo_slam::Utils::eigenToTf(pose_eigen);
   	return pose_tf;
   }
 
