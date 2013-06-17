@@ -61,7 +61,9 @@ rosbuild_add_boost_directories()
 #executables
 rosbuild_add_executable(stereo_slam 
 												src/stereo_slam_node.cpp
-												src/stereo_slam_base.cpp)
+												src/stereo_slam_base.cpp
+												src/vertex_insertion.cpp
+												src/graph_updater.cpp)
 
 #link with libraries
 target_link_libraries(stereo_slam pq ${G2O_LIBRARIES})

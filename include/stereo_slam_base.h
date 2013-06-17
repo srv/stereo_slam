@@ -11,6 +11,7 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/Image.h>
 #include <std_srvs/Empty.h>
+#include <cv_bridge/cv_bridge.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/sync_policies/exact_time.h>
@@ -26,6 +27,11 @@
 #include <g2o/core/optimization_algorithm_levenberg.h>
 #include <g2o/solvers/dense/linear_solver_dense.h>
 #include <opencv2/features2d/features2d.hpp>
+#include <sensor_msgs/image_encodings.h>
+
+typedef g2o::BlockSolver< g2o::BlockSolverTraits<-1, -1> >  SlamBlockSolver;
+typedef g2o::LinearSolverCholmod<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
+namespace enc = sensor_msgs::image_encodings;
 
 namespace stereo_slam
 {
@@ -44,13 +50,19 @@ protected:
   // Protected functions and callbacks
   bool initializeStereoSlam();
   void readParameters();
-  void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
-                    const sensor_msgs::ImageConstPtr& l_img,
-                    const sensor_msgs::ImageConstPtr& r_img,
-                    const sensor_msgs::CameraInfoConstPtr& l_info,
-                    const sensor_msgs::CameraInfoConstPtr& r_info);
-  void timerCallback(const ros::WallTimerEvent& event);
+  void msgsCallback(  const nav_msgs::Odometry::ConstPtr& odom_msg,
+                      const sensor_msgs::ImageConstPtr& l_img,
+                      const sensor_msgs::ImageConstPtr& r_img,
+                      const sensor_msgs::CameraInfoConstPtr& l_info,
+                      const sensor_msgs::CameraInfoConstPtr& r_info);
+  void timerCallback( const ros::WallTimerEvent& event);
   bool saveGraph();
+  void vertexInsertion( cv_bridge::CvImagePtr l_ptr, 
+                        cv_bridge::CvImagePtr r_ptr,
+                        tf::Transform current_pose,
+                        tf::Transform corrected_pose,
+                        double timestamp);
+  bool graphUpdater();
 
 private:
 	// Database properties
