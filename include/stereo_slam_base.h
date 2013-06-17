@@ -60,7 +60,7 @@ private:
 	PGconn* connection_init_;
 
 	// Transform properties
-  tf::Transform previous_pose_;			//!> Previous node pose
+  tf::Transform previous_pose_;			//!> Previous vertex pose
   std::vector<cv::Point2i> 
     false_candidates_;              //!> Vector of detected false candidates to prevent re-calculation.
   std::vector<tf::Transform> 
@@ -76,13 +76,13 @@ private:
   g2o::SparseOptimizer 
   	graph_optimizer_;								//!> G2O graph optimizer
   ros::WallTimer timer_;						//!> Timer to optimize the graph while it is updated
-  int last_node_optimized_;         //!> Indicates the id of the last optimized node
+  int last_vertex_optimized_;         //!> Indicates the id of the last optimized vertex
 
   // Operational properties
-  double min_displacement_;					//!> Minimum odometry displacement between poses to be saved as graph nodes. 
-  double min_candidate_threshold_;	//!> Minimum distance between graph nodes to be considered for possible candidates of loop closure.
+  double min_displacement_;					//!> Minimum odometry displacement between poses to be saved as graph vertices. 
+  double min_candidate_threshold_;	//!> Minimum distance between graph vertices to be considered for possible candidates of loop closure.
   bool first_message_;							//!> True when first message is received, false for any other instant.
-  bool first_node_;									//!> True when first node is inserted into graph, false for any other instant.
+  bool first_vertex_;									//!> True when first vertex is inserted into graph, false for any other instant.
   bool block_update_;								//!> Used to block the timer re-calls when it is executed.
 
   // stereo vision properties

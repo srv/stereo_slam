@@ -120,7 +120,7 @@ if __name__ == "__main__":
           description='Plot 3D graphics of odometry data files in real time.',
           formatter_class=argparse.ArgumentDefaultsHelpFormatter)
   parser.add_argument('ground_truth_file', 
-          help='file with ground truth odometry')
+          help='file with ground truth')
   parser.add_argument('visual_odometry_file', 
           help='file with visual odometry')
   parser.add_argument('graph_vertices_file', 

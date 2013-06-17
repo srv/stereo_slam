@@ -6,6 +6,10 @@
 #include <Eigen/Geometry>
 #include <iostream>
 #include <fstream>
+#include "opencv2/core/core.hpp"
+#include "opencv2/features2d/features2d.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/nonfree/features2d.hpp"
 #include "postgresql_interface.h"
 #include "utils.h"
 
@@ -58,16 +62,16 @@ void stereo_slam::StereoSlamBase::msgsCallback(
   tf::Transform corrected_pose = current_pose;
 
   // Compute the corrected pose with the optimized graph
-  if (pose_history_.size() > 0 && last_node_optimized_ >= 0)
+  if (pose_history_.size() > 0 && last_vertex_optimized_ >= 0)
   {
     // Compute the tf between last original pose before optimization and current.
-    tf::Transform last_original_pose = pose_history_.at(last_node_optimized_);
+    tf::Transform last_original_pose = pose_history_.at(last_vertex_optimized_);
     tf::Transform diff = last_original_pose.inverse() * current_pose;
 
     // Get the last optimized pose
-    g2o::VertexSE3* last_node =  dynamic_cast<g2o::VertexSE3*>
-          (graph_optimizer_.vertices()[last_node_optimized_]);
-    tf::Transform last_optimized_pose = stereo_slam::Utils::getNodePose(last_node);
+    g2o::VertexSE3* last_vertex =  dynamic_cast<g2o::VertexSE3*>
+          (graph_optimizer_.vertices()[last_vertex_optimized_]);
+    tf::Transform last_optimized_pose = stereo_slam::Utils::getVertexPose(last_vertex);
 
     // Compute the corrected pose
     corrected_pose = last_optimized_pose * diff;
@@ -76,9 +80,7 @@ void stereo_slam::StereoSlamBase::msgsCallback(
   // Check if difference between images is larger than maximum displacement
   if (stereo_slam::Utils::poseDiff(corrected_pose, previous_pose_) > min_displacement_
       || first_message_)
-  {
-    // The image properties and pose must be saved into the database
-    
+  {   
     // Convert message to cv::Mat
     cv_bridge::CvImagePtr l_ptr, r_ptr;
     try
@@ -131,48 +133,48 @@ void stereo_slam::StereoSlamBase::msgsCallback(
     std::vector< std::vector<float> > points_3d = 
     stereo_slam::Utils::cvPoint3fToStdMatrix(matched_3d_points);
 
-    // Save node data into the database
-    stereo_slam::GraphNodes node_data;
-    node_data.keypoints_.data() = keypoints;
-    node_data.descriptors_.data() = descriptors;
-    node_data.points3d_.data() = points_3d;
-    if (!pg_db_ptr_thread_1_->insertIntoDatabase(&node_data))
+    // Save vertex data into the database
+    stereo_slam::GraphDB vertex_data;
+    vertex_data.keypoints_.data() = keypoints;
+    vertex_data.descriptors_.data() = descriptors;
+    vertex_data.points3d_.data() = points_3d;
+    if (!pg_db_ptr_thread_1_->insertIntoDatabase(&vertex_data))
     {
-      ROS_ERROR("[StereoSlam:] Node insertion failed");
+      ROS_ERROR("[StereoSlam:] Vertex insertion failed");
     }
     else
     {
-      // Everything is ok, save the node into the graph
+      // Everything is ok, save the vertex into the graph
 
       // Build the pose
       Eigen::Isometry3d pose = stereo_slam::Utils::tfToEigen(corrected_pose);
 
-      // Build the node
-      g2o::VertexSE3* cur_node = new g2o::VertexSE3();
-      cur_node->setId(node_data.id_.data() - 1);
-      cur_node->setEstimate(pose);
-      if (first_node_)
+      // Build the vertex
+      g2o::VertexSE3* cur_vertex = new g2o::VertexSE3();
+      cur_vertex->setId(vertex_data.id_.data() - 1);
+      cur_vertex->setEstimate(pose);
+      if (first_vertex_)
       {
         // First time, no edges.
-        cur_node->setFixed(true);
-        graph_optimizer_.addVertex(cur_node);
-        first_node_ = false;
+        cur_vertex->setFixed(true);
+        graph_optimizer_.addVertex(cur_vertex);
+        first_vertex_ = false;
       }
       else
       {
-        // When graph has been initialized get the transform between current and previous nodes
+        // When graph has been initialized get the transform between current and previous vertices
         // and save it as an edge
 
-        // Get last node
-        g2o::VertexSE3* prev_node = dynamic_cast<g2o::VertexSE3*>(
+        // Get last vertex
+        g2o::VertexSE3* prev_vertex = dynamic_cast<g2o::VertexSE3*>(
           graph_optimizer_.vertices()[graph_optimizer_.vertices().size() - 1]);
-        graph_optimizer_.addVertex(cur_node);
+        graph_optimizer_.addVertex(cur_vertex);
 
         // Odometry edges
         g2o::EdgeSE3* e = new g2o::EdgeSE3();
-        Eigen::Isometry3d t = prev_node->estimate().inverse() * cur_node->estimate();
-        e->setVertex(0, prev_node);
-        e->setVertex(1, cur_node);
+        Eigen::Isometry3d t = prev_vertex->estimate().inverse() * cur_vertex->estimate();
+        e->setVertex(0, prev_vertex);
+        e->setVertex(1, cur_vertex);
         e->setMeasurement(t);
         graph_optimizer_.addEdge(e);
       }
@@ -184,7 +186,7 @@ void stereo_slam::StereoSlamBase::msgsCallback(
       // Save for next iteration
       previous_pose_ = corrected_pose;
       first_message_ = false;
-      ROS_INFO_STREAM("[StereoSlam:] Node " << node_data.id_.data() << " insertion succeeded");
+      ROS_INFO_STREAM("[StereoSlam:] Vertex " << vertex_data.id_.data() << " insertion succeeded");
     }
   }
 
@@ -220,17 +222,17 @@ void stereo_slam::StereoSlamBase::timerCallback(const ros::WallTimerEvent& event
   unsigned int graph_size = graph_optimizer_.vertices().size();
   for (unsigned int i=0; i<graph_size; i++)
   {
-    // Extract the pose of node i
+    // Extract the pose of vertex i
     g2o::VertexSE3* v_i = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
-    tf::Transform pose_i = stereo_slam::Utils::getNodePose(v_i);
+    tf::Transform pose_i = stereo_slam::Utils::getVertexPose(v_i);
 
     for (unsigned int j=i+2; j<graph_size; j++)
     {
-      // Extract the pose of node j and compare
+      // Extract the pose of vertex j and compare
       g2o::VertexSE3* v_j = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[j]);
-      tf::Transform pose_j = stereo_slam::Utils::getNodePose(v_j);
+      tf::Transform pose_j = stereo_slam::Utils::getVertexPose(v_j);
 
-      // Check if there is an edge that currently join both nodes
+      // Check if there is an edge that currently join both vertices
       bool edge_found = false;
       for (g2o::OptimizableGraph::EdgeSet::iterator it=graph_optimizer_.edges().begin();
        it!=graph_optimizer_.edges().end(); it++)
@@ -251,24 +253,24 @@ void stereo_slam::StereoSlamBase::timerCallback(const ros::WallTimerEvent& event
       bool is_false = false;
       bool false_cand = stereo_slam::Utils::searchFalseCandidates(false_candidates_, v_i->id(), v_j->id());
 
-      // If no edges found connecting this nodes, try to find loop closures
+      // If no edges found connecting this vertices, try to find loop closures
       double pose_diff = stereo_slam::Utils::poseDiff(pose_i, pose_j);
       if (!false_cand && !edge_found && 
           pose_diff < min_candidate_threshold_)
       {
-        // Get the data of both nodes from database
+        // Get the data of both vertices from database
         std::string where_i = "(id = " + boost::lexical_cast<std::string>(v_i->id() + 1) + ")";
         std::string where_j = "(id = " + boost::lexical_cast<std::string>(v_j->id() + 1) + ")";
-        std::vector< boost::shared_ptr<stereo_slam::GraphNodes> > nodes_i;
-        std::vector< boost::shared_ptr<stereo_slam::GraphNodes> > nodes_j;
-        pg_db_ptr_thread_2_->getList(nodes_i, where_i);
-        pg_db_ptr_thread_2_->getList(nodes_j, where_j);
-        if (nodes_i.size() == 1 && nodes_j.size() == 1)
+        std::vector< boost::shared_ptr<stereo_slam::GraphDB> > vert_i;
+        std::vector< boost::shared_ptr<stereo_slam::GraphDB> > vert_j;
+        pg_db_ptr_thread_2_->getList(vert_i, where_i);
+        pg_db_ptr_thread_2_->getList(vert_j, where_j);
+        if (vert_i.size() == 1 && vert_j.size() == 1)
         {
           cv::Mat desc_i = cv::Mat_<std::vector<float> >();
           cv::Mat desc_j = cv::Mat_<std::vector<float> >();
-          desc_i = stereo_slam::Utils::stdMatrixToCvMat(nodes_i[0]->descriptors_.data());
-          desc_j = stereo_slam::Utils::stdMatrixToCvMat(nodes_j[0]->descriptors_.data());
+          desc_i = stereo_slam::Utils::stdMatrixToCvMat(vert_i[0]->descriptors_.data());
+          desc_j = stereo_slam::Utils::stdMatrixToCvMat(vert_j[0]->descriptors_.data());
 
           // Compute matchings
           std::vector<cv::DMatch> matches;
@@ -276,16 +278,16 @@ void stereo_slam::StereoSlamBase::timerCallback(const ros::WallTimerEvent& event
 
           if (stereo_vision_verbose_)
             ROS_INFO_STREAM("[StereoSlam:] Found " << matches.size() <<
-               " matches between nodes " << v_i->id() << " and " << v_j->id() <<
+               " matches between vertices " << v_i->id() << " and " << v_j->id() <<
                " (matches_threshold is: " << matches_threshold_ << ")");
 
           if ((int)matches.size() > matches_threshold_)
           {
-            // Extract keypoints and 3d points of node i
+            // Extract keypoints and 3d points of vertex i
             std::vector<cv::Point2f> keypoints_j;
             std::vector<cv::Point3f> points3d_i;
-            keypoints_j = stereo_slam::Utils::stdMatrixToCvPoint2f(nodes_j[0]->keypoints_.data());
-            points3d_i = stereo_slam::Utils::stdMatrixToCvPoint3f(nodes_i[0]->points3d_.data());
+            keypoints_j = stereo_slam::Utils::stdMatrixToCvPoint2f(vert_j[0]->keypoints_.data());
+            points3d_i = stereo_slam::Utils::stdMatrixToCvPoint3f(vert_i[0]->points3d_.data());
             std::vector<cv::Point2f> matched_keypoints;
             std::vector<cv::Point3f> matched_3d_points;
             for (size_t i = 0; i < matches.size(); ++i)
@@ -296,7 +298,7 @@ void stereo_slam::StereoSlamBase::timerCallback(const ros::WallTimerEvent& event
               matched_keypoints.push_back(keypoints_j[index_right]);
             }
             
-            // Compute the transformation between the nodes
+            // Compute the transformation between the vertices
             cv::Mat rvec, tvec;
             std::vector<int> inliers;
             cv::solvePnPRansac(matched_3d_points, matched_keypoints, camera_matrix_, 
@@ -306,7 +308,7 @@ void stereo_slam::StereoSlamBase::timerCallback(const ros::WallTimerEvent& event
 
             if (stereo_vision_verbose_)
               ROS_INFO_STREAM("[StereoSlam:] Found " << inliers.size() <<
-               " inliers between nodes " << v_i->id() << " and " << v_j->id() <<
+               " inliers between vertices " << v_i->id() << " and " << v_j->id() <<
                " (min_inliers is: " << min_inliers_ << ")");
 
             if (static_cast<int>(inliers.size()) >= min_inliers_)
@@ -329,7 +331,7 @@ void stereo_slam::StereoSlamBase::timerCallback(const ros::WallTimerEvent& event
                 graph_optimizer_.addEdge(e);
                 edge_added = true;
 
-                ROS_INFO_STREAM("[StereoSlam:] Loop closed between nodes " << v_i->id() << " and " << v_j->id());
+                ROS_INFO_STREAM("[StereoSlam:] Loop closed between vertices " << v_i->id() << " and " << v_j->id());
               }
             }
             else
@@ -355,17 +357,17 @@ void stereo_slam::StereoSlamBase::timerCallback(const ros::WallTimerEvent& event
       // Bad candidate, save to prevent future processes
       if (is_false && !false_cand)
       {
-        cv::Point2i nodes(v_i->id(), v_j->id());
-        false_candidates_.push_back(nodes);
+        cv::Point2i vert(v_i->id(), v_j->id());
+        false_candidates_.push_back(vert);
       }
     }
   }
 
   if (edge_added)
   {
-    ROS_INFO_STREAM("[StereoSlam:] Optimizing global pose graph with " << graph_optimizer_.vertices().size() << " nodes...");
+    ROS_INFO_STREAM("[StereoSlam:] Optimizing global pose graph with " << graph_optimizer_.vertices().size() << " vertices...");
     graph_optimizer_.initializeOptimization();
-    last_node_optimized_ = graph_optimizer_.vertices().size() - 1;
+    last_vertex_optimized_ = graph_optimizer_.vertices().size() - 1;
     graph_optimizer_.optimize(go2_opt_max_iter_);
     ROS_INFO("[StereoSlam:] Optimization done.");
 
@@ -439,9 +441,9 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
 {
   // Operational initializations
   first_message_ = true;
-  first_node_ = true;
+  first_vertex_ = true;
   block_update_ = false;
-  last_node_optimized_ = -1;
+  last_vertex_optimized_ = -1;
 
   // Callback syncronization
   bool approx;
@@ -530,12 +532,12 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
     else
     {
       // Drop the table (to start clean)
-      std::string query_delete("DROP TABLE IF EXISTS graph_nodes");
+      std::string query_delete("DROP TABLE IF EXISTS graph");
       PQexec(connection_init_, query_delete.c_str());
-      ROS_INFO("[StereoSlam:] graph_nodes table droped successfully!");
+      ROS_INFO("[StereoSlam:] graph table dropped successfully!");
 
       // Create the table (if no exists)
-      std::string query_create("CREATE TABLE IF NOT EXISTS graph_nodes"
+      std::string query_create("CREATE TABLE IF NOT EXISTS graph"
                         "( "
                           "id bigserial primary key, "
                           "keypoints double precision[][], "
@@ -543,7 +545,7 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
                           "points3d double precision[][] "
                         ")");
       PQexec(connection_init_, query_create.c_str());
-      ROS_INFO("[StereoSlam:] graph_nodes table created successfully!");
+      ROS_INFO("[StereoSlam:] graph table created successfully!");
     }
   }
 
@@ -586,7 +588,7 @@ bool stereo_slam::StereoSlamBase::saveGraph()
     double timestamp = pose_history_stamp_.at(i);
 
     g2o::VertexSE3* v = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
-    tf::Transform pose = stereo_slam::Utils::getNodePose(v);
+    tf::Transform pose = stereo_slam::Utils::getVertexPose(v);
     f_vertices <<  std::setprecision(19) << 
           timestamp  << "," << 
           i << "," << 
@@ -617,8 +619,8 @@ bool stereo_slam::StereoSlamBase::saveGraph()
       {
         g2o::VertexSE3* v_0 = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[e->vertices()[0]->id()]);
         g2o::VertexSE3* v_1 = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[e->vertices()[1]->id()]);
-        tf::Transform pose_0 = stereo_slam::Utils::getNodePose(v_0);
-        tf::Transform pose_1 = stereo_slam::Utils::getNodePose(v_1);
+        tf::Transform pose_0 = stereo_slam::Utils::getVertexPose(v_0);
+        tf::Transform pose_1 = stereo_slam::Utils::getVertexPose(v_1);
 
         f_edges << counter << "," << 
               std::setprecision(6) << 

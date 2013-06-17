@@ -329,13 +329,13 @@ public:
 		return out;
 	}
 
-  /** \brief get the pose of node in format tf::Transform
+  /** \brief get the pose of vertex in format tf::Transform
     * @return tf::Transform pose matrix
-    * \param node of type g2o::VertexSE3
+    * \param vertex of type g2o::VertexSE3
     */
-  static tf::Transform getNodePose(g2o::VertexSE3* node)
+  static tf::Transform getVertexPose(g2o::VertexSE3* v)
   {
-  	Eigen::Isometry3d pose_eigen = node->estimate();
+  	Eigen::Isometry3d pose_eigen = v->estimate();
   	tf::Transform pose_tf = stereo_slam::Utils::eigenToTf(pose_eigen);
   	return pose_tf;
   }
@@ -373,20 +373,20 @@ public:
 	  return tf::Transform(quaternion, translation);
 	}
 
-  /** \brief seach correspondences between nodes and false candidates
-    * @return true if nodes have been found in false candidates vector, false otherwise
+  /** \brief seach correspondences between vertices and false candidates
+    * @return true if vertices have been found in false candidates vector, false otherwise
     * \param false_candidates vector with the ids of false candidates
-    * \param id_i id of node i
-    * \param id_j id of node j
+    * \param id_i id of vertex i
+    * \param id_j id of vertex j
     */
   static bool searchFalseCandidates(std::vector<cv::Point2i> false_candidates, int id_i, int id_j)
 	{
 		bool found = false;
 	  for (unsigned int i=0; i<false_candidates.size(); i++)
 	  {
-	  	cv::Point2i nodes = false_candidates[i];
-	  	if ( (nodes.x == id_i && nodes.y == id_j) ||
-	  			 (nodes.x == id_j && nodes.y == id_i) )
+	  	cv::Point2i vert = false_candidates[i];
+	  	if ( (vert.x == id_i && vert.y == id_j) ||
+	  			 (vert.x == id_j && vert.y == id_i) )
 	  	{
 	  		found = true;
 	  		break;
