@@ -70,7 +70,7 @@ void stereo_slam::StereoSlamBase::msgsCallback(
     corrected_pose = last_optimized_pose * diff;
   }
 
-  // Check if difference between images is larger than maximum displacement
+  // Check if difference between images is larger than minimum displacement
   if (stereo_slam::Utils::poseDiff(corrected_pose, previous_pose_) > min_displacement_
       || first_message_)
   {   
@@ -91,7 +91,7 @@ void stereo_slam::StereoSlamBase::msgsCallback(
     vertexInsertion(l_ptr, r_ptr, current_pose, corrected_pose, odom_msg->header.stamp.toSec());
   }
 
-  // Publish slam (map) odometry
+  // Publish slam (map)
   if (odom_pub_.getNumSubscribers() > 0)
   {
     nav_msgs::Odometry odometry_msg = *odom_msg;
@@ -280,7 +280,7 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
     connection_init_= PQconnectdb(conn_info.c_str());
     if (PQstatus(connection_init_)!=CONNECTION_OK) 
     {
-      ROS_ERROR("Database connection failed with error message: %s", PQerrorMessage(connection_init_));
+      ROS_ERROR("[StereoSlam:] Database connection failed with error message: %s", PQerrorMessage(connection_init_));
       return false;
     }
     else

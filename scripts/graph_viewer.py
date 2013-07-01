@@ -20,6 +20,7 @@ ax_odom = None
 ax_vertices = None
 ax_edges = []
 edges_shown = True
+correct_graph = False
 
 class Error(Exception):
   """ Base class for exceptions in this module. """
@@ -29,7 +30,7 @@ def real_time_plot(odom_file, graph_vertices_file):
   """
   Function to plot the data saved into the files in real time
   """
-  global first_iter, colors, ax_odom, ax_vertices, edges_shown
+  global first_iter, colors, ax_odom, ax_vertices, edges_shown, correct_graph
 
   # Load visual odometry data (saved with rostopic echo -p /stereo_odometer/odometry > file.txt)
   if (odom_file != "" and os.path.exists(odom_file)):
@@ -55,13 +56,24 @@ def real_time_plot(odom_file, graph_vertices_file):
         wl = weakref.ref(l)
         l.remove()
         del l
+
+      # Correct data if needed
+      if (correct_graph == True):
+        initial = []
+        initial.append(data[0,:])
+        initial =  np.array(initial)
+        initial[0,6] = initial[0,6] - 1
+        data = data - initial[0,:]
+
       ax_vertices = ax.plot(data[:,0], data[:,1], data[:,2], colors[2], label='Stereo slam', marker='o')
     except:
       print "No data in ", graph_vertices_file
 
   # Show the edges
-  if (edges_shown == True):
+  if (edges_shown == True and correct_graph == False):
     draw_edges()
+  else:
+    remove_edges()
 
   # Update the plot
   pyplot.draw()
@@ -105,7 +117,8 @@ def remove_edges():
   edges_shown = False
 
 def onclick(event):
-  global edges_shown
+  global edges_shown, correct_graph
+ 
   if (event.button == 3):
     if (edges_shown):
       remove_edges()
@@ -113,6 +126,9 @@ def onclick(event):
       draw_edges()
     # Update the plot
     pyplot.draw()
+  elif (event.button == 2):
+    correct_graph = not correct_graph
+
 
 if __name__ == "__main__":
   import argparse

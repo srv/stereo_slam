@@ -158,9 +158,12 @@ public:
 	  }	  
 	}
 
-	/** \brief convert a matrix of type cv::Mat to std::vector
-	  * @return std::vector matrix
-	  * \param input of type cv::Mat
+	/** \brief Compute the 3D point projecting the disparity
+	  * @return
+	  * \param stereo_camera_model is the camera model
+	  * \param left_point on the left image
+	  * \param right_point on the right image
+	  * \param world_point pointer to the corresponding 3d point
 	  */
 	static void calculate3DPoint(	const image_geometry::StereoCameraModel stereo_camera_model,
 																const cv::Point2d& left_point, 
