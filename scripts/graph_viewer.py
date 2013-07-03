@@ -162,7 +162,18 @@ if __name__ == "__main__":
 
   # Load ground truth (gt) data. Note that gt comes from standard ros odometry message.
   if (args.ground_truth_file != "" and os.path.exists(args.ground_truth_file)):
-    data = pylab.loadtxt(args.ground_truth_file, delimiter=',', skiprows=1, usecols=(5,6,7))
+    
+    # Check the file type
+    f = open(args.ground_truth_file)
+    lines = f.readlines()
+    f.close()
+    size = lines[1].split(",")
+
+    if (len(size) > 12):
+      data = pylab.loadtxt(args.ground_truth_file, delimiter=',', skiprows=1, usecols=(5,6,7))
+    else:
+      data = pylab.loadtxt(args.ground_truth_file, delimiter=',', usecols=(1,2,3))
+
     ax.plot(data[:,0], data[:,1], data[:,2], colors[0], label='Ground Truth')
 
   # Handle on click callback

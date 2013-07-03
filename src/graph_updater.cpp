@@ -64,7 +64,8 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
         // If no edges found connecting this vertices, try to find loop closures
         bool is_false = false;
         double pose_diff = stereo_slam::Utils::poseDiff(pose_i, pose_j);
-        if (!edge_found && pose_diff < min_candidate_threshold_)
+        if (!edge_found && (pose_diff < max_candidate_threshold_)
+                        && (pose_diff > min_candidate_threshold_))
         {
           // Get the data of both vertices from database
           std::string where_i = "(id = " + boost::lexical_cast<std::string>(v_i->id() + 1) + ")";
@@ -128,6 +129,7 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
                 Eigen::Isometry3d t = v_i->estimate().inverse() * v_j->estimate();
                 tf::Transform cl_edge_prev = stereo_slam::Utils::eigenToTf(t);
 
+                // Check edge geometry
                 if (stereo_slam::Utils::poseDiff(cl_edge, cl_edge_prev) < max_edge_error_)
                 {
                   // Add the new edge to graph

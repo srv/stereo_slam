@@ -117,6 +117,6 @@ void stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr,
     // Save for next iteration
     previous_pose_ = corrected_pose;
     first_message_ = false;
-    ROS_INFO_STREAM("[StereoSlam:] Vertex " << vertex_data.id_.data() << " insertion succeeded");
+    ROS_INFO_STREAM("[StereoSlam:] Vertex " << vertex_data.id_.data() << " insertion done");
   }
 }

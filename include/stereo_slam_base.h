@@ -93,8 +93,9 @@ private:
   // Operational properties
   double min_displacement_;					//!> Minimum odometry displacement between poses to be saved as graph vertices. 
   double min_candidate_threshold_;	//!> Minimum distance between graph vertices to be considered for possible candidates of loop closure.
+  double max_candidate_threshold_;  //!> Maximum distance between graph vertices to be considered for possible candidates of loop closure.
   bool first_message_;							//!> True when first message is received, false for any other instant.
-  bool first_vertex_;									//!> True when first vertex is inserted into graph, false for any other instant.
+  bool first_vertex_;							  //!> True when first vertex is inserted into graph, false for any other instant.
   bool block_update_;								//!> Used to block the timer re-calls when it is executed.
 
   // stereo vision properties

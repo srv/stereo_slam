@@ -95,7 +95,7 @@ void stereo_slam::StereoSlamBase::msgsCallback(
   if (odom_pub_.getNumSubscribers() > 0)
   {
     nav_msgs::Odometry odometry_msg = *odom_msg;
-    odometry_msg.header.stamp = ros::Time::now();
+    odometry_msg.header.stamp = odom_msg->header.stamp;
     odometry_msg.header.frame_id = map_frame_id_;
     odometry_msg.child_frame_id = base_link_frame_id_;
     tf::poseTFToMsg(corrected_pose, odometry_msg.pose.pose);
@@ -147,8 +147,9 @@ void stereo_slam::StereoSlamBase::readParameters()
 
   // Functional parameters
   nh_private_.param("update_rate", update_rate_, 0.5);
-  nh_private_.param("min_displacement", min_displacement_, 0.5);
-  nh_private_.param("min_candidate_threshold", min_candidate_threshold_, 0.51);
+  nh_private_.param("min_displacement", min_displacement_, 0.2);
+  nh_private_.param("max_candidate_threshold", max_candidate_threshold_, 0.7);
+  nh_private_.param("min_candidate_threshold", min_candidate_threshold_, 0.45);
   nh_private_.param("descriptor_threshold", descriptor_threshold_, 0.8);
   nh_private_.param<std::string>("descriptor_type", descriptor_type_, "SIFT");
   nh_private_.param("matches_threshold", matches_threshold_, 70);
@@ -327,9 +328,13 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
   */
 bool stereo_slam::StereoSlamBase::saveGraph()
 {
-  std::string vertices_file, edges_file;
+  std::string block_file, vertices_file, edges_file;
   vertices_file = files_path_ + "graph_vertices.txt";
   edges_file = files_path_ + "graph_edges.txt";
+  block_file = files_path_ + ".block.txt";
+
+  // Create a blocking element
+  std::fstream f_block(block_file.c_str(), std::ios::out | std::ios::trunc);
 
   // Open to append
   std::fstream f_vertices(vertices_file.c_str(), std::ios::out | std::ios::trunc);
@@ -389,6 +394,12 @@ bool stereo_slam::StereoSlamBase::saveGraph()
     }
   }
   f_edges.close();
+
+  // Un-block
+  f_block.close();
+  int ret_code = std::remove(block_file.c_str());
+  if (ret_code != 0)
+    ROS_ERROR("[StereoSlam:] Error deleting the blocking file.");   
 
   return true;
 }
