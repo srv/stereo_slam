@@ -101,6 +101,7 @@ private:
   // stereo vision properties
   double descriptor_threshold_;		  //!> Matching descriptors threshold used to find loop closures between images.
   std::string descriptor_type_;     //!> Can be: "FAST", "STAR", "SIFT", "SURF", "ORB", "BRISK", "MSER", "GFTT", "HARRIS", "Dense", "SimpleBlob".
+  double epipolar_threshold_;       //!> Maximum epipolar distance for stereo matching.
   int matches_threshold_;						//!> Minimum number of matches to consider that there is overlap between two images.
   int min_inliers_;                 //!> Minimum number of inliers found by solvePnPRansac to take into account the edge in the graph.
   int max_inliers_;                 //!> Maximum number of inliers for solvePnPRansac, stop if more inliers than this are found.

@@ -46,15 +46,24 @@ void stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr,
   {
     int index_left = matches[i].queryIdx;
     int index_right = matches[i].trainIdx;
-    cv::Point3d world_point;
-    stereo_slam::Utils::calculate3DPoint( stereo_camera_model_,
-                                                  l_kp[index_left].pt,
-                                                  r_kp[index_right].pt,
-                                                  world_point);
-    matched_3d_points.push_back(world_point);
-    matched_keypoints.push_back(l_kp[index_left].pt);
-    matched_descriptors.push_back(l_desc.row(index_left));
+
+    if (abs(l_kp[index_left].pt.y - r_kp[index_right].pt.y) < epipolar_threshold_)
+    {
+      cv::Point3d world_point;
+      stereo_slam::Utils::calculate3DPoint( stereo_camera_model_,
+                                            l_kp[index_left].pt,
+                                            r_kp[index_right].pt,
+                                            world_point);
+      matched_3d_points.push_back(world_point);
+      matched_keypoints.push_back(l_kp[index_left].pt);
+      matched_descriptors.push_back(l_desc.row(index_left));
+    }
   }
+
+  if (stereo_vision_verbose_)
+    ROS_INFO_STREAM("[StereoSlam:] Found " << matches.size() <<
+     " matches between left-right pair. " << matched_3d_points.size() <<
+     " after epipolar filtering.");
 
   // Transform data to std::vector for database
   std::vector< std::vector<float> > keypoints = 

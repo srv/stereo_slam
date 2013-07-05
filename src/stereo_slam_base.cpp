@@ -152,6 +152,7 @@ void stereo_slam::StereoSlamBase::readParameters()
   nh_private_.param("min_candidate_threshold", min_candidate_threshold_, 0.45);
   nh_private_.param("descriptor_threshold", descriptor_threshold_, 0.8);
   nh_private_.param<std::string>("descriptor_type", descriptor_type_, "SIFT");
+  nh_private_.param("epipolar_threshold", epipolar_threshold_, 3.0);
   nh_private_.param("matches_threshold", matches_threshold_, 70);
   nh_private_.param("min_inliers", min_inliers_, 10);
   nh_private_.param("max_inliers", max_inliers_, 2000);

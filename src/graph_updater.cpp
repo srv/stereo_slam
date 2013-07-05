@@ -62,7 +62,7 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
         }        
 
         // If no edges found connecting this vertices, try to find loop closures
-        bool is_false = false;
+        bool is_false = true;
         double pose_diff = stereo_slam::Utils::poseDiff(pose_i, pose_j);
         if (!edge_found && (pose_diff < max_candidate_threshold_)
                         && (pose_diff > min_candidate_threshold_))
@@ -81,76 +81,77 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
             desc_i = stereo_slam::Utils::stdMatrixToCvMat(vert_i[0]->descriptors_.data());
             desc_j = stereo_slam::Utils::stdMatrixToCvMat(vert_j[0]->descriptors_.data());
 
-            // Compute matchings
-            std::vector<cv::DMatch> matches;
-            stereo_slam::Utils::thresholdMatching(desc_i, desc_j, matches, descriptor_threshold_);
-
-            if (stereo_vision_verbose_)
-              ROS_INFO_STREAM("[StereoSlam:] Found " << matches.size() <<
-                 " matches between vertices " << v_i->id() << " and " << v_j->id() <<
-                 " (matches_threshold is: " << matches_threshold_ << ")");
-
-            if ((int)matches.size() > matches_threshold_)
+            // Check for enought descriptors
+            if (desc_i.rows > matches_threshold_ && desc_j.rows > matches_threshold_)
             {
-              // Extract keypoints and 3d points of vertex i and j
-              std::vector<cv::Point2f> keypoints_j;
-              std::vector<cv::Point3f> points3d_i;
-              keypoints_j = stereo_slam::Utils::stdMatrixToCvPoint2f(vert_j[0]->keypoints_.data());
-              points3d_i = stereo_slam::Utils::stdMatrixToCvPoint3f(vert_i[0]->points3d_.data());
-              std::vector<cv::Point2f> matched_keypoints;
-              std::vector<cv::Point3f> matched_3d_points;
-              for (size_t i = 0; i < matches.size(); ++i)
-              {
-                int index_left = matches[i].queryIdx;
-                int index_right = matches[i].trainIdx;;
-                matched_3d_points.push_back(points3d_i[index_left]);
-                matched_keypoints.push_back(keypoints_j[index_right]);
-              }
-              
-              // Compute the transformation between the vertices
-              cv::Mat rvec, tvec;
-              std::vector<int> inliers;
-              cv::solvePnPRansac(matched_3d_points, matched_keypoints, camera_matrix_, 
-                                 cv::Mat(), rvec, tvec, false, 
-                                 max_solvepnp_iter_, allowed_reprojection_error_, 
-                                 max_inliers_, inliers);
+              // Compute matchings
+              std::vector<cv::DMatch> matches;
+              stereo_slam::Utils::thresholdMatching(desc_i, desc_j, matches, descriptor_threshold_);
 
               if (stereo_vision_verbose_)
-                ROS_INFO_STREAM("[StereoSlam:] Found " << inliers.size() <<
-                 " inliers between vertices " << v_i->id() << " and " << v_j->id() <<
-                 " (min_inliers is: " << min_inliers_ << ")");
+                ROS_INFO_STREAM("[StereoSlam:] Found " << matches.size() <<
+                   " matches between vertices " << v_i->id() << " and " << v_j->id() <<
+                   " (matches_threshold is: " << matches_threshold_ << ")");
 
-              if (static_cast<int>(inliers.size()) >= min_inliers_)
+              if ((int)matches.size() > matches_threshold_)
               {
-                // Good! Loop closure, get the transformation matrix
-                tf::Transform cl_edge = stereo_slam::Utils::buildTransformation(rvec, tvec);
-
-                // To prevent for possible errors, compare previous transform with the new edge found
-                Eigen::Isometry3d t = v_i->estimate().inverse() * v_j->estimate();
-                tf::Transform cl_edge_prev = stereo_slam::Utils::eigenToTf(t);
-
-                // Check edge geometry
-                if (stereo_slam::Utils::poseDiff(cl_edge, cl_edge_prev) < max_edge_error_)
+                // Extract keypoints and 3d points of vertex i and j
+                std::vector<cv::Point2f> keypoints_j;
+                std::vector<cv::Point3f> points3d_i;
+                keypoints_j = stereo_slam::Utils::stdMatrixToCvPoint2f(vert_j[0]->keypoints_.data());
+                points3d_i = stereo_slam::Utils::stdMatrixToCvPoint3f(vert_i[0]->points3d_.data());
+                std::vector<cv::Point2f> matched_keypoints;
+                std::vector<cv::Point3f> matched_3d_points;
+                for (size_t i = 0; i < matches.size(); ++i)
                 {
-                  // Add the new edge to graph
-                  g2o::EdgeSE3* e = new g2o::EdgeSE3();
-                  Eigen::Isometry3d t = stereo_slam::Utils::tfToEigen(cl_edge);
-                  e->setVertex(0, v_j);
-                  e->setVertex(1, v_i);
-                  e->setMeasurement(t);
-                  graph_optimizer_.addEdge(e);
-                  edge_added = true;
+                  int index_left = matches[i].queryIdx;
+                  int index_right = matches[i].trainIdx;;
+                  matched_3d_points.push_back(points3d_i[index_left]);
+                  matched_keypoints.push_back(keypoints_j[index_right]);
+                }
+                
+                // Compute the transformation between the vertices
+                cv::Mat rvec, tvec;
+                std::vector<int> inliers;
+                cv::solvePnPRansac(matched_3d_points, matched_keypoints, camera_matrix_, 
+                                   cv::Mat(), rvec, tvec, false, 
+                                   max_solvepnp_iter_, allowed_reprojection_error_, 
+                                   max_inliers_, inliers);
 
-                  ROS_INFO_STREAM("[StereoSlam:] Loop closed between vertices " << v_i->id() << " and " << v_j->id());
+                if (stereo_vision_verbose_)
+                  ROS_INFO_STREAM("[StereoSlam:] Found " << inliers.size() <<
+                   " inliers between vertices " << v_i->id() << " and " << v_j->id() <<
+                   " (min_inliers is: " << min_inliers_ << ")");
+
+                if (static_cast<int>(inliers.size()) >= min_inliers_)
+                {
+                  // Good! Loop closure, get the transformation matrix
+                  tf::Transform cl_edge = stereo_slam::Utils::buildTransformation(rvec, tvec);
+
+                  // To prevent for possible errors, compare previous transform with the new edge found
+                  Eigen::Isometry3d t = v_i->estimate().inverse() * v_j->estimate();
+                  tf::Transform cl_edge_prev = stereo_slam::Utils::eigenToTf(t);
+
+                  // Check edge geometry
+                  if (stereo_slam::Utils::poseDiff(cl_edge, cl_edge_prev) < max_edge_error_)
+                  {
+                    // Add the new edge to graph
+                    g2o::EdgeSE3* e = new g2o::EdgeSE3();
+                    Eigen::Isometry3d t = stereo_slam::Utils::tfToEigen(cl_edge);
+                    e->setVertex(0, v_j);
+                    e->setVertex(1, v_i);
+                    e->setMeasurement(t);
+                    graph_optimizer_.addEdge(e);
+                    edge_added = true;
+                    is_false = false;
+
+                    ROS_INFO_STREAM("[StereoSlam:] Loop closed between vertices " << v_i->id() << " and " << v_j->id());
+                  }
                 }
               }
-              else is_false = true;
             }
-            else is_false = true;
           }
-          else is_false = true;
         }
-        else is_false = true;
 
         // Bad candidate, save to prevent future processes
         if (is_false)
