@@ -13,6 +13,7 @@ from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
 
 # Global variables
+blocking_file = ""
 graph_edges_file = ""
 first_iter = True
 colors = ['g','r','b']
@@ -30,7 +31,7 @@ def real_time_plot(odom_file, graph_vertices_file):
   """
   Function to plot the data saved into the files in real time
   """
-  global first_iter, colors, ax_odom, ax_vertices, edges_shown, correct_graph
+  global blocking_file, first_iter, colors, ax_odom, ax_vertices, edges_shown, correct_graph
 
   # Load visual odometry data (saved with rostopic echo -p /stereo_odometer/odometry > file.txt)
   if (odom_file != "" and os.path.exists(odom_file)):
@@ -48,6 +49,11 @@ def real_time_plot(odom_file, graph_vertices_file):
 
   # Load stereo slam vertices (file saved with node stereo_slam)
   if (graph_vertices_file != "" and os.path.exists(graph_vertices_file)):
+
+    # Check if file is blocked
+    while (os.path.exists(blocking_file) and os.path.isfile(blocking_file)):
+      time.sleep(0.5)
+
     try:
       data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(5,6,7,8,9,10,11))
       # Remove old line collection
@@ -84,10 +90,15 @@ def real_time_plot(odom_file, graph_vertices_file):
     first_iter = False
 
 def draw_edges():
-  global graph_edges_file, ax_edges, edges_shown
+  global blocking_file, graph_edges_file, ax_edges, edges_shown
 
   # Load stereo slam edges (file saved with node stereo_slam)
   if (graph_edges_file != "" and os.path.exists(graph_edges_file)):
+    
+    # Check if file is blocked
+    while (os.path.exists(blocking_file) and os.path.isfile(blocking_file)):
+      time.sleep(0.5)
+
     try:
       data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(1,2,3,4,5,6))
       # First, remove previous edges
@@ -151,6 +162,9 @@ if __name__ == "__main__":
   print "GRAPH VIEWER MOUSE INPUTS:"
   print " - Right button: activates/deactivates the visualization of graph edges."
   print " - Wheel button: activates/deactivates the initialization of nodes path to (x, y, z, q) to (0, 0, 0, 0). Note that edges are NOT modified!"
+
+  # Save blocking file into global
+  blocking_file = os.path.dirname(args.graph_vertices_file) + "/.block.txt"
 
   # Save graph edges file into global
   graph_edges_file = args.graph_edges_file

@@ -75,6 +75,9 @@ public:
     double allowed_reprojection_err; //!> Maximum reprojection error allowd in solvePnPRansa algorithm.
     double max_edge_err;             //!> Maximum pose difference to take the new edge as valid.
     bool stereo_vision_verbose;      //!> True to output the messages of stereo matching process, false otherwise.
+    int bucket_width;                //!> Bucket width.
+    int bucket_height;               //!> Bucket height.
+    int max_bucket_features;         //!> Maximum number of features per bucket.
 
     // Topic parameters
     int queue_size;                  //!> Indicate the maximum number of messages encued.
@@ -101,7 +104,10 @@ public:
     static const int          DEFAULT_MAX_SOLVEPNP_ITER = 500;
     static const double       DEFAULT_ALLOWED_REPROJECTION_ERR = 5.0;
     static const double       DEFAULT_MAX_EDGE_ERR = 10.0;
-    static const bool         DEFAULT_STEREO_VISION_VERBOSE = false;
+    static const bool         DEFAULT_STEREO_VISION_VERBOSE = false;    
+    static const int          DEFAULT_BUCKET_WIDTH = 50;
+    static const int          DEFAULT_BUCKET_HEIGHT = 50;
+    static const int          DEFAULT_MAX_BUCKET_FEATURES = 3;
     static const int          DEFAULT_QUEUE_SIZE = 3;
     static const bool         DEFAULT_SAVE_GRAPH_TO_FILE = false;
 

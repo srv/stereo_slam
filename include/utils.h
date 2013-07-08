@@ -20,57 +20,6 @@ class Utils
 {
 
 public:
-	
-  /** \brief Compute the centroid of a point cloud
-  	* @return a vector with the x,y,z centroid
-    * \param point_cloud the source PointCloud
-    * \param min_x minimum x value to take into account
-    * \param max_x maximum x value to take into account
-    * \param min_y minimum y value to take into account
-    * \param max_y maximum y value to take into account
-    * \param min_z minimum z value to take into account
-    * \param max_z maximum z value to take into account
-    */
-  static tf::Vector3 computeCentroid(PointCloud::Ptr point_cloud, double min_x, double max_x,
-	double min_y, double max_y, double min_z, double max_z)
-	{
-	  double mean_x, mean_y, mean_z;
-	  mean_x = 0.0;
-	  mean_y = 0.0;
-	  mean_z = 0.0;
-
-		int count = 0;
-		for (size_t i = 0; i < point_cloud->points.size(); ++i)
-		{
-		  const pcl::PointXYZ& point = point_cloud->points[i];
-		  if (point.x >= min_x && point.x <= max_x &&
-		      point.y >= min_y && point.y <= max_y &&
-		      point.z >= min_z && point.z <= max_z &&
-		      !std::isnan(point.x) && !std::isnan(point.y) && !std::isnan(point.z))
-		  {
-		    mean_x += point.x;
-		    mean_y += point.y;
-		    mean_z += point.z;
-		    count++;
-		  }
-		}
-		if (count == 0)
-		{
-		  mean_x = -1;
-		  mean_y = -1;
-		  mean_z = -1;
-		}
-		else
-		{
-		  mean_x /= count;
-		  mean_y /= count;
-		  mean_z /= count;
-		}
-		 
-		tf::Vector3 centroid = tf::Vector3(mean_x, mean_y, mean_z);
-
-		return centroid;
-	}
 
   /** \brief extract the keypoints of some image
     * @return 
@@ -174,41 +123,41 @@ public:
 	  stereo_camera_model.projectDisparityTo3d(left_point, disparity, world_point);
 	}
 
-	  /** \brief convert a matrix of type std::vector<cv::KeyPoint> to std::vector
-	    * @return std::vector< std::vector<float> > matrix
-	    * \param input of type std::vector<cv::KeyPoint>
-	    */
-		static std::vector< std::vector<float> > cvPoint2fToStdMatrix(std::vector<cv::Point2f> input)
+  /** \brief convert a matrix of type std::vector<cv::KeyPoint> to std::vector
+    * @return std::vector< std::vector<float> > matrix
+    * \param input of type std::vector<cv::KeyPoint>
+    */
+	static std::vector< std::vector<float> > cvPoint2fToStdMatrix(std::vector<cv::Point2f> input)
+	{
+		std::vector< std::vector<float> > output;
+		for (unsigned int i=0; i<input.size(); i++)
 		{
-			std::vector< std::vector<float> > output;
-			for (unsigned int i=0; i<input.size(); i++)
-			{
-			  cv::Point2f point = input[i];
-			  std::vector<float> p_std(2);
-			  p_std[0] = point.x;
-			  p_std[1] = point.y;
-			  output.push_back(p_std);
-			}
-			return output;
+		  cv::Point2f point = input[i];
+		  std::vector<float> p_std(2);
+		  p_std[0] = point.x;
+		  p_std[1] = point.y;
+		  output.push_back(p_std);
 		}
+		return output;
+	}
 
-	  /** \brief convert a matrix of type std::vector to std::vector<cv::Point2f>
-	    * @return std::vector<cv::Point2f> matrix
-	    * \param input of type std::vector
-	    */
-		static std::vector<cv::Point2f>stdMatrixToCvPoint2f(std::vector< std::vector<float> > input)
+  /** \brief convert a matrix of type std::vector to std::vector<cv::Point2f>
+    * @return std::vector<cv::Point2f> matrix
+    * \param input of type std::vector
+    */
+	static std::vector<cv::Point2f>stdMatrixToCvPoint2f(std::vector< std::vector<float> > input)
+	{
+		std::vector<cv::Point2f> output;
+		for (unsigned int i=0; i<input.size(); i++)
 		{
-			std::vector<cv::Point2f> output;
-			for (unsigned int i=0; i<input.size(); i++)
-			{
-				std::vector<float> point = input[i];
-			  cv::Point2f p_cv;
-			  p_cv.x = point[0];
-			  p_cv.y = point[1];
-			  output.push_back(p_cv);
-			}
-			return output;
+			std::vector<float> point = input[i];
+		  cv::Point2f p_cv;
+		  p_cv.x = point[0];
+		  p_cv.y = point[1];
+		  output.push_back(p_cv);
 		}
+		return output;
+	}
 
   /** \brief convert a matrix of type std::vector<cv::Point3f> to std::vector
     * @return std::vector< std::vector<float> > matrix
@@ -397,6 +346,70 @@ public:
 	  }
 	  return found;
 	}
+
+	/** \brief Sort 2 descriptors matchings by distance
+	  * @return true if vector 1 is smaller than vector 2
+	  * \param descriptor matching 1
+	  * \param descriptor matching 2
+	  */
+	static bool sortDescByDistance(const cv::DMatch& d1, const cv::DMatch& d2)
+	{
+		return (d1.distance < d2.distance);
+	}
+
+	/** \brief Sort 2 descriptors matchings by distance
+	  * @return true if vector 1 is smaller than vector 2
+	  * \param descriptor matching 1
+	  * \param descriptor matching 2
+	  */
+	static std::vector<cv::DMatch> bucketFeatures(std::vector<cv::DMatch> matches, 
+																								std::vector<cv::KeyPoint> kp, 
+																								int b_width, 
+																								int b_height, 
+																								int b_num_feautres)
+	{
+		// Find max values
+	  float x_max = 0;
+	  float y_max = 0;
+	  for (std::vector<cv::DMatch>::iterator it = matches.begin(); it!=matches.end(); it++)
+	  {
+	    if (kp[it->queryIdx].pt.x > x_max) x_max = kp[it->queryIdx].pt.x;
+	    if (kp[it->queryIdx].pt.y > y_max) y_max = kp[it->queryIdx].pt.y;
+	  }
+
+	  // Allocate number of buckets needed
+	  int bucket_cols = (int)floor(x_max/b_width) + 1;
+	  int bucket_rows = (int)floor(y_max/b_height) + 1;
+	  std::vector<cv::DMatch> *buckets = new std::vector<cv::DMatch>[bucket_cols*bucket_rows];
+
+	  // Assign matches to their buckets
+	  for (std::vector<cv::DMatch>::iterator it=matches.begin(); it!=matches.end(); it++)
+	  {
+	    int u = (int)floor(kp[it->queryIdx].pt.x/b_width);
+	    int v = (int)floor(kp[it->queryIdx].pt.y/b_height);
+	    buckets[v*bucket_cols+u].push_back(*it);
+	  }
+
+	  // Refill matches from buckets
+	  std::vector<cv::DMatch> output;
+	  for (int i=0; i<bucket_cols*bucket_rows; i++)
+	  {
+	    // Sort descriptors matched by distance
+	    std::sort(buckets[i].begin(), buckets[i].end(), stereo_slam::Utils::sortDescByDistance);
+	    
+	    // Add up to max_features features from this bucket to output
+	    int k=0;
+	    for (std::vector<cv::DMatch>::iterator it=buckets[i].begin(); it!=buckets[i].end(); it++)
+	    {
+	      output.push_back(*it);
+	      k++;
+	      if (k >= b_num_feautres)
+	        break;
+	    }
+	  }
+	  return output;
+	}
+
 };
 
 } // namespace

@@ -35,35 +35,46 @@ void stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr,
   stereo_slam::Utils::descriptorExtraction(r_ptr->image, r_kp, r_desc, "SIFT");
 
   // Find matching between stereo images
-  std::vector<cv::DMatch> matches;
+  std::vector<cv::DMatch> matches, matches_filtered;
   stereo_slam::Utils::thresholdMatching(l_desc, r_desc, matches, params_.descriptor_threshold);
+
+  // Filter matches by epipolar 
+  for (size_t i = 0; i < matches.size(); ++i)
+  {
+    if (abs(l_kp[matches[i].queryIdx].pt.y - r_kp[matches[i].trainIdx].pt.y) 
+        < params_.epipolar_threshold)
+      matches_filtered.push_back(matches[i]);
+  }
+
+  // Matches bucketing
+  matches_filtered = stereo_slam::Utils::bucketFeatures(matches_filtered,
+                                                        l_kp, 
+                                                        params_.bucket_width, 
+                                                        params_.bucket_height, 
+                                                        params_.max_bucket_features);
 
   // Compute 3D points
   std::vector<cv::Point2f> matched_keypoints;
   std::vector<cv::Point3f> matched_3d_points;
   cv::Mat matched_descriptors;
-  for (size_t i = 0; i < matches.size(); ++i)
+  for (size_t i = 0; i < matches_filtered.size(); ++i)
   {
-    int index_left = matches[i].queryIdx;
-    int index_right = matches[i].trainIdx;
-
-    if (abs(l_kp[index_left].pt.y - r_kp[index_right].pt.y) < params_.epipolar_threshold)
-    {
-      cv::Point3d world_point;
-      stereo_slam::Utils::calculate3DPoint( stereo_camera_model_,
-                                            l_kp[index_left].pt,
-                                            r_kp[index_right].pt,
-                                            world_point);
-      matched_3d_points.push_back(world_point);
-      matched_keypoints.push_back(l_kp[index_left].pt);
-      matched_descriptors.push_back(l_desc.row(index_left));
-    }
+    int index_left = matches_filtered[i].queryIdx;
+    int index_right = matches_filtered[i].trainIdx;
+    cv::Point3d world_point;
+    stereo_slam::Utils::calculate3DPoint( stereo_camera_model_,
+                                          l_kp[index_left].pt,
+                                          r_kp[index_right].pt,
+                                          world_point);
+    matched_3d_points.push_back(world_point);
+    matched_keypoints.push_back(l_kp[index_left].pt);
+    matched_descriptors.push_back(l_desc.row(index_left));
   }
 
   if (params_.stereo_vision_verbose)
     ROS_INFO_STREAM("[StereoSlam:] Found " << matches.size() <<
-     " matches between left-right pair. " << matched_3d_points.size() <<
-     " after epipolar filtering.");
+     " matches between left-right pair. " << matches_filtered.size() <<
+     " after epipolar filtering and bucketing.");
 
   // Transform data to std::vector for database
   std::vector< std::vector<float> > keypoints = 

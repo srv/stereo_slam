@@ -87,7 +87,7 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
               // Compute matchings
               std::vector<cv::DMatch> matches;
               stereo_slam::Utils::thresholdMatching(desc_i, desc_j, matches, params_.descriptor_threshold);
-
+              
               if (params_.stereo_vision_verbose)
                 ROS_INFO_STREAM("[StereoSlam:] Found " << matches.size() <<
                    " matches between vertices " << v_i->id() << " and " << v_j->id() <<

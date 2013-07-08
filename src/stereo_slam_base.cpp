@@ -34,6 +34,9 @@ stereo_slam::StereoSlamBase::Params::Params() :
   allowed_reprojection_err(DEFAULT_ALLOWED_REPROJECTION_ERR),
   max_edge_err(DEFAULT_MAX_EDGE_ERR),
   stereo_vision_verbose(DEFAULT_STEREO_VISION_VERBOSE),
+  bucket_width(DEFAULT_BUCKET_WIDTH),
+  bucket_height(DEFAULT_BUCKET_HEIGHT),
+  max_bucket_features(DEFAULT_MAX_BUCKET_FEATURES),
   queue_size(DEFAULT_QUEUE_SIZE),
   map_frame_id("/map"),
   base_link_frame_id("/base_link"),
@@ -155,11 +158,11 @@ void stereo_slam::StereoSlamBase::timerCallback(const ros::WallTimerEvent& event
     last_vertex_optimized_ = graph_optimizer_.vertices().size() - 1;
     graph_optimizer_.optimize(params_.go2_opt_max_iter);
     ROS_INFO("[StereoSlam:] Optimization done.");
-
-    // Save graph as odometry measurments in file?
-    if (params_.save_graph_to_file)
-      saveGraph();
   }
+
+  // Save graph as odometry measurments in file
+  if (params_.save_graph_to_file)
+    saveGraph();
 
   block_update_ = false;
 }
@@ -199,6 +202,9 @@ void stereo_slam::StereoSlamBase::readParameters()
   nh_private_.getParam("allowed_reprojection_err", stereo_slam_params.allowed_reprojection_err);
   nh_private_.getParam("max_edge_err", stereo_slam_params.max_edge_err);
   nh_private_.getParam("stereo_vision_verbose", stereo_slam_params.stereo_vision_verbose);
+  nh_private_.getParam("bucket_width", stereo_slam_params.bucket_width);
+  nh_private_.getParam("bucket_height", stereo_slam_params.bucket_height);
+  nh_private_.getParam("max_bucket_features", stereo_slam_params.max_bucket_features);
 
   // Topic parameters
   nh_private_.getParam("queue_size", stereo_slam_params.queue_size);
