@@ -145,8 +145,12 @@ if __name__ == "__main__":
           help='file the edges of stereo slam')
   parser.add_argument('-ts','--time-step',
           help='update frequency (in milliseconds)',
-          default='3000')
+          default='2500')
   args = parser.parse_args()
+
+  print "GRAPH VIEWER MOUSE INPUTS:"
+  print " - Right button: activates/deactivates the visualization of graph edges."
+  print " - Wheel button: activates/deactivates the initialization of nodes path to (x, y, z, q) to (0, 0, 0, 0). Note that edges are NOT modified!"
 
   # Save graph edges file into global
   graph_edges_file = args.graph_edges_file
@@ -181,6 +185,7 @@ if __name__ == "__main__":
 
   # Start timer for real time plot
   timer = fig.canvas.new_timer(interval=args.time_step)
+  real_time_plot(args.visual_odometry_file, args.graph_vertices_file)
   timer.add_callback( real_time_plot, 
                       args.visual_odometry_file, 
                       args.graph_vertices_file)
