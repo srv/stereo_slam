@@ -38,11 +38,90 @@ namespace stereo_slam
 
 class StereoSlamBase
 {
+
 public:
+
 	// Constructor
   StereoSlamBase(ros::NodeHandle nh, ros::NodeHandle nhp);
 
+  struct Params
+  {
+    /**
+     * Default constructor sets all values to defaults.
+     */
+    Params();
+
+    // Database parameters
+    std::string db_host, db_port, db_user, db_pass, db_name;
+
+    // G2O Optimization
+    double update_rate;              //!> Timer callback rate (in seconds) to optimize the graph.
+    int g2o_algorithm;               //!> Set to 0 for LinearSlam Solver. Set to 1 for.
+    int go2_opt_max_iter;            //!> Maximum number of iteration for the graph optimization.
+    bool go2_verbose;                //!> True to output the g2o iteration messages
+
+    // Odometry operational parameters
+    double min_displacement;         //!> Minimum odometry displacement between poses to be saved as graph vertices. 
+    double min_candidate_threshold;  //!> Minimum distance between graph vertices to be considered for possible candidates of loop closure.
+    double max_candidate_threshold;  //!> Maximum distance between graph vertices to be considered for possible candidates of loop closure.
+
+    // Stereo vision parameters
+    double descriptor_threshold;     //!> Matching descriptors threshold used to find loop closures between images.
+    double epipolar_threshold;       //!> Maximum epipolar distance for stereo matching.
+    int matches_threshold;           //!> Minimum number of matches to consider that there is overlap between two images.
+    int min_inliers;                 //!> Minimum number of inliers found by solvePnPRansac to take into account the edge in the graph.
+    int max_inliers;                 //!> Maximum number of inliers for solvePnPRansac, stop if more inliers than this are found.
+    int max_solvepnp_iter;           //!> Maximum number of interations of the solvePnPRansac algorithm.
+    double allowed_reprojection_err; //!> Maximum reprojection error allowd in solvePnPRansa algorithm.
+    double max_edge_err;             //!> Maximum pose difference to take the new edge as valid.
+    bool stereo_vision_verbose;      //!> True to output the messages of stereo matching process, false otherwise.
+
+    // Topic parameters
+    int queue_size;                  //!> Indicate the maximum number of messages encued.
+    std::string map_frame_id;        //!> The map frame id.
+    std::string base_link_frame_id;  //!> The robot base link frame id.
+
+    // Graph to file paraneter
+    bool save_graph_to_file;         //!> True if user wants to save the graph into file.
+    std::string files_path;          //!> Path where save the graph data.
+
+    // Default values
+    static const double       DEFAULT_UPDATE_RATE = 3.0;
+    static const int          DEFAULT_G2O_ALGORITHM = 1;
+    static const int          DEFAULT_G2O_OPT_MAX_ITER = 10;
+    static const bool         DEFAULT_G2O_VERBOSE = false;
+    static const double       DEFAULT_MIN_DISPLACEMENT = 0.2;
+    static const double       DEFAULT_MIN_CANDIDATE_THRESHOLD = 0.25;
+    static const double       DEFAULT_MAX_CANDIDATE_THRESHOLD = 0.5;
+    static const double       DEFAULT_DESCRIPTOR_THRESHOLD = 0.5;
+    static const double       DEFAULT_EPIPOLAR_THRESHOLD = 3.0;
+    static const int          DEFAULT_MATCHES_THRESHOLD = 110;
+    static const int          DEFAULT_MIN_INLIERS = 10;
+    static const int          DEFAULT_MAX_INLIERS = 400;
+    static const int          DEFAULT_MAX_SOLVEPNP_ITER = 500;
+    static const double       DEFAULT_ALLOWED_REPROJECTION_ERR = 5.0;
+    static const double       DEFAULT_MAX_EDGE_ERR = 10.0;
+    static const bool         DEFAULT_STEREO_VISION_VERBOSE = false;
+    static const int          DEFAULT_QUEUE_SIZE = 3;
+    static const bool         DEFAULT_SAVE_GRAPH_TO_FILE = false;
+
+  };
+
+  /**
+   * @param params new parameters
+   */
+  inline void setParams(const Params& params)
+  {
+    params_ = params;
+  }
+
+  /**
+   * @return current parameters
+   */
+  inline Params params() const { return params_; }
+
 protected:
+
 	// Node handlers
 	ros::NodeHandle nh_;
   ros::NodeHandle nh_private_;
@@ -65,8 +144,8 @@ protected:
   bool graphUpdater();
 
 private:
+
 	// Database properties
-	std::string db_host_, db_port_, db_user_, db_pass_, db_name_;
 	boost::shared_ptr<database_interface::PostgresqlDatabase> pg_db_ptr_thread_1_;
   boost::shared_ptr<database_interface::PostgresqlDatabase> pg_db_ptr_thread_2_;
 	PGconn* connection_init_;
@@ -81,46 +160,27 @@ private:
     pose_history_stamp_;            //!> Vector to save the timestamp pose history
 
   // G2O Optimization
-  double update_rate_;							//!> Timer callback rate (in seconds) to optimize the graph.
-  int g2o_algorithm_;								//!> Set to 0 for LinearSlam Solver. Set to 1 for.
-  int go2_opt_max_iter_;						//!> Maximum number of iteration for the graph optimization.
-  bool go2_verbose_;								//!> True to output the g2o iteration messages
   g2o::SparseOptimizer 
   	graph_optimizer_;								//!> G2O graph optimizer
   ros::WallTimer timer_;						//!> Timer to optimize the graph while it is updated
   int last_vertex_optimized_;         //!> Indicates the id of the last optimized vertex
 
   // Operational properties
-  double min_displacement_;					//!> Minimum odometry displacement between poses to be saved as graph vertices. 
-  double min_candidate_threshold_;	//!> Minimum distance between graph vertices to be considered for possible candidates of loop closure.
-  double max_candidate_threshold_;  //!> Maximum distance between graph vertices to be considered for possible candidates of loop closure.
   bool first_message_;							//!> True when first message is received, false for any other instant.
   bool first_vertex_;							  //!> True when first vertex is inserted into graph, false for any other instant.
   bool block_update_;								//!> Used to block the timer re-calls when it is executed.
 
-  // stereo vision properties
-  double descriptor_threshold_;		  //!> Matching descriptors threshold used to find loop closures between images.
-  std::string descriptor_type_;     //!> Can be: "FAST", "STAR", "SIFT", "SURF", "ORB", "BRISK", "MSER", "GFTT", "HARRIS", "Dense", "SimpleBlob".
-  double epipolar_threshold_;       //!> Maximum epipolar distance for stereo matching.
-  int matches_threshold_;						//!> Minimum number of matches to consider that there is overlap between two images.
-  int min_inliers_;                 //!> Minimum number of inliers found by solvePnPRansac to take into account the edge in the graph.
-  int max_inliers_;                 //!> Maximum number of inliers for solvePnPRansac, stop if more inliers than this are found.
-  int max_solvepnp_iter_;           //!> Maximum number of interations of the solvePnPRansac algorithm.
-  double allowed_reprojection_error_; //!> Maximum reprojection error allowd in solvePnPRansa algorithm.
-  double max_edge_error_;           //!> Maximum pose difference to take the new edge as valid.
-  bool stereo_vision_verbose_;      //!> True to output the messages of stereo matching process, false otherwise.
+  // Stereo vision properties
   image_geometry::StereoCameraModel 
   	stereo_camera_model_;						//!> Object to save the image camera model
   cv::Mat camera_matrix_;						//!> Used to save the camera matrix
 
   // Topic properties
-  int queue_size_;									//!> Indicate the maximum number of messages encued.
   image_transport::SubscriberFilter 
   	left_sub_, right_sub_;
   message_filters::Subscriber<sensor_msgs::CameraInfo> left_info_sub_, right_info_sub_;
   message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
   ros::Publisher odom_pub_;
-  std::string map_frame_id_, base_link_frame_id_;
 
   // Topic sync properties
   typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry, 
@@ -138,9 +198,8 @@ private:
   boost::shared_ptr<ExactSync> exact_sync_;
   boost::shared_ptr<ApproximateSync> approximate_sync_;
 
-  // Graph to file properties
-  bool save_graph_to_file_;         //!> True if user wants to save the graph into file.
-  std::string files_path_;           //!> Path where save the graph data.
+  /// Stores parameters
+  Params params_;
 };
 
 } // namespace

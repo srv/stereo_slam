@@ -64,8 +64,8 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
         // If no edges found connecting this vertices, try to find loop closures
         bool is_false = true;
         double pose_diff = stereo_slam::Utils::poseDiff(pose_i, pose_j);
-        if (!edge_found && (pose_diff < max_candidate_threshold_)
-                        && (pose_diff > min_candidate_threshold_))
+        if (!edge_found && (pose_diff < params_.max_candidate_threshold)
+                        && (pose_diff > params_.min_candidate_threshold))
         {
           // Get the data of both vertices from database
           std::string where_i = "(id = " + boost::lexical_cast<std::string>(v_i->id() + 1) + ")";
@@ -82,18 +82,18 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
             desc_j = stereo_slam::Utils::stdMatrixToCvMat(vert_j[0]->descriptors_.data());
 
             // Check for enought descriptors
-            if (desc_i.rows > matches_threshold_ && desc_j.rows > matches_threshold_)
+            if (desc_i.rows > params_.matches_threshold && desc_j.rows > params_.matches_threshold)
             {
               // Compute matchings
               std::vector<cv::DMatch> matches;
-              stereo_slam::Utils::thresholdMatching(desc_i, desc_j, matches, descriptor_threshold_);
+              stereo_slam::Utils::thresholdMatching(desc_i, desc_j, matches, params_.descriptor_threshold);
 
-              if (stereo_vision_verbose_)
+              if (params_.stereo_vision_verbose)
                 ROS_INFO_STREAM("[StereoSlam:] Found " << matches.size() <<
                    " matches between vertices " << v_i->id() << " and " << v_j->id() <<
-                   " (matches_threshold is: " << matches_threshold_ << ")");
+                   " (matches_threshold is: " << params_.matches_threshold << ")");
 
-              if ((int)matches.size() > matches_threshold_)
+              if ((int)matches.size() > params_.matches_threshold)
               {
                 // Extract keypoints and 3d points of vertex i and j
                 std::vector<cv::Point2f> keypoints_j;
@@ -115,15 +115,15 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
                 std::vector<int> inliers;
                 cv::solvePnPRansac(matched_3d_points, matched_keypoints, camera_matrix_, 
                                    cv::Mat(), rvec, tvec, false, 
-                                   max_solvepnp_iter_, allowed_reprojection_error_, 
-                                   max_inliers_, inliers);
+                                   params_.max_solvepnp_iter, params_.allowed_reprojection_err, 
+                                   params_.max_inliers, inliers);
 
-                if (stereo_vision_verbose_)
+                if (params_.stereo_vision_verbose)
                   ROS_INFO_STREAM("[StereoSlam:] Found " << inliers.size() <<
                    " inliers between vertices " << v_i->id() << " and " << v_j->id() <<
-                   " (min_inliers is: " << min_inliers_ << ")");
+                   " (min_inliers is: " << params_.min_inliers << ")");
 
-                if (static_cast<int>(inliers.size()) >= min_inliers_)
+                if (static_cast<int>(inliers.size()) >= params_.min_inliers)
                 {
                   // Good! Loop closure, get the transformation matrix
                   tf::Transform cl_edge = stereo_slam::Utils::buildTransformation(rvec, tvec);
@@ -133,7 +133,7 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
                   tf::Transform cl_edge_prev = stereo_slam::Utils::eigenToTf(t);
 
                   // Check edge geometry
-                  if (stereo_slam::Utils::poseDiff(cl_edge, cl_edge_prev) < max_edge_error_)
+                  if (stereo_slam::Utils::poseDiff(cl_edge, cl_edge_prev) < params_.max_edge_err)
                   {
                     // Add the new edge to graph
                     g2o::EdgeSE3* e = new g2o::EdgeSE3();

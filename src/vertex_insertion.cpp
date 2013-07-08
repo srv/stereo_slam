@@ -29,14 +29,14 @@ void stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr,
   std::vector<cv::KeyPoint> l_kp, r_kp;
   cv::Mat l_desc = cv::Mat_<std::vector<float> >();
   cv::Mat r_desc = cv::Mat_<std::vector<float> >();
-  stereo_slam::Utils::keypointDetector(l_ptr->image, l_kp, descriptor_type_);
-  stereo_slam::Utils::keypointDetector(r_ptr->image, r_kp, descriptor_type_);
-  stereo_slam::Utils::descriptorExtraction(l_ptr->image, l_kp, l_desc, descriptor_type_);
-  stereo_slam::Utils::descriptorExtraction(r_ptr->image, r_kp, r_desc, descriptor_type_);
+  stereo_slam::Utils::keypointDetector(l_ptr->image, l_kp, "SIFT");
+  stereo_slam::Utils::keypointDetector(r_ptr->image, r_kp, "SIFT");
+  stereo_slam::Utils::descriptorExtraction(l_ptr->image, l_kp, l_desc, "SIFT");
+  stereo_slam::Utils::descriptorExtraction(r_ptr->image, r_kp, r_desc, "SIFT");
 
   // Find matching between stereo images
   std::vector<cv::DMatch> matches;
-  stereo_slam::Utils::thresholdMatching(l_desc, r_desc, matches, descriptor_threshold_);
+  stereo_slam::Utils::thresholdMatching(l_desc, r_desc, matches, params_.descriptor_threshold);
 
   // Compute 3D points
   std::vector<cv::Point2f> matched_keypoints;
@@ -47,7 +47,7 @@ void stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr,
     int index_left = matches[i].queryIdx;
     int index_right = matches[i].trainIdx;
 
-    if (abs(l_kp[index_left].pt.y - r_kp[index_right].pt.y) < epipolar_threshold_)
+    if (abs(l_kp[index_left].pt.y - r_kp[index_right].pt.y) < params_.epipolar_threshold)
     {
       cv::Point3d world_point;
       stereo_slam::Utils::calculate3DPoint( stereo_camera_model_,
@@ -60,7 +60,7 @@ void stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr,
     }
   }
 
-  if (stereo_vision_verbose_)
+  if (params_.stereo_vision_verbose)
     ROS_INFO_STREAM("[StereoSlam:] Found " << matches.size() <<
      " matches between left-right pair. " << matched_3d_points.size() <<
      " after epipolar filtering.");

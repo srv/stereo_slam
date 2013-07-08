@@ -99,7 +99,7 @@ def draw_edges():
         vect.append([data[i,0], data[i,1], data[i,2]])
         vect.append([data[i,3], data[i,4], data[i,5]])
         vect =  np.array(vect)
-        ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[2])
+        ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[2], linestyle='--')
         ax_edges.append(ax_edge)
     except:
       print "No data in ", graph_edges_file

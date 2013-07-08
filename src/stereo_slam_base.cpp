@@ -10,6 +10,37 @@
 #include "postgresql_interface.h"
 #include "utils.h"
 
+/** \brief Parameter constructor. Sets the parameter struct to default values.
+  */
+stereo_slam::StereoSlamBase::Params::Params() : 
+  db_host("localhost"),
+  db_port("5432"),
+  db_user("postgres"),
+  db_pass("postgres"),
+  db_name("graph"),  
+  update_rate(DEFAULT_UPDATE_RATE),
+  g2o_algorithm(DEFAULT_G2O_ALGORITHM),
+  go2_opt_max_iter(DEFAULT_G2O_OPT_MAX_ITER),
+  go2_verbose(DEFAULT_G2O_VERBOSE),
+  min_displacement(DEFAULT_MIN_DISPLACEMENT),
+  min_candidate_threshold(DEFAULT_MIN_CANDIDATE_THRESHOLD),
+  max_candidate_threshold(DEFAULT_MAX_CANDIDATE_THRESHOLD),
+  descriptor_threshold(DEFAULT_DESCRIPTOR_THRESHOLD),
+  epipolar_threshold(DEFAULT_EPIPOLAR_THRESHOLD),
+  matches_threshold(DEFAULT_MATCHES_THRESHOLD),
+  min_inliers(DEFAULT_MIN_INLIERS),
+  max_inliers(DEFAULT_MAX_INLIERS),
+  max_solvepnp_iter(DEFAULT_MAX_SOLVEPNP_ITER),
+  allowed_reprojection_err(DEFAULT_ALLOWED_REPROJECTION_ERR),
+  max_edge_err(DEFAULT_MAX_EDGE_ERR),
+  stereo_vision_verbose(DEFAULT_STEREO_VISION_VERBOSE),
+  queue_size(DEFAULT_QUEUE_SIZE),
+  map_frame_id("/map"),
+  base_link_frame_id("/base_link"),
+  save_graph_to_file(DEFAULT_SAVE_GRAPH_TO_FILE),
+  files_path("/home")
+{}
+
 /** \brief Class constructor. Reads node parameters and initialize some properties.
   * @return 
   * \param nh public node handler
@@ -71,7 +102,7 @@ void stereo_slam::StereoSlamBase::msgsCallback(
   }
 
   // Check if difference between images is larger than minimum displacement
-  if (stereo_slam::Utils::poseDiff(corrected_pose, previous_pose_) > min_displacement_
+  if (stereo_slam::Utils::poseDiff(corrected_pose, previous_pose_) > params_.min_displacement
       || first_message_)
   {   
     // Convert message to cv::Mat
@@ -96,8 +127,8 @@ void stereo_slam::StereoSlamBase::msgsCallback(
   {
     nav_msgs::Odometry odometry_msg = *odom_msg;
     odometry_msg.header.stamp = odom_msg->header.stamp;
-    odometry_msg.header.frame_id = map_frame_id_;
-    odometry_msg.child_frame_id = base_link_frame_id_;
+    odometry_msg.header.frame_id = params_.map_frame_id;
+    odometry_msg.child_frame_id = params_.base_link_frame_id;
     tf::poseTFToMsg(corrected_pose, odometry_msg.pose.pose);
     odom_pub_.publish(odometry_msg);
   }
@@ -122,11 +153,11 @@ void stereo_slam::StereoSlamBase::timerCallback(const ros::WallTimerEvent& event
     ROS_INFO_STREAM("[StereoSlam:] Optimizing global pose graph with " << graph_optimizer_.vertices().size() << " vertices...");
     graph_optimizer_.initializeOptimization();
     last_vertex_optimized_ = graph_optimizer_.vertices().size() - 1;
-    graph_optimizer_.optimize(go2_opt_max_iter_);
+    graph_optimizer_.optimize(params_.go2_opt_max_iter);
     ROS_INFO("[StereoSlam:] Optimization done.");
 
     // Save graph as odometry measurments in file?
-    if (save_graph_to_file_)
+    if (params_.save_graph_to_file)
       saveGraph();
   }
 
@@ -138,50 +169,54 @@ void stereo_slam::StereoSlamBase::timerCallback(const ros::WallTimerEvent& event
   */
 void stereo_slam::StereoSlamBase::readParameters()
 {
-  // Database parameters
-  nh_private_.param<std::string>("db_host", db_host_, "localhost");
-  nh_private_.param<std::string>("db_port", db_port_, "5432");
-  nh_private_.param<std::string>("db_user", db_user_, "postgres");
-  nh_private_.param<std::string>("db_pass", db_pass_, "postgres");
-  nh_private_.param<std::string>("db_name", db_name_, "graph");
+  Params stereo_slam_params;
 
-  // Functional parameters
-  nh_private_.param("update_rate", update_rate_, 0.5);
-  nh_private_.param("min_displacement", min_displacement_, 0.2);
-  nh_private_.param("max_candidate_threshold", max_candidate_threshold_, 0.7);
-  nh_private_.param("min_candidate_threshold", min_candidate_threshold_, 0.45);
-  nh_private_.param("descriptor_threshold", descriptor_threshold_, 0.8);
-  nh_private_.param<std::string>("descriptor_type", descriptor_type_, "SIFT");
-  nh_private_.param("epipolar_threshold", epipolar_threshold_, 3.0);
-  nh_private_.param("matches_threshold", matches_threshold_, 70);
-  nh_private_.param("min_inliers", min_inliers_, 10);
-  nh_private_.param("max_inliers", max_inliers_, 2000);
-  nh_private_.param("max_solvepnp_iter", max_solvepnp_iter_, 1000);
-  nh_private_.param("allowed_reprojection_error", allowed_reprojection_error_, 5.0);
-  nh_private_.param("max_edge_error", max_edge_error_, 100.0);
-  nh_private_.param("stereo_vision_verbose", stereo_vision_verbose_, false);
+  // Database parameters
+  nh_private_.getParam("db_host", stereo_slam_params.db_host);
+  nh_private_.getParam("db_port", stereo_slam_params.db_port);
+  nh_private_.getParam("db_user", stereo_slam_params.db_user);
+  nh_private_.getParam("db_pass", stereo_slam_params.db_pass);
+  nh_private_.getParam("db_name", stereo_slam_params.db_name);
 
   // G2O parameters
-  nh_private_.param("g2o_algorithm", g2o_algorithm_, 0);
-  nh_private_.param("go2_verbose", go2_verbose_, false);
-  nh_private_.param("go2_opt_max_iter", go2_opt_max_iter_, 10);
+  nh_private_.getParam("update_rate", stereo_slam_params.update_rate);
+  nh_private_.getParam("g2o_algorithm", stereo_slam_params.g2o_algorithm);
+  nh_private_.getParam("go2_opt_max_iter", stereo_slam_params.go2_opt_max_iter);
+  nh_private_.getParam("go2_verbose", stereo_slam_params.go2_verbose);
+
+  // Odometry operational parameters
+  nh_private_.getParam("min_displacement", stereo_slam_params.min_displacement);
+  nh_private_.getParam("max_candidate_threshold", stereo_slam_params.max_candidate_threshold);
+  nh_private_.getParam("min_candidate_threshold", stereo_slam_params.min_candidate_threshold);
+
+  // Stereo vision parameters
+  nh_private_.getParam("descriptor_threshold", stereo_slam_params.descriptor_threshold);
+  nh_private_.getParam("epipolar_threshold", stereo_slam_params.epipolar_threshold);
+  nh_private_.getParam("matches_threshold", stereo_slam_params.matches_threshold);
+  nh_private_.getParam("min_inliers", stereo_slam_params.min_inliers);
+  nh_private_.getParam("max_inliers", stereo_slam_params.max_inliers);
+  nh_private_.getParam("max_solvepnp_iter", stereo_slam_params.max_solvepnp_iter);
+  nh_private_.getParam("allowed_reprojection_err", stereo_slam_params.allowed_reprojection_err);
+  nh_private_.getParam("max_edge_err", stereo_slam_params.max_edge_err);
+  nh_private_.getParam("stereo_vision_verbose", stereo_slam_params.stereo_vision_verbose);
 
   // Topic parameters
+  nh_private_.getParam("queue_size", stereo_slam_params.queue_size);
+  nh_private_.getParam("map_frame_id", stereo_slam_params.map_frame_id);
+  nh_private_.getParam("base_link_frame_id", stereo_slam_params.base_link_frame_id);
+
+  // Graph to file parameters
+  nh_private_.getParam("save_graph_to_file", stereo_slam_params.save_graph_to_file);
+  nh_private_.getParam("files_path", stereo_slam_params.files_path);
+  setParams(stereo_slam_params);
+
+  // Topics subscriptions
   std::string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic;
-  nh_private_.param("queue_size", queue_size_, 5);
   nh_private_.param("odom_topic", odom_topic, std::string("/odometry"));
   nh_private_.param("left_topic", left_topic, std::string("/left/image_rect_color"));
   nh_private_.param("right_topic", right_topic, std::string("/right/image_rect_color"));
   nh_private_.param("left_info_topic", left_info_topic, std::string("/left/camera_info"));
   nh_private_.param("right_info_topic", right_info_topic, std::string("/right/camera_info"));
-  nh_private_.param("map_frame_id", map_frame_id_, std::string("/map"));
-  nh_private_.param("base_link_frame_id", base_link_frame_id_, std::string("/base_link"));
-
-  // Graph to file parameters
-  nh_private_.param("save_graph_to_file", save_graph_to_file_, false);
-  nh_private_.param("files_path", files_path_, std::string("graph_data.txt"));
-
-  // Topics subscriptions
   image_transport::ImageTransport it(nh_);
   odom_sub_ .subscribe(nh_, odom_topic, 1);
   left_sub_ .subscribe(it, left_topic, 1);
@@ -206,7 +241,7 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
   nh_private_.param("approximate_sync", approx, false);
   if (approx)
   {
-    approximate_sync_.reset(new ApproximateSync(ApproximatePolicy(queue_size_),
+    approximate_sync_.reset(new ApproximateSync(ApproximatePolicy(params_.queue_size),
                                     odom_sub_, 
                                     left_sub_, 
                                     right_sub_, 
@@ -218,7 +253,7 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
   }
   else
   {
-    exact_sync_.reset(new ExactSync(ExactPolicy(queue_size_),
+    exact_sync_.reset(new ExactSync(ExactPolicy(params_.queue_size),
                                     odom_sub_, 
                                     left_sub_, 
                                     right_sub_, 
@@ -233,7 +268,7 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
   odom_pub_ = nh_private_.advertise<nav_msgs::Odometry>("odometry", 1);
 
   // Initialize the g2o graph optimizer
-  if (g2o_algorithm_ == 0)
+  if (params_.g2o_algorithm == 0)
   {
     // Slam linear solver with gauss-newton
     SlamLinearSolver* linear_solver_ptr = new SlamLinearSolver();
@@ -243,7 +278,7 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
       new g2o::OptimizationAlgorithmGaussNewton(block_solver_ptr);
     graph_optimizer_.setAlgorithm(solver_gauss_ptr);
   }
-  else if (g2o_algorithm_ == 1)
+  else if (params_.g2o_algorithm == 1)
   {
     // Linear solver with Levenberg
     g2o::BlockSolverX::LinearSolverType * linear_solver_ptr;
@@ -258,13 +293,13 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
     ROS_ERROR("[StereoSlam:] g2o_algorithm parameter must be 0 or 1.");
     return false;
   }  
-  graph_optimizer_.setVerbose(go2_verbose_);  
+  graph_optimizer_.setVerbose(params_.go2_verbose);  
 
   // Database initialization
   boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr_1( 
-    new database_interface::PostgresqlDatabase(db_host_, db_port_, db_user_, db_pass_, db_name_));
+    new database_interface::PostgresqlDatabase(params_.db_host, params_.db_port, params_.db_user, params_.db_pass, params_.db_name));
   boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr_2( 
-    new database_interface::PostgresqlDatabase(db_host_, db_port_, db_user_, db_pass_, db_name_));
+    new database_interface::PostgresqlDatabase(params_.db_host, params_.db_port, params_.db_user, params_.db_pass, params_.db_name));
   pg_db_ptr_thread_1_ = db_ptr_1;
   pg_db_ptr_thread_2_ = db_ptr_2;
 
@@ -277,8 +312,8 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
     ROS_INFO("[StereoSlam:] Database connected successfully!");
 
     // Database table creation. New connection is needed due to the interface design
-    std::string conn_info = "host=" + db_host_ + " port=" + db_port_ + 
-      " user=" + db_user_ + " password=" + db_pass_ + " dbname=" + db_name_;
+    std::string conn_info = "host=" + params_.db_host + " port=" + params_.db_port + 
+      " user=" + params_.db_user + " password=" + params_.db_pass + " dbname=" + params_.db_name;
     connection_init_= PQconnectdb(conn_info.c_str());
     if (PQstatus(connection_init_)!=CONNECTION_OK) 
     {
@@ -306,19 +341,19 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
   }
 
   // Start timer for graph update
-  timer_ = nh_.createWallTimer(ros::WallDuration(update_rate_), 
-                            &stereo_slam::StereoSlamBase::timerCallback,
-                            this);
+  timer_ = nh_.createWallTimer(ros::WallDuration(params_.update_rate), 
+                               &stereo_slam::StereoSlamBase::timerCallback,
+                               this);
 
   // Parameters check
-  if (matches_threshold_ < 5)
+  if (params_.matches_threshold < 5)
   {
     ROS_WARN("[StereoSlam:] Parameter 'matches_threshold' must be greater than 5. Set to 6.");
-    matches_threshold_ = 6;
+    params_.matches_threshold = 6;
     return false;
   }
-  if (files_path_[files_path_.length()-1] != '/')
-    files_path_ += "/";
+  if (params_.files_path[params_.files_path.length()-1] != '/')
+    params_.files_path += "/";
 
   return true;
 }
@@ -330,9 +365,9 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
 bool stereo_slam::StereoSlamBase::saveGraph()
 {
   std::string block_file, vertices_file, edges_file;
-  vertices_file = files_path_ + "graph_vertices.txt";
-  edges_file = files_path_ + "graph_edges.txt";
-  block_file = files_path_ + ".block.txt";
+  vertices_file = params_.files_path + "graph_vertices.txt";
+  edges_file = params_.files_path + "graph_edges.txt";
+  block_file = params_.files_path + ".block.txt";
 
   // Create a blocking element
   std::fstream f_block(block_file.c_str(), std::ios::out | std::ios::trunc);
@@ -353,8 +388,8 @@ bool stereo_slam::StereoSlamBase::saveGraph()
           timestamp  << "," << 
           i << "," << 
           timestamp << "," << 
-          map_frame_id_ << "," << 
-          base_link_frame_id_ << "," << 
+          params_.map_frame_id << "," << 
+          params_.base_link_frame_id << "," << 
           std::setprecision(6) << 
           pose.getOrigin().x() << "," << 
           pose.getOrigin().y() << "," << 
