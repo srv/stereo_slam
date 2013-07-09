@@ -32,7 +32,7 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
     g2o::VertexSE3* v_i = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
     tf::Transform pose_i = stereo_slam::Utils::getVertexPose(v_i);
 
-    for (unsigned int j=i+2; j<graph_size; j++)
+    for (unsigned int j=i+params_.neighbor_offset; j<graph_size; j++)
     {
       // Extract the pose of vertex j and compare
       g2o::VertexSE3* v_j = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[j]);
@@ -64,8 +64,7 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
         // If no edges found connecting this vertices, try to find loop closures
         bool is_false = true;
         double pose_diff = stereo_slam::Utils::poseDiff(pose_i, pose_j);
-        if (!edge_found && (pose_diff < params_.max_candidate_threshold)
-                        && (pose_diff > params_.min_candidate_threshold))
+        if (!edge_found && (pose_diff < params_.max_candidate_threshold))
         {
           // Get the data of both vertices from database
           std::string where_i = "(id = " + boost::lexical_cast<std::string>(v_i->id() + 1) + ")";

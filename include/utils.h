@@ -314,8 +314,9 @@ public:
 	  if (rvec.empty() || tvec.empty())
 	    return tf::Transform();
 
-	  tf::Vector3 axis(rvec.at<double>(0, 0), rvec.at<double>(1, 0), 
-	      rvec.at<double>(2, 0));
+	  tf::Vector3 axis(rvec.at<double>(0, 0), 
+	  								 rvec.at<double>(1, 0), 
+	      						 rvec.at<double>(2, 0));
 	  double angle = cv::norm(rvec);
 	  tf::Quaternion quaternion(axis, angle);
 

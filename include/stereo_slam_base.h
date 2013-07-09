@@ -62,8 +62,8 @@ public:
 
     // Odometry operational parameters
     double min_displacement;         //!> Minimum odometry displacement between poses to be saved as graph vertices. 
-    double min_candidate_threshold;  //!> Minimum distance between graph vertices to be considered for possible candidates of loop closure.
     double max_candidate_threshold;  //!> Maximum distance between graph vertices to be considered for possible candidates of loop closure.
+    int neighbor_offset;             //!> Number of neighbor nodes discarted for loop-closing.
 
     // Stereo vision parameters
     double descriptor_threshold;     //!> Matching descriptors threshold used to find loop closures between images.
@@ -94,8 +94,8 @@ public:
     static const int          DEFAULT_G2O_OPT_MAX_ITER = 10;
     static const bool         DEFAULT_G2O_VERBOSE = false;
     static const double       DEFAULT_MIN_DISPLACEMENT = 0.2;
-    static const double       DEFAULT_MIN_CANDIDATE_THRESHOLD = 0.25;
     static const double       DEFAULT_MAX_CANDIDATE_THRESHOLD = 0.5;
+    static const int          DEFAULT_NEIGHBOR_OFFSET = 3;
     static const double       DEFAULT_DESCRIPTOR_THRESHOLD = 0.5;
     static const double       DEFAULT_EPIPOLAR_THRESHOLD = 3.0;
     static const int          DEFAULT_MATCHES_THRESHOLD = 110;

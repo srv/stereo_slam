@@ -23,8 +23,8 @@ stereo_slam::StereoSlamBase::Params::Params() :
   go2_opt_max_iter(DEFAULT_G2O_OPT_MAX_ITER),
   go2_verbose(DEFAULT_G2O_VERBOSE),
   min_displacement(DEFAULT_MIN_DISPLACEMENT),
-  min_candidate_threshold(DEFAULT_MIN_CANDIDATE_THRESHOLD),
   max_candidate_threshold(DEFAULT_MAX_CANDIDATE_THRESHOLD),
+  neighbor_offset(DEFAULT_NEIGHBOR_OFFSET),
   descriptor_threshold(DEFAULT_DESCRIPTOR_THRESHOLD),
   epipolar_threshold(DEFAULT_EPIPOLAR_THRESHOLD),
   matches_threshold(DEFAULT_MATCHES_THRESHOLD),
@@ -190,7 +190,7 @@ void stereo_slam::StereoSlamBase::readParameters()
   // Odometry operational parameters
   nh_private_.getParam("min_displacement", stereo_slam_params.min_displacement);
   nh_private_.getParam("max_candidate_threshold", stereo_slam_params.max_candidate_threshold);
-  nh_private_.getParam("min_candidate_threshold", stereo_slam_params.min_candidate_threshold);
+  nh_private_.getParam("neighbor_offset", stereo_slam_params.neighbor_offset);
 
   // Stereo vision parameters
   nh_private_.getParam("descriptor_threshold", stereo_slam_params.descriptor_threshold);

@@ -74,7 +74,7 @@ void stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr,
   if (params_.stereo_vision_verbose)
     ROS_INFO_STREAM("[StereoSlam:] Found " << matches.size() <<
      " matches between left-right pair. " << matches_filtered.size() <<
-     " after epipolar filtering and bucketing.");
+     " after filtering and bucketing.");
 
   // Transform data to std::vector for database
   std::vector< std::vector<float> > keypoints = 
@@ -107,7 +107,11 @@ void stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr,
     if (first_vertex_)
     {
       // First time, no edges.
-      cur_vertex->setFixed(true);
+
+      // Comment? Uncomment? This force g2o mantain the pose of the first edge fixed.
+      // But if stereo_odometer give us an incorrect initial pose...
+      //cur_vertex->setFixed(true);
+
       graph_optimizer_.addVertex(cur_vertex);
       first_vertex_ = false;
     }
