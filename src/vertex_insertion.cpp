@@ -110,7 +110,7 @@ void stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr,
 
       // Comment? Uncomment? This force g2o mantain the pose of the first edge fixed.
       // But if stereo_odometer give us an incorrect initial pose...
-      //cur_vertex->setFixed(true);
+      cur_vertex->setFixed(true);
 
       graph_optimizer_.addVertex(cur_vertex);
       first_vertex_ = false;
