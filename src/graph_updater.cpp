@@ -131,8 +131,14 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
                   Eigen::Isometry3d t = v_i->estimate().inverse() * v_j->estimate();
                   tf::Transform cl_edge_prev = stereo_slam::Utils::eigenToTf(t);
 
+                  double edge_diff = stereo_slam::Utils::poseDiff(cl_edge, cl_edge_prev);
+                  if (params_.stereo_vision_verbose)
+                    ROS_INFO_STREAM("[StereoSlam:] The error between node " << v_i->id() 
+                      << " and " << v_j->id() << " is: " << edge_diff << 
+                      " (max_edge_err is: " << params_.max_edge_err << ")");
+
                   // Check edge geometry
-                  if (stereo_slam::Utils::poseDiff(cl_edge, cl_edge_prev) < params_.max_edge_err)
+                  if (edge_diff < params_.max_edge_err)
                   {
                     // Add the new edge to graph
                     g2o::EdgeSE3* e = new g2o::EdgeSE3();
