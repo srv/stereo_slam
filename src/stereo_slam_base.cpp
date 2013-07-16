@@ -72,10 +72,17 @@ void stereo_slam::StereoSlamBase::msgsCallback(
                                   const sensor_msgs::CameraInfoConstPtr& l_info,
                                   const sensor_msgs::CameraInfoConstPtr& r_info)
 {
-  // Set camera info
-  stereo_camera_model_.fromCameraInfo(l_info, r_info);
-  const cv::Mat P(3,4, CV_64FC1, const_cast<double*>(l_info->P.data()));
-  camera_matrix_ = P.colRange(cv::Range(0,3)).clone();
+  // Check for vertex insertion block
+  if (block_insertion_)
+    return;
+
+  // Set camera model
+  if (first_message_)
+  {
+    stereo_camera_model_.fromCameraInfo(l_info, r_info);
+    const cv::Mat P(3,4, CV_64FC1, const_cast<double*>(l_info->P.data()));
+    camera_matrix_ = P.colRange(cv::Range(0,3)).clone();
+  }
 
   // Get the current odometry for these images
   tf::Vector3 tf_trans( odom_msg->pose.pose.position.x,
@@ -89,24 +96,28 @@ void stereo_slam::StereoSlamBase::msgsCallback(
   tf::Transform corrected_pose = current_pose;
 
   // Compute the corrected pose with the optimized graph
-  if (pose_history_.size() > 0 && last_vertex_optimized_ >= 0)
+  double pose_diff = -1.0;
+  int last_vertex_idx = graph_optimizer_.vertices().size() - 1;
+  if (pose_history_.size() > 0 && last_vertex_idx >= 0)
   {
     // Compute the tf between last original pose before optimization and current.
-    tf::Transform last_original_pose = pose_history_.at(last_vertex_optimized_);
+    tf::Transform last_original_pose = pose_history_.at(last_vertex_idx);
     tf::Transform diff = last_original_pose.inverse() * current_pose;
 
     // Get the last optimized pose
     g2o::VertexSE3* last_vertex =  dynamic_cast<g2o::VertexSE3*>
-          (graph_optimizer_.vertices()[last_vertex_optimized_]);
+          (graph_optimizer_.vertices()[last_vertex_idx]);
     tf::Transform last_optimized_pose = stereo_slam::Utils::getVertexPose(last_vertex);
 
     // Compute the corrected pose
     corrected_pose = last_optimized_pose * diff;
+
+    // Compute the absolute pose difference
+    pose_diff = stereo_slam::Utils::poseDiff(pose_history_.at(last_vertex_idx), current_pose);
   }
 
   // Check if difference between images is larger than minimum displacement
-  if (stereo_slam::Utils::poseDiff(corrected_pose, previous_pose_) > params_.min_displacement
-      || first_message_)
+  if (pose_diff > params_.min_displacement || first_message_)
   {   
     // Convert message to cv::Mat
     cv_bridge::CvImagePtr l_ptr, r_ptr;
@@ -122,7 +133,12 @@ void stereo_slam::StereoSlamBase::msgsCallback(
     }
 
     // Insert this vertex into the graph database
-    vertexInsertion(l_ptr, r_ptr, current_pose, corrected_pose, odom_msg->header.stamp.toSec());
+    if(vertexInsertion(l_ptr, r_ptr, corrected_pose))
+    {
+      // Save original pose history
+      pose_history_.push_back(current_pose);
+      pose_history_stamp_.push_back(odom_msg->header.stamp.toSec());
+    }
   }
 
   // Publish slam (map)
@@ -153,10 +169,12 @@ void stereo_slam::StereoSlamBase::timerCallback(const ros::WallTimerEvent& event
   // Update the graph and optimize it if new vertices have been inserted
   if (graphUpdater())
   {
-    ROS_INFO_STREAM("[StereoSlam:] Optimizing global pose graph with " << graph_optimizer_.vertices().size() << " vertices...");
+    block_insertion_ = true;
+    ROS_INFO_STREAM("[StereoSlam:] Optimizing global pose graph with " << 
+                    graph_optimizer_.vertices().size() << " vertices...");
     graph_optimizer_.initializeOptimization();
-    last_vertex_optimized_ = graph_optimizer_.vertices().size() - 1;
     graph_optimizer_.optimize(params_.go2_opt_max_iter);
+    block_insertion_ = false;
     ROS_INFO("[StereoSlam:] Optimization done.");
   }
 
@@ -240,7 +258,7 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
   first_message_ = true;
   first_vertex_ = true;
   block_update_ = false;
-  last_vertex_optimized_ = -1;
+  block_insertion_ = false;
 
   // Callback syncronization
   bool approx;
@@ -303,9 +321,17 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
 
   // Database initialization
   boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr_1( 
-    new database_interface::PostgresqlDatabase(params_.db_host, params_.db_port, params_.db_user, params_.db_pass, params_.db_name));
+    new database_interface::PostgresqlDatabase( params_.db_host, 
+                                                params_.db_port, 
+                                                params_.db_user, 
+                                                params_.db_pass, 
+                                                params_.db_name));
   boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr_2( 
-    new database_interface::PostgresqlDatabase(params_.db_host, params_.db_port, params_.db_user, params_.db_pass, params_.db_name));
+    new database_interface::PostgresqlDatabase( params_.db_host, 
+                                                params_.db_port, 
+                                                params_.db_user, 
+                                                params_.db_pass, 
+                                                params_.db_name));
   pg_db_ptr_thread_1_ = db_ptr_1;
   pg_db_ptr_thread_2_ = db_ptr_2;
 
@@ -323,7 +349,8 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
     connection_init_= PQconnectdb(conn_info.c_str());
     if (PQstatus(connection_init_)!=CONNECTION_OK) 
     {
-      ROS_ERROR("[StereoSlam:] Database connection failed with error message: %s", PQerrorMessage(connection_init_));
+      ROS_ERROR_STREAM("[StereoSlam:] Database connection failed with error message: " <<
+                        PQerrorMessage(connection_init_));
       return false;
     }
     else

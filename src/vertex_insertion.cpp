@@ -15,15 +15,11 @@
   * @return 
   * \param l_ptr pointer to left image
   * \param r_ptr pointer to right image
-  * \param current_pose from visual odometry
   * \param corrected_pose pose corrected by the graph
-  * \param timestamp message timestamp
   */
-void stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr, 
+bool stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr, 
                                                   cv_bridge::CvImagePtr r_ptr,
-                                                  tf::Transform current_pose,
-                                                  tf::Transform corrected_pose,
-                                                  double timestamp)
+                                                  tf::Transform corrected_pose)
 {
   // Extract keypoints and descriptors of images
   std::vector<cv::KeyPoint> l_kp, r_kp;
@@ -92,55 +88,48 @@ void stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr,
   if (!pg_db_ptr_thread_1_->insertIntoDatabase(&vertex_data))
   {
     ROS_ERROR("[StereoSlam:] Vertex insertion failed");
+    return false;
+  }
+
+  // Everything is ok, save the vertex into the graph
+
+  // Build the pose
+  Eigen::Isometry3d pose = stereo_slam::Utils::tfToEigen(corrected_pose);
+
+  // Build the vertex
+  g2o::VertexSE3* cur_vertex = new g2o::VertexSE3();
+  cur_vertex->setId(vertex_data.id_.data() - 1);
+  cur_vertex->setEstimate(pose);
+  if (first_vertex_)
+  {
+    // First time, no edges.
+    cur_vertex->setFixed(true);
+
+    graph_optimizer_.addVertex(cur_vertex);
+    first_vertex_ = false;
   }
   else
   {
-    // Everything is ok, save the vertex into the graph
+    // When graph has been initialized get the transform between current and previous vertices
+    // and save it as an edge
 
-    // Build the pose
-    Eigen::Isometry3d pose = stereo_slam::Utils::tfToEigen(corrected_pose);
+    // Get last vertex
+    g2o::VertexSE3* prev_vertex = dynamic_cast<g2o::VertexSE3*>(
+      graph_optimizer_.vertices()[graph_optimizer_.vertices().size() - 1]);
+    graph_optimizer_.addVertex(cur_vertex);
 
-    // Build the vertex
-    g2o::VertexSE3* cur_vertex = new g2o::VertexSE3();
-    cur_vertex->setId(vertex_data.id_.data() - 1);
-    cur_vertex->setEstimate(pose);
-    if (first_vertex_)
-    {
-      // First time, no edges.
-
-      // Comment? Uncomment? This force g2o mantain the pose of the first edge fixed.
-      // But if stereo_odometer give us an incorrect initial pose...
-      cur_vertex->setFixed(true);
-
-      graph_optimizer_.addVertex(cur_vertex);
-      first_vertex_ = false;
-    }
-    else
-    {
-      // When graph has been initialized get the transform between current and previous vertices
-      // and save it as an edge
-
-      // Get last vertex
-      g2o::VertexSE3* prev_vertex = dynamic_cast<g2o::VertexSE3*>(
-        graph_optimizer_.vertices()[graph_optimizer_.vertices().size() - 1]);
-      graph_optimizer_.addVertex(cur_vertex);
-
-      // Odometry edges
-      g2o::EdgeSE3* e = new g2o::EdgeSE3();
-      Eigen::Isometry3d t = prev_vertex->estimate().inverse() * cur_vertex->estimate();
-      e->setVertex(0, prev_vertex);
-      e->setVertex(1, cur_vertex);
-      e->setMeasurement(t);
-      graph_optimizer_.addEdge(e);
-    }
-
-    // Save original pose history
-    pose_history_.push_back(current_pose);
-    pose_history_stamp_.push_back(timestamp);
-
-    // Save for next iteration
-    previous_pose_ = corrected_pose;
-    first_message_ = false;
-    ROS_INFO_STREAM("[StereoSlam:] Vertex " << vertex_data.id_.data() << " insertion done");
+    // Odometry edges
+    g2o::EdgeSE3* e = new g2o::EdgeSE3();
+    Eigen::Isometry3d t = prev_vertex->estimate().inverse() * cur_vertex->estimate();
+    e->setVertex(0, prev_vertex);
+    e->setVertex(1, cur_vertex);
+    e->setMeasurement(t);
+    graph_optimizer_.addEdge(e);
   }
+
+  // Log
+  first_message_ = false;
+  ROS_INFO_STREAM("[StereoSlam:] Vertex " << vertex_data.id_.data() << " insertion done");
+
+  return true;
 }

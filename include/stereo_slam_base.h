@@ -142,11 +142,9 @@ protected:
                       const sensor_msgs::CameraInfoConstPtr& r_info);
   void timerCallback( const ros::WallTimerEvent& event);
   bool saveGraph();
-  void vertexInsertion( cv_bridge::CvImagePtr l_ptr, 
+  bool vertexInsertion( cv_bridge::CvImagePtr l_ptr, 
                         cv_bridge::CvImagePtr r_ptr,
-                        tf::Transform current_pose,
-                        tf::Transform corrected_pose,
-                        double timestamp);
+                        tf::Transform corrected_pose);
   bool graphUpdater();
 
 private:
@@ -157,7 +155,6 @@ private:
 	PGconn* connection_init_;
 
 	// Transform properties
-  tf::Transform previous_pose_;			//!> Previous vertex pose
   std::vector<cv::Point2i> 
     false_candidates_;              //!> Vector of detected false candidates to prevent re-calculation.
   std::vector<tf::Transform> 
@@ -169,12 +166,12 @@ private:
   g2o::SparseOptimizer 
   	graph_optimizer_;								//!> G2O graph optimizer
   ros::WallTimer timer_;						//!> Timer to optimize the graph while it is updated
-  int last_vertex_optimized_;         //!> Indicates the id of the last optimized vertex
 
   // Operational properties
   bool first_message_;							//!> True when first message is received, false for any other instant.
   bool first_vertex_;							  //!> True when first vertex is inserted into graph, false for any other instant.
   bool block_update_;								//!> Used to block the timer re-calls when it is executed.
+  bool block_insertion_;            //!> Used to block the insertion of nodes while graph is optimized.
 
   // Stereo vision properties
   image_geometry::StereoCameraModel 
