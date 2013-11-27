@@ -59,7 +59,7 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
               break;
             }
           }
-        }        
+        }
 
         // If no edges found connecting this vertices, try to find loop closures
         bool is_false = true;
@@ -150,7 +150,9 @@ bool stereo_slam::StereoSlamBase::graphUpdater()
                     edge_added = true;
                     is_false = false;
 
+                    ROS_INFO("[StereoSlam:]***********************************************");
                     ROS_INFO_STREAM("[StereoSlam:] Loop closed between vertices " << v_i->id() << " and " << v_j->id());
+                    ROS_INFO("[StereoSlam:]***********************************************");
                   }
                 }
               }

@@ -114,19 +114,19 @@ public:
 	  * \param right_point on the right image
 	  * \param world_point pointer to the corresponding 3d point
 	  */
-	static void calculate3DPoint(	const image_geometry::StereoCameraModel stereo_camera_model,
-																const cv::Point2d& left_point, 
-																const cv::Point2d& right_point, 
-																cv::Point3d& world_point)
+	static void calculate3DPoint(const image_geometry::StereoCameraModel stereo_camera_model,
+								 const cv::Point2d& left_point, 
+								 const cv::Point2d& right_point, 
+								 cv::Point3d& world_point)
 	{
 	  double disparity = left_point.x - right_point.x;
 	  stereo_camera_model.projectDisparityTo3d(left_point, disparity, world_point);
 	}
 
-  /** \brief convert a matrix of type std::vector<cv::KeyPoint> to std::vector
-    * @return std::vector< std::vector<float> > matrix
-    * \param input of type std::vector<cv::KeyPoint>
-    */
+  	/** \brief convert a matrix of type std::vector<cv::KeyPoint> to std::vector
+     * @return std::vector< std::vector<float> > matrix
+     * \param input of type std::vector<cv::KeyPoint>
+     */
 	static std::vector< std::vector<float> > cvPoint2fToStdMatrix(std::vector<cv::Point2f> input)
 	{
 		std::vector< std::vector<float> > output;
@@ -315,8 +315,8 @@ public:
 	    return tf::Transform();
 
 	  tf::Vector3 axis(rvec.at<double>(0, 0), 
-	  								 rvec.at<double>(1, 0), 
-	      						 rvec.at<double>(2, 0));
+	  				   rvec.at<double>(1, 0), 
+	      			   rvec.at<double>(2, 0));
 	  double angle = cv::norm(rvec);
 	  tf::Quaternion quaternion(axis, angle);
 

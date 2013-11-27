@@ -92,6 +92,7 @@ void stereo_slam::StereoSlamBase::msgsCallback(
                         odom_msg->pose.pose.orientation.y,
                         odom_msg->pose.pose.orientation.z,
                         odom_msg->pose.pose.orientation.w);
+
   tf::Transform current_pose(tf_q, tf_trans);
   tf::Transform corrected_pose = current_pose;
 

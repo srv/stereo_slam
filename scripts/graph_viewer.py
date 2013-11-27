@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import roslib; roslib.load_manifest('stereo_slam')
 import sys
 import pylab
 import math
@@ -11,27 +12,37 @@ import ntpath
 import os
 from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
+import tf.transformations as tf
 
 # Global variables
 blocking_file = ""
 graph_edges_file = ""
 first_iter = True
 colors = ['g','r','b']
+ax_gt = None
 ax_odom = None
 ax_vertices = None
 ax_edges = []
 edges_shown = True
 correct_graph = False
+gt_data = []
 
 class Error(Exception):
   """ Base class for exceptions in this module. """
   pass
 
+def to_transform(data_point):
+  t = [data_point[1], data_point[2], data_point[3]]
+  q = [data_point[4], data_point[5], data_point[6], data_point[7]]
+  rot_mat = tf.quaternion_matrix(q)
+  trans_mat = tf.translation_matrix(t)
+  return tf.concatenate_matrices(trans_mat, rot_mat)
+
 def real_time_plot(odom_file, graph_vertices_file):
   """
   Function to plot the data saved into the files in real time
   """
-  global blocking_file, first_iter, colors, ax_odom, ax_vertices, edges_shown, correct_graph
+  global blocking_file, first_iter, colors, ax_gt, ax_odom, ax_vertices, edges_shown, correct_graph, gt_data
 
   # Load visual odometry data (saved with rostopic echo -p /stereo_odometer/odometry > file.txt)
   if (odom_file != "" and os.path.exists(odom_file)):
@@ -55,7 +66,7 @@ def real_time_plot(odom_file, graph_vertices_file):
       time.sleep(0.5)
 
     try:
-      data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(5,6,7,8,9,10,11))
+      data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(0,5,6,7,8,9,10,11))
       # Remove old line collection
       if (first_iter == False):
         l = ax_vertices.pop(0)
@@ -63,20 +74,62 @@ def real_time_plot(odom_file, graph_vertices_file):
         l.remove()
         del l
 
+      # Plot vertices
+      ax_vertices = ax.plot(data[:,1], data[:,2], data[:,3], colors[2], label='Stereo slam', marker='o')
+      
       # Correct data if needed
       if (correct_graph == True):
-        initial = []
-        initial.append(data[0,:])
-        initial =  np.array(initial)
-        initial[0,6] = initial[0,6] - 1
-        data = data - initial[0,:]
 
-      ax_vertices = ax.plot(data[:,0], data[:,1], data[:,2], colors[2], label='Stereo slam', marker='o')
+        # Correct vertices time if needed
+        if (data[0,0] < 9999999999):
+          data[:,0] = data[:,0] * 1000000000
+
+        # Search the best matching between graph vertices and ground truth
+        min_time_diff = 999999999999
+        min_time_idx = -1
+        for i in range(len(gt_data)):
+          time_diff = np.fabs(data[0,0] - gt_data[i,0])
+          if (time_diff < min_time_diff):
+            min_time_diff = time_diff
+            min_time_idx = i
+
+        # Sanity check
+        if (min_time_idx == -1):
+          print "Impossible to find time matchings between ground truth poses and graph vertices"
+        else:
+          # Build the tf for the first graph vertice
+          tf_vertice_1 = to_transform(data[0,:])
+          tf_gt = to_transform(gt_data[min_time_idx,:])
+          tf_delta = tf.concatenate_matrices(tf.inverse_matrix(tf_gt), tf_vertice_1)
+
+          print "Transformation: "
+          print tf_delta
+          
+          # Apply the transformation to all gt poses
+          gt_data_cor = []
+          for i in range(len(gt_data)):
+            gt_pose = to_transform(gt_data[i,:])
+            gt_pose_cor = tf.concatenate_matrices(gt_pose, tf_delta)
+            translation_vec = tf.translation_from_matrix(gt_pose_cor)
+            gt_data_cor.append([gt_data[i,0], translation_vec[0], translation_vec[1], translation_vec[2]])
+          gt_data_cor =  np.array(gt_data_cor)
+
+          # Remove old line collection
+          if (first_iter == False):
+            l = ax_gt.pop(0)
+            wl = weakref.ref(l)
+            l.remove()
+            del l
+
+          # Draw the corrected gt
+          ax_gt = ax.plot(gt_data_cor[:,1], gt_data_cor[:,2], gt_data_cor[:,3], colors[0], label='Ground Truth')
+
     except:
-      print "No data in ", graph_vertices_file
+      print "Error while plotting ", graph_vertices_file
+
 
   # Show the edges
-  if (edges_shown == True and correct_graph == False):
+  if (edges_shown == True):
     draw_edges()
   else:
     remove_edges()
@@ -113,7 +166,7 @@ def draw_edges():
         ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[2], linestyle='--')
         ax_edges.append(ax_edge)
     except:
-      print "No data in ", graph_edges_file
+      print "Error while plotting ", graph_edges_file
   edges_shown = True
 
 def remove_edges():
@@ -154,14 +207,11 @@ if __name__ == "__main__":
           help='file the vertices of stereo slam')
   parser.add_argument('graph_edges_file', 
           help='file the edges of stereo slam')
-  parser.add_argument('-ts','--time-step',
-          help='update frequency (in milliseconds)',
-          default='2500')
   args = parser.parse_args()
 
   print "GRAPH VIEWER MOUSE INPUTS:"
   print " - Right button: activates/deactivates the visualization of graph edges."
-  print " - Wheel button: activates/deactivates the initialization of nodes path to (x, y, z, q) to (0, 0, 0, 0). Note that edges are NOT modified!"
+  print " - Wheel button: activates/deactivates the initialization of nodes path to (x, y, z, q) to (0, 0, 0, 0)."
 
   # Save blocking file into global
   blocking_file = os.path.dirname(args.graph_vertices_file) + "/.block.txt"
@@ -188,17 +238,20 @@ if __name__ == "__main__":
     size = lines[1].split(",")
 
     if (len(size) > 12):
-      data = pylab.loadtxt(args.ground_truth_file, delimiter=',', skiprows=1, usecols=(5,6,7))
+      gt_data = pylab.loadtxt(args.ground_truth_file, delimiter=',', skiprows=1, usecols=(0,5,6,7,8,9,10,11))
     else:
-      data = pylab.loadtxt(args.ground_truth_file, delimiter=',', usecols=(1,2,3))
+      gt_data = pylab.loadtxt(args.ground_truth_file, delimiter=',', usecols=(0,1,2,3,4,5,6,7))
 
-    ax.plot(data[:,0], data[:,1], data[:,2], colors[0], label='Ground Truth')
+    try:
+      ax_gt = ax.plot(gt_data[:,1], gt_data[:,2], gt_data[:,3], colors[0], label='Ground Truth')
+    except:
+      pass
 
   # Handle on click callback
   fig.canvas.mpl_connect('button_press_event', onclick)
 
   # Start timer for real time plot
-  timer = fig.canvas.new_timer(interval=args.time_step)
+  timer = fig.canvas.new_timer(2500)
   real_time_plot(args.visual_odometry_file, args.graph_vertices_file)
   timer.add_callback( real_time_plot, 
                       args.visual_odometry_file, 

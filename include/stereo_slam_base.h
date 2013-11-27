@@ -100,8 +100,8 @@ public:
     static const double       DEFAULT_EPIPOLAR_THRESHOLD = 3.0;
     static const int          DEFAULT_MATCHES_THRESHOLD = 110;
     static const int          DEFAULT_MIN_INLIERS = 10;
-    static const int          DEFAULT_MAX_INLIERS = 400;
-    static const int          DEFAULT_MAX_SOLVEPNP_ITER = 500;
+    static const int          DEFAULT_MAX_INLIERS = 50;
+    static const int          DEFAULT_MAX_SOLVEPNP_ITER = 100;
     static const double       DEFAULT_ALLOWED_REPROJECTION_ERR = 5.0;
     static const double       DEFAULT_MAX_EDGE_ERR = 10.0;
     static const bool         DEFAULT_STEREO_VISION_VERBOSE = false;    
