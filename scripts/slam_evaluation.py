@@ -197,11 +197,11 @@ if __name__ == "__main__":
   vertices_mae = np.average(np.abs(vertices_errors), 0)
 
   rows = []
-  rows.append(['Odometry'] + [len(odom_errors)] + [odom_mae])
-  rows.append(['SLAM'] + [len(vertices_errors)] + [vertices_mae])
+  rows.append(['Odometry'] + [len(odom_errors)] + [odom_dist[-1]] + [odom_mae])
+  rows.append(['SLAM'] + [len(vertices_errors)] + [vertices_dist[-1]] + [vertices_mae])
 
   # Build the header for the output table
-  header = [  "Input", "Data Points", "Trans. MAE (m)"]
+  header = [  "Input", "Data Points", "Traj. Distance", "Trans. MAE (m)"]
   utils.toRSTtable([header] + rows)
 
   # Plot graph
