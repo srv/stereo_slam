@@ -22,6 +22,7 @@
   <depend package="cv_bridge" />
   <depend package="image_geometry" />
   <depend package="std_srvs"/>
+  <depend package="odometry_evaluation"/>
   
   <rosdep name="eigen"/>
   <rosdep name="libg2o"/>
