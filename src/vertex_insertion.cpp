@@ -25,10 +25,10 @@ bool stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr,
   std::vector<cv::KeyPoint> l_kp, r_kp;
   cv::Mat l_desc = cv::Mat_<std::vector<float> >();
   cv::Mat r_desc = cv::Mat_<std::vector<float> >();
-  stereo_slam::Utils::keypointDetector(l_ptr->image, l_kp, "SIFT");
-  stereo_slam::Utils::keypointDetector(r_ptr->image, r_kp, "SIFT");
-  stereo_slam::Utils::descriptorExtraction(l_ptr->image, l_kp, l_desc, "SIFT");
-  stereo_slam::Utils::descriptorExtraction(r_ptr->image, r_kp, r_desc, "SIFT");
+  stereo_slam::Utils::keypointDetector(l_ptr->image, l_kp, params_.desc_type);
+  stereo_slam::Utils::keypointDetector(r_ptr->image, r_kp, params_.desc_type);
+  stereo_slam::Utils::descriptorExtraction(l_ptr->image, l_kp, l_desc, params_.desc_type);
+  stereo_slam::Utils::descriptorExtraction(r_ptr->image, r_kp, r_desc, params_.desc_type);
 
   // Find matching between stereo images
   std::vector<cv::DMatch> matches, matches_filtered;

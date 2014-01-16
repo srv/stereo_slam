@@ -66,6 +66,7 @@ public:
     int neighbor_offset;             //!> Number of neighbor nodes discarted for loop-closing.
 
     // Stereo vision parameters
+    std::string desc_type;           //!> Descriptor type can be SIFT or SURF
     double descriptor_threshold;     //!> Matching descriptors threshold used to find loop closures between images.
     double epipolar_threshold;       //!> Maximum epipolar distance for stereo matching.
     int matches_threshold;           //!> Minimum number of matches to consider that there is overlap between two images.

@@ -201,7 +201,7 @@ if __name__ == "__main__":
   rows.append(['SLAM'] + [len(vertices_errors)] + [vertices_dist[-1]] + [vertices_mae])
 
   # Build the header for the output table
-  header = [  "Input", "Data Points", "Traj. Distance", "Trans. MAE (m)"]
+  header = [  "Input", "Data Points", "Traj. Distance (m)", "Trans. MAE (m)"]
   utils.toRSTtable([header] + rows)
 
   # Plot graph
