@@ -17,7 +17,7 @@ sudo apt-get install postgresql pgadmin3
 ```
 You also need to setup a stereo visual odometer (e.g. [viso2][link_viso2] or [fovis][link_fovis]).
 
-2) Configure the PostgreSQL database. This creates the user postgres with password postgres. You can setup a different user and password but then you must specify this parameters to the stereo_slam ROS node.
+2) Configure the PostgreSQL database. This creates the user postgres with password postgres. You can setup a different user and password but then you must specify these parameters to the stereo_slam ROS node.
 ```bash
 sudo -u postgres psql postgres
 \password postgres
