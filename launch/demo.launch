@@ -1,0 +1,68 @@
+<launch>
+
+	<arg name="bagfile" default="<!-- Your bagfile here -->"/>
+
+	<!-- Setup the camera -->
+	<arg name="camera" default="/camera"/>
+	<param name="/use_sim_time" value="true"/>
+
+	<!-- Play the bagfile -->
+	<node pkg="rosbag" type="play" name="rosbag" args="--clock $(arg bagfile)"/>
+
+	<!-- Run the stereo image proc -->
+	<group ns="$(arg camera)">
+		<node pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc" />
+	</group>
+
+	<!-- Run the visual odometry: You can choose between viso2 and fovis -->
+	<node pkg="viso2_ros" type="stereo_odometer" name="stereo_odometer">
+		<remap from="stereo" to="$(arg camera)"/>
+		<remap from="image" to="image_rect_color"/>
+		<param name="base_link_frame_id" value="$(arg camera)"/>
+	</node>
+	<!--node pkg="fovis_ros" type="stereo_odometer" name="fovis">
+		<remap from="stereo" to="$(arg camera)"/>
+		<remap from="image" to="image_rect_color"/>
+		<param name="base_link_frame_id" value="$(arg camera)"/>
+	</node-->
+
+	<!-- Stereo SLAM -->
+	<node pkg="stereo_slam" type="stereo_slam" name="stereo_slam" output="screen">
+		<param name="odom_topic" value="stereo_odometer/odometry"/>
+		<param name="left_topic" value="$(arg camera)/left/image_rect_color"/>
+		<param name="right_topic" value="$(arg camera)/right/image_rect_color"/>
+		<param name="left_info_topic" value="$(arg camera)/left/camera_info"/>
+		<param name="right_info_topic" value="$(arg camera)/right/camera_info"/>
+
+		<!-- Parameters -->
+
+		<!-- Min displacement (in meters) between graph vertices -->
+		<param name="min_displacement" value="0.25"/>
+
+		<!-- Candidate search radius (in meters) -->
+		<param name="max_candidate_threshold" value="2.0"/>
+
+		<!-- G2O update rate (in seconds) -->
+		<param name="update_rate" value="3" />
+
+		<!-- Descriptor threshold (for SIFT typically between 0.8-0.9)  -->
+		<param name="descriptor_threshold" value="0.88" />
+
+		<!-- Minimum number of matches between loop closing candidates. (Step 1 of the candidate search stage) -->
+		<param name="matches_threshold" value="100" />
+
+		<!-- Minimum number of inliers between loop closing candidates (Step 2 of the candidate search stage) -->
+		<param name="min_inliers" value="12" />
+
+		<!-- Maximum allowed error between loop closing candidates (Step 3 of the candidate search stage) -->
+		<param name="max_edge_err" value="3.0" />
+
+		<!-- Graph to file -->
+		<param name="save_graph_to_file" value="true" />
+		<param name="files_path" value="<!-- Path to your data directory (e.g. /home/user/stereo_slam/data) -->" />
+
+		<!-- Maximum number of iteration for the g2o algorithm -->
+		<param name="go2_opt_max_iter" value="10" />
+	</node>
+
+</launch>

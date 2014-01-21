@@ -265,7 +265,7 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
 
   // Callback syncronization
   bool approx;
-  nh_private_.param("approximate_sync", approx, false);
+  nh_private_.param("approximate_sync", approx, true);
   if (approx)
   {
     approximate_sync_.reset(new ApproximateSync(ApproximatePolicy(params_.queue_size),

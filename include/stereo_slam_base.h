@@ -109,7 +109,7 @@ public:
     static const int          DEFAULT_BUCKET_WIDTH = 50;
     static const int          DEFAULT_BUCKET_HEIGHT = 50;
     static const int          DEFAULT_MAX_BUCKET_FEATURES = 3;
-    static const int          DEFAULT_QUEUE_SIZE = 3;
+    static const int          DEFAULT_QUEUE_SIZE = 2;
     static const bool         DEFAULT_SAVE_GRAPH_TO_FILE = false;
 
   };
