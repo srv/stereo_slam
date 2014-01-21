@@ -56,14 +56,16 @@ public:
 
     // G2O Optimization
     double update_rate;              //!> Timer callback rate (in seconds) to optimize the graph.
-    int g2o_algorithm;               //!> Set to 0 for LinearSlam Solver. Set to 1 for.
+    int g2o_algorithm;               //!> Set to 0 for LinearSlam Solver with gauss-newton. Set to 1 for LinearSlam Solver with Levenberg.
     int go2_opt_max_iter;            //!> Maximum number of iteration for the graph optimization.
     bool go2_verbose;                //!> True to output the g2o iteration messages
 
-    // Odometry operational parameters
+    // Graph operational parameters
     double min_displacement;         //!> Minimum odometry displacement between poses to be saved as graph vertices. 
     double max_candidate_threshold;  //!> Maximum distance between graph vertices to be considered for possible candidates of loop closure.
     int neighbor_offset;             //!> Number of neighbor nodes discarted for loop-closing.
+    bool save_graph_to_file;         //!> True if user wants to save the graph into file.
+    std::string files_path;          //!> Path where save the graph data.
 
     // Stereo vision parameters
     std::string desc_type;           //!> Descriptor type can be SIFT or SURF
@@ -73,7 +75,7 @@ public:
     int min_inliers;                 //!> Minimum number of inliers found by solvePnPRansac to take into account the edge in the graph.
     int max_inliers;                 //!> Maximum number of inliers for solvePnPRansac, stop if more inliers than this are found.
     int max_solvepnp_iter;           //!> Maximum number of interations of the solvePnPRansac algorithm.
-    double allowed_reprojection_err; //!> Maximum reprojection error allowd in solvePnPRansa algorithm.
+    double allowed_reprojection_err; //!> Maximum reprojection error allowed in solvePnPRansac algorithm.
     double max_edge_err;             //!> Maximum pose difference to take the new edge as valid.
     bool stereo_vision_verbose;      //!> True to output the messages of stereo matching process, false otherwise.
     int bucket_width;                //!> Bucket width.
@@ -84,10 +86,6 @@ public:
     int queue_size;                  //!> Indicate the maximum number of messages encued.
     std::string map_frame_id;        //!> The map frame id.
     std::string base_link_frame_id;  //!> The robot base link frame id.
-
-    // Graph to file paraneter
-    bool save_graph_to_file;         //!> True if user wants to save the graph into file.
-    std::string files_path;          //!> Path where save the graph data.
 
     // Default values
     static const double       DEFAULT_UPDATE_RATE = 3.0;

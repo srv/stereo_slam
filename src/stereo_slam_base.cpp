@@ -207,10 +207,12 @@ void stereo_slam::StereoSlamBase::readParameters()
   nh_private_.param("go2_opt_max_iter", stereo_slam_params.go2_opt_max_iter, stereo_slam_params.DEFAULT_G2O_OPT_MAX_ITER);
   nh_private_.param("go2_verbose", stereo_slam_params.go2_verbose, stereo_slam_params.DEFAULT_G2O_VERBOSE);
 
-  // Odometry operational parameters
+  // Graph operational parameters
   nh_private_.param("min_displacement", stereo_slam_params.min_displacement, stereo_slam_params.DEFAULT_MIN_DISPLACEMENT);
   nh_private_.param("max_candidate_threshold", stereo_slam_params.max_candidate_threshold, stereo_slam_params.DEFAULT_MAX_CANDIDATE_THRESHOLD);
   nh_private_.param("neighbor_offset", stereo_slam_params.neighbor_offset, stereo_slam_params.DEFAULT_NEIGHBOR_OFFSET);
+  nh_private_.param("save_graph_to_file", stereo_slam_params.save_graph_to_file, stereo_slam_params.DEFAULT_SAVE_GRAPH_TO_FILE);
+  nh_private_.param("files_path", stereo_slam_params.files_path, std::string("/home"));
 
   // Stereo vision parameters
   nh_private_.param("desc_type", stereo_slam_params.desc_type, std::string("SIFT"));
@@ -232,9 +234,6 @@ void stereo_slam::StereoSlamBase::readParameters()
   nh_private_.param("map_frame_id", stereo_slam_params.map_frame_id, std::string("/map"));
   nh_private_.param("base_link_frame_id", stereo_slam_params.base_link_frame_id, std::string("/base_link"));
 
-  // Graph to file parameters
-  nh_private_.param("save_graph_to_file", stereo_slam_params.save_graph_to_file, stereo_slam_params.DEFAULT_SAVE_GRAPH_TO_FILE);
-  nh_private_.param("files_path", stereo_slam_params.files_path, std::string("/home"));
   setParams(stereo_slam_params);
 
   // Topics subscriptions

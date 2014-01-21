@@ -36,7 +36,7 @@
 
 		<!-- Parameters -->
 
-		<!-- Min displacement (in meters) between graph vertices -->
+		<!-- Min displacement between graph vertices (in meters) -->
 		<param name="min_displacement" value="0.25"/>
 
 		<!-- Candidate search radius (in meters) -->
