@@ -131,7 +131,7 @@ if __name__ == "__main__":
   f.close()
   size = lines[1].split(",")
 
-  if (len(size) > 12):
+  if (len(size) >= 12):
     gt = pylab.loadtxt(args.ground_truth_file, delimiter=',', skiprows=1, usecols=(0,5,6,7,8,9,10,11))
     gt[:,0] = gt[:,0] / 1000000000
   else:

@@ -25,6 +25,8 @@ stereo_slam::StereoSlamBase::Params::Params() :
   min_displacement(DEFAULT_MIN_DISPLACEMENT),
   max_candidate_threshold(DEFAULT_MAX_CANDIDATE_THRESHOLD),
   neighbor_offset(DEFAULT_NEIGHBOR_OFFSET),
+  save_graph_to_file(DEFAULT_SAVE_GRAPH_TO_FILE),
+  files_path("/home"),
   desc_type("SIFT"),
   descriptor_threshold(DEFAULT_DESCRIPTOR_THRESHOLD),
   epipolar_threshold(DEFAULT_EPIPOLAR_THRESHOLD),
@@ -40,9 +42,7 @@ stereo_slam::StereoSlamBase::Params::Params() :
   max_bucket_features(DEFAULT_MAX_BUCKET_FEATURES),
   queue_size(DEFAULT_QUEUE_SIZE),
   map_frame_id("/map"),
-  base_link_frame_id("/base_link"),
-  save_graph_to_file(DEFAULT_SAVE_GRAPH_TO_FILE),
-  files_path("/home")
+  base_link_frame_id("/base_link")
 {}
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
@@ -389,6 +389,13 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
   }
   if (params_.files_path[params_.files_path.length()-1] != '/')
     params_.files_path += "/";
+
+  // Remove previous saved files (if any)
+  std::string vertices_file, edges_file;
+  vertices_file = params_.files_path + "graph_vertices.txt";
+  edges_file = params_.files_path + "graph_edges.txt";
+  std::remove(vertices_file.c_str());
+  std::remove(edges_file.c_str());
 
   return true;
 }
