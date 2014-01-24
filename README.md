@@ -1,10 +1,13 @@
 Stereo SLAM
 =============
 
-stereo_slam is a [ROS][link_ros] node to execute Simultaneous Localization And Mapping (SLAM) using only one stereo camera. This node is based on the [G2O][link_g2o] library for graph optimization and uses the power of PostgreSQL to store the image keypoints and descriptors. The workflow of the stereo_slam node is as follows:
+stereo_slam is a [ROS][link_ros] node to execute Simultaneous Localization And Mapping (SLAM) using only one stereo camera. The algorithm was designed and tested for underwater robotics. This node is based on the [G2O][link_g2o] library for graph optimization and uses the power of PostgreSQL to store the image keypoints and descriptors. The workflow of the stereo_slam node is as follows:
 
 ![alt tag](https://raw.github.com/srv/stereo_slam/fuerte/resources/flowchart.png)
 
+You can see it in action here:
+[Stereo SLAM and 3D reconstruction ][link_yt_1]
+[Stereo SLAM at UIB outdoor pond][link_yt_2]
 
 Installation (Ubuntu + ROS fuerte)
 -------
@@ -138,3 +141,5 @@ This script perform a set of operations in order to evaluate the performance of 
 [link_viso2]: http://wiki.ros.org/viso2_ros
 [link_fovis]: http://wiki.ros.org/fovis_ros
 [link_g2o]: http://wiki.ros.org/g2o
+[link_yt_1]: http://www.youtube.com/watch?v=GXOhWmzSqUM
+[link_yt_2]: http://www.youtube.com/watch?v=8NR6ono1SUI
