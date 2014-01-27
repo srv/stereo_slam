@@ -66,6 +66,7 @@ public:
     int neighbor_offset;             //!> Number of neighbor nodes discarted for loop-closing.
     bool save_graph_to_file;         //!> True if user wants to save the graph into file.
     std::string files_path;          //!> Path where save the graph data.
+    bool save_graph_images;          //!> True to save the graph images into the path
 
     // Stereo vision parameters
     std::string desc_type;           //!> Descriptor type can be SIFT or SURF
@@ -95,6 +96,8 @@ public:
     static const double       DEFAULT_MIN_DISPLACEMENT = 0.2;
     static const double       DEFAULT_MAX_CANDIDATE_THRESHOLD = 0.5;
     static const int          DEFAULT_NEIGHBOR_OFFSET = 3;
+    static const bool         DEFAULT_SAVE_GRAPH_TO_FILE = false;
+    static const bool         DEFAULT_SAVE_GRAPH_IMAGES = false;
     static const double       DEFAULT_DESCRIPTOR_THRESHOLD = 0.5;
     static const double       DEFAULT_EPIPOLAR_THRESHOLD = 3.0;
     static const int          DEFAULT_MATCHES_THRESHOLD = 110;
@@ -108,7 +111,6 @@ public:
     static const int          DEFAULT_BUCKET_HEIGHT = 50;
     static const int          DEFAULT_MAX_BUCKET_FEATURES = 3;
     static const int          DEFAULT_QUEUE_SIZE = 2;
-    static const bool         DEFAULT_SAVE_GRAPH_TO_FILE = false;
 
   };
 
@@ -145,6 +147,7 @@ protected:
                         cv_bridge::CvImagePtr r_ptr,
                         tf::Transform corrected_pose);
   bool graphUpdater();
+  bool getLoopClosing(g2o::VertexSE3* v_i, g2o::VertexSE3* v_j, tf::Transform& output);
 
 private:
 

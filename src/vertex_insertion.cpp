@@ -7,6 +7,7 @@
 #include "opencv2/core/core.hpp"
 #include "opencv2/features2d/features2d.hpp"
 #include "opencv2/nonfree/features2d.hpp"
+#include <opencv2/highgui/highgui.hpp>
 #include "postgresql_interface.h"
 #include "utils.h"
 
@@ -126,6 +127,10 @@ bool stereo_slam::StereoSlamBase::vertexInsertion(cv_bridge::CvImagePtr l_ptr,
     e->setMeasurement(t);
     graph_optimizer_.addEdge(e);
   }
+
+  // Save image
+  if (params_.save_graph_images)
+    cv::imwrite(params_.files_path + "img/" + boost::lexical_cast<std::string>(vertex_data.id_.data()) + ".jpg", l_ptr->image);
 
   // Log
   first_message_ = false;

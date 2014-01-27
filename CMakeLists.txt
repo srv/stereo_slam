@@ -21,22 +21,22 @@ find_package(libg2o REQUIRED)
 include_directories(${EIGEN_INCLUDE_DIRS} ${libg2o_INCLUDE_DIRS})
 include_directories(/usr/include/suitesparse/)
 set(G2O_LIBRARIES cholmod 
-									g2o_cli 
-									g2o_core 
-									g2o_incremental 
-									g2o_interactive 
-									g2o_interface 
-									g2o_parser 
-									g2o_solver_cholmod 
-									g2o_solver_csparse 
-									g2o_solver_dense 
-									g2o_solver_pcg 
-									g2o_stuff 
-									g2o_types_icp 
-									g2o_types_sba 
-									g2o_types_sim3 
-									g2o_types_slam2d 
-									g2o_types_slam3d)
+	g2o_cli 
+	g2o_core 
+	g2o_incremental 
+	g2o_interactive 
+	g2o_interface 
+	g2o_parser 
+	g2o_solver_cholmod 
+	g2o_solver_csparse 
+	g2o_solver_dense 
+	g2o_solver_pcg 
+	g2o_stuff 
+	g2o_types_icp 
+	g2o_types_sba 
+	g2o_types_sim3 
+	g2o_types_slam2d 
+	g2o_types_slam3d)
 
 #get the libpq include and lib directories
 execute_process( 
@@ -60,11 +60,11 @@ rosbuild_add_boost_directories()
 
 #executables
 rosbuild_add_executable(stereo_slam 
-												src/stereo_slam_node.cpp
-												src/stereo_slam_base.cpp
-												src/vertex_insertion.cpp
-												src/graph_updater.cpp)
+						src/stereo_slam_node.cpp
+						src/stereo_slam_base.cpp
+						src/vertex_insertion.cpp
+						src/graph_updater.cpp)
 
 #link with libraries
 target_link_libraries(stereo_slam pq ${G2O_LIBRARIES})
-rosbuild_link_boost(stereo_slam signals)
+rosbuild_link_boost(stereo_slam signals filesystem system)

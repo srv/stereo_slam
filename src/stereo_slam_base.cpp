@@ -1,5 +1,6 @@
 #include "stereo_slam_base.h"
 #include <boost/shared_ptr.hpp>
+#include <boost/filesystem.hpp>
 #include <libpq-fe.h>
 #include <Eigen/Geometry>
 #include <iostream>
@@ -27,6 +28,7 @@ stereo_slam::StereoSlamBase::Params::Params() :
   neighbor_offset(DEFAULT_NEIGHBOR_OFFSET),
   save_graph_to_file(DEFAULT_SAVE_GRAPH_TO_FILE),
   files_path("/home"),
+  save_graph_images(DEFAULT_SAVE_GRAPH_IMAGES),
   desc_type("SIFT"),
   descriptor_threshold(DEFAULT_DESCRIPTOR_THRESHOLD),
   epipolar_threshold(DEFAULT_EPIPOLAR_THRESHOLD),
@@ -212,6 +214,7 @@ void stereo_slam::StereoSlamBase::readParameters()
   nh_private_.param("max_candidate_threshold", stereo_slam_params.max_candidate_threshold, stereo_slam_params.DEFAULT_MAX_CANDIDATE_THRESHOLD);
   nh_private_.param("neighbor_offset", stereo_slam_params.neighbor_offset, stereo_slam_params.DEFAULT_NEIGHBOR_OFFSET);
   nh_private_.param("save_graph_to_file", stereo_slam_params.save_graph_to_file, stereo_slam_params.DEFAULT_SAVE_GRAPH_TO_FILE);
+  nh_private_.param("save_graph_images", stereo_slam_params.save_graph_images, stereo_slam_params.DEFAULT_SAVE_GRAPH_IMAGES);
   nh_private_.param("files_path", stereo_slam_params.files_path, std::string("/home"));
 
   // Stereo vision parameters
@@ -380,15 +383,31 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
                                &stereo_slam::StereoSlamBase::timerCallback,
                                this);
 
-  // Parameters check
+  // Check parameters
   if (params_.matches_threshold < 5)
   {
     ROS_WARN("[StereoSlam:] Parameter 'matches_threshold' must be greater than 5. Set to 6.");
     params_.matches_threshold = 6;
     return false;
   }
+
   if (params_.files_path[params_.files_path.length()-1] != '/')
     params_.files_path += "/";
+
+  std::string graph_image_dir = params_.files_path + "img/";
+  if (params_.save_graph_images)
+  {
+    // Clear the directory if exists
+    if (boost::filesystem::exists(graph_image_dir))
+    {
+      std::string rm = "rm -rf " + graph_image_dir;
+      std::system(rm.c_str());
+    }
+
+    // Create the image directory again
+    std::string mkdir = "mkdir " + graph_image_dir;
+    std::system(mkdir.c_str());
+  }
 
   // Remove previous saved files (if any)
   std::string vertices_file, edges_file;
