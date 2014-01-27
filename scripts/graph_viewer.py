@@ -25,6 +25,7 @@ ax_vertices = None
 ax_edges = []
 edges_shown = True
 gt_data = []
+plot_dim = 3
 
 class Error(Exception):
   """ Base class for exceptions in this module. """
@@ -48,7 +49,7 @@ def rm_ax(ax_id):
 def real_time_plot(gt_file, odom_file, graph_vertices_file):
   """ Function to plot the data saved into the files in real time """
 
-  global blocking_file, legend_edited, colors, ax_gt, ax_odom, ax_vertices, edges_shown, gt_data
+  global blocking_file, legend_edited, colors, ax_gt, ax_odom, ax_vertices, edges_shown, gt_data, plot_dim
 
   # Remove the main axes
   rm_ax(ax_gt)
@@ -72,7 +73,10 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
     if (len(data.shape) == 1):
       data = [data]
       data = np.array(data)
-    ax_gt = ax.plot(data[:,1], data[:,2], data[:,3], colors[0], label='Ground Truth')
+    if (plot_dim == 3):
+      ax_gt = ax.plot(data[:,1], data[:,2], data[:,3], colors[0], label='Ground Truth')
+    else:
+      ax_gt = ax.plot(data[:,1], data[:,2], colors[0], label='Ground Truth')
 
   # Load visual odometry data (saved with rostopic echo -p /stereo_odometer/odometry > file.txt)
   if (odom_file != "" and os.path.exists(odom_file) and check_file_len(odom_file)):
@@ -83,7 +87,10 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
     # Plot
     if (len(data.shape) == 1):
       data = np.array([data])
-    ax_odom = ax.plot(data[:,0], data[:,1], data[:,2], colors[1], label='Visual Odometry')
+    if (plot_dim == 3):
+      ax_odom = ax.plot(data[:,0], data[:,1], data[:,2], colors[1], label='Visual Odometry')
+    else:
+      ax_odom = ax.plot(data[:,0], data[:,1], colors[1], label='Visual Odometry')
 
   # Load stereo slam vertices (file saved with node stereo_slam)
   if (graph_vertices_file != "" and os.path.exists(graph_vertices_file) and check_file_len(graph_vertices_file)):
@@ -98,7 +105,10 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
     # Plot
     if (len(data.shape) == 1):
       data = np.array([data])
-    ax_vertices = ax.plot(data[:,1], data[:,2], data[:,3], colors[2], label='Stereo slam', marker='o')
+    if (plot_dim == 3):
+      ax_vertices = ax.plot(data[:,1], data[:,2], data[:,3], colors[2], label='Stereo slam', marker='o')
+    else:
+      ax_vertices = ax.plot(data[:,1], data[:,2], colors[2], label='Stereo slam', marker='o')
 
   # Show the edges
   if (edges_shown == True):
@@ -116,7 +126,7 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
 
 def draw_edges():
   """ Draw the edges """
-  global blocking_file, graph_edges_file, ax_edges, edges_shown
+  global blocking_file, graph_edges_file, ax_edges, edges_shown, plot_dim
 
   # First, remove previous edges
   remove_edges()
@@ -140,7 +150,10 @@ def draw_edges():
       vect.append([data[i,0], data[i,1], data[i,2]])
       vect.append([data[i,3], data[i,4], data[i,5]])
       vect =  np.array(vect)
-      ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[2], linestyle='--')
+      if (plot_dim == 3):
+        ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[2], linestyle='--')
+      else:
+        ax_edge = ax.plot(vect[:,0], vect[:,1], colors[2], linestyle='--')
       ax_edges.append(ax_edge)
   edges_shown = True
   return
@@ -183,7 +196,17 @@ if __name__ == "__main__":
           help='file the vertices of stereo slam')
   parser.add_argument('graph_edges_file', 
           help='file the edges of stereo slam')
+  parser.add_argument('-dim','--dim', type=int,
+            help='defines the plot dimensions: 2 for xy and 3 for xyz',
+            default=3)
   args = parser.parse_args()
+  plot_dim = args.dim
+
+  # Some hardcode parameters
+  font = {'family' : 'Sans',
+          'weight' : 'normal',
+          'size'   : 14}
+  pylab.rc('font', **font)
 
   print "GRAPH VIEWER MOUSE INPUTS:"
   print " - Right button: activates/deactivates the visualization of graph edges."
@@ -196,12 +219,15 @@ if __name__ == "__main__":
 
   # Init figure
   fig = pylab.figure(1)
-  ax = Axes3D(fig)
+  if (plot_dim == 3):
+    ax = Axes3D(fig)
+    ax.set_zlabel("Z")
+  else:
+    ax = fig.gca()
   ax.grid(True)
   ax.set_title("Graph Viewer")
   ax.set_xlabel("X")
   ax.set_ylabel("Y")
-  ax.set_zlabel("Z")
 
   # Handle on click callback
   fig.canvas.mpl_connect('button_press_event', onclick)
@@ -213,5 +239,5 @@ if __name__ == "__main__":
                       args.ground_truth_file, 
                       args.visual_odometry_file, 
                       args.graph_vertices_file)
-  timer.start()  
+  timer.start()
   pylab.show()
