@@ -46,11 +46,6 @@ public:
 
   struct Params
   {
-    /**
-     * Default constructor sets all values to defaults.
-     */
-    Params();
-
     // Database parameters
     std::string db_host, db_port, db_user, db_pass, db_name;
 
@@ -88,30 +83,44 @@ public:
     std::string map_frame_id;        //!> The map frame id.
     std::string base_link_frame_id;  //!> The robot base link frame id.
 
-    // Default values
-    static const double       DEFAULT_UPDATE_RATE = 3.0;
-    static const int          DEFAULT_G2O_ALGORITHM = 1;
-    static const int          DEFAULT_G2O_OPT_MAX_ITER = 10;
-    static const bool         DEFAULT_G2O_VERBOSE = false;
-    static const double       DEFAULT_MIN_DISPLACEMENT = 0.2;
-    static const double       DEFAULT_MAX_CANDIDATE_THRESHOLD = 0.5;
-    static const int          DEFAULT_NEIGHBOR_OFFSET = 3;
-    static const bool         DEFAULT_SAVE_GRAPH_TO_FILE = false;
-    static const bool         DEFAULT_SAVE_GRAPH_IMAGES = false;
-    static const double       DEFAULT_DESCRIPTOR_THRESHOLD = 0.5;
-    static const double       DEFAULT_EPIPOLAR_THRESHOLD = 3.0;
-    static const int          DEFAULT_MATCHES_THRESHOLD = 110;
-    static const int          DEFAULT_MIN_INLIERS = 10;
-    static const int          DEFAULT_MAX_INLIERS = 50;
-    static const int          DEFAULT_MAX_SOLVEPNP_ITER = 100;
-    static const double       DEFAULT_ALLOWED_REPROJECTION_ERR = 5.0;
-    static const double       DEFAULT_MAX_EDGE_ERR = 10.0;
-    static const bool         DEFAULT_STEREO_VISION_VERBOSE = false;    
-    static const int          DEFAULT_BUCKET_WIDTH = 50;
-    static const int          DEFAULT_BUCKET_HEIGHT = 50;
-    static const int          DEFAULT_MAX_BUCKET_FEATURES = 3;
-    static const int          DEFAULT_QUEUE_SIZE = 2;
+    // default settings
+    Params () {
+      db_host                     = "localhost";
+      db_port                     = "5432";
+      db_user                     = "postgres";
+      db_pass                     = "postgres";
+      db_name                     = "graph";
 
+      update_rate                 = 3.0;
+      g2o_algorithm               = 1;
+      go2_opt_max_iter            = 10;
+      go2_verbose                 = false;
+
+      min_displacement            = 0.2;
+      max_candidate_threshold     = 0.5;;
+      neighbor_offset             = 3;
+      save_graph_to_file          = false;
+      files_path                  = "/home";
+      save_graph_images           = false;
+
+      desc_type                   = "SIFT";
+      descriptor_threshold        = 0.8;
+      epipolar_threshold          = 3.0;
+      matches_threshold           = 100;
+      min_inliers                 = 15;
+      max_inliers                 = 50;
+      max_solvepnp_iter           = 100;
+      allowed_reprojection_err    = 5.0;
+      max_edge_err                = 10.0;
+      stereo_vision_verbose       = false;
+      bucket_width                = 50;
+      bucket_height               = 50;
+      max_bucket_features         = 3;
+
+      queue_size                  = 2;
+      map_frame_id                = "/map";
+      base_link_frame_id          = "/base_link";
+    }
   };
 
   /**
