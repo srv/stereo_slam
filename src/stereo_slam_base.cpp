@@ -204,6 +204,8 @@ void stereo_slam::StereoSlamBase::readParameters()
   nh_private_.param("db_name", stereo_slam_params.db_name, std::string("graph"));
 
   // G2O parameters
+  /*
+  FIXME!!
   nh_private_.param("update_rate", stereo_slam_params.update_rate, stereo_slam_params.DEFAULT_UPDATE_RATE);
   nh_private_.param("g2o_algorithm", stereo_slam_params.g2o_algorithm, stereo_slam_params.DEFAULT_G2O_ALGORITHM);
   nh_private_.param("go2_opt_max_iter", stereo_slam_params.go2_opt_max_iter, stereo_slam_params.DEFAULT_G2O_OPT_MAX_ITER);
@@ -234,6 +236,40 @@ void stereo_slam::StereoSlamBase::readParameters()
 
   // Topic parameters
   nh_private_.param("queue_size", stereo_slam_params.queue_size, stereo_slam_params.DEFAULT_QUEUE_SIZE);
+  nh_private_.param("map_frame_id", stereo_slam_params.map_frame_id, std::string("/map"));
+  nh_private_.param("base_link_frame_id", stereo_slam_params.base_link_frame_id, std::string("/base_link"));
+  */
+
+  nh_private_.getParam("update_rate", stereo_slam_params.update_rate);
+  nh_private_.getParam("g2o_algorithm", stereo_slam_params.g2o_algorithm);
+  nh_private_.getParam("go2_opt_max_iter", stereo_slam_params.go2_opt_max_iter);
+  nh_private_.getParam("go2_verbose", stereo_slam_params.go2_verbose);
+
+  // Graph operational parameters
+  nh_private_.getParam("min_displacement", stereo_slam_params.min_displacement);
+  nh_private_.getParam("max_candidate_threshold", stereo_slam_params.max_candidate_threshold);
+  nh_private_.getParam("neighbor_offset", stereo_slam_params.neighbor_offset);
+  nh_private_.getParam("save_graph_to_file", stereo_slam_params.save_graph_to_file);
+  nh_private_.getParam("save_graph_images", stereo_slam_params.save_graph_images);
+  nh_private_.param("files_path", stereo_slam_params.files_path, std::string("/home"));
+
+  // Stereo vision parameters
+  nh_private_.param("desc_type", stereo_slam_params.desc_type, std::string("SIFT"));
+  nh_private_.getParam("descriptor_threshold", stereo_slam_params.descriptor_threshold);
+  nh_private_.getParam("epipolar_threshold", stereo_slam_params.epipolar_threshold);
+  nh_private_.getParam("matches_threshold", stereo_slam_params.matches_threshold);
+  nh_private_.getParam("min_inliers", stereo_slam_params.min_inliers);
+  nh_private_.getParam("max_inliers", stereo_slam_params.max_inliers);
+  nh_private_.getParam("max_solvepnp_iter", stereo_slam_params.max_solvepnp_iter);
+  nh_private_.getParam("allowed_reprojection_err", stereo_slam_params.allowed_reprojection_err);
+  nh_private_.getParam("max_edge_err", stereo_slam_params.max_edge_err);
+  nh_private_.getParam("stereo_vision_verbose", stereo_slam_params.stereo_vision_verbose);
+  nh_private_.getParam("bucket_width", stereo_slam_params.bucket_width);
+  nh_private_.getParam("bucket_height", stereo_slam_params.bucket_height);
+  nh_private_.getParam("max_bucket_features", stereo_slam_params.max_bucket_features);
+
+  // Topic parameters
+  nh_private_.getParam("queue_size", stereo_slam_params.queue_size);
   nh_private_.param("map_frame_id", stereo_slam_params.map_frame_id, std::string("/map"));
   nh_private_.param("base_link_frame_id", stereo_slam_params.base_link_frame_id, std::string("/base_link"));
 
