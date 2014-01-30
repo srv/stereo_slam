@@ -160,13 +160,6 @@ void stereo_slam::StereoSlamBase::readParameters()
 {
   Params stereo_slam_params;
 
-  // Database parameters
-  nh_private_.getParam("db_host", stereo_slam_params.db_host);
-  nh_private_.getParam("db_port", stereo_slam_params.db_port);
-  nh_private_.getParam("db_user", stereo_slam_params.db_user);
-  nh_private_.getParam("db_pass", stereo_slam_params.db_pass);
-  nh_private_.getParam("db_name", stereo_slam_params.db_name);
-
   // G2O parameters
   nh_private_.getParam("update_rate", stereo_slam_params.update_rate);
   nh_private_.getParam("g2o_algorithm", stereo_slam_params.g2o_algorithm);
@@ -187,8 +180,6 @@ void stereo_slam::StereoSlamBase::readParameters()
   nh_private_.getParam("epipolar_threshold", stereo_slam_params.epipolar_threshold);
   nh_private_.getParam("matches_threshold", stereo_slam_params.matches_threshold);
   nh_private_.getParam("min_inliers", stereo_slam_params.min_inliers);
-  nh_private_.getParam("max_inliers", stereo_slam_params.max_inliers);
-  nh_private_.getParam("max_solvepnp_iter", stereo_slam_params.max_solvepnp_iter);
   nh_private_.getParam("allowed_reprojection_err", stereo_slam_params.allowed_reprojection_err);
   nh_private_.getParam("max_edge_err", stereo_slam_params.max_edge_err);
   nh_private_.getParam("stereo_vision_verbose", stereo_slam_params.stereo_vision_verbose);
@@ -230,32 +221,15 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
   block_insertion_ = false;
 
   // Callback syncronization
-  bool approx;
-  nh_private_.param("approximate_sync", approx, true);
-  if (approx)
-  {
-    approximate_sync_.reset(new ApproximateSync(ApproximatePolicy(params_.queue_size),
-                                    odom_sub_, 
-                                    left_sub_, 
-                                    right_sub_, 
-                                    left_info_sub_, 
-                                    right_info_sub_) );
-    approximate_sync_->registerCallback(boost::bind(
-        &stereo_slam::StereoSlamBase::msgsCallback,
-        this, _1, _2, _3, _4, _5));
-  }
-  else
-  {
-    exact_sync_.reset(new ExactSync(ExactPolicy(params_.queue_size),
-                                    odom_sub_, 
-                                    left_sub_, 
-                                    right_sub_, 
-                                    left_info_sub_, 
-                                    right_info_sub_) );
-    exact_sync_->registerCallback(boost::bind(
-        &stereo_slam::StereoSlamBase::msgsCallback, 
-        this, _1, _2, _3, _4, _5));
-  }
+  approximate_sync_.reset(new ApproximateSync(ApproximatePolicy(params_.queue_size),
+                                  odom_sub_, 
+                                  left_sub_, 
+                                  right_sub_, 
+                                  left_info_sub_, 
+                                  right_info_sub_) );
+  approximate_sync_->registerCallback(boost::bind(
+      &stereo_slam::StereoSlamBase::msgsCallback,
+      this, _1, _2, _3, _4, _5));
 
   // Advertise topics and services
   odom_pub_ = nh_private_.advertise<nav_msgs::Odometry>("odometry", 1);
@@ -286,21 +260,21 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
     ROS_ERROR("[StereoSlam:] g2o_algorithm parameter must be 0 or 1.");
     return false;
   }  
-  graph_optimizer_.setVerbose(params_.go2_verbose);  
+  graph_optimizer_.setVerbose(params_.go2_verbose);
 
   // Database initialization
   boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr_1( 
-    new database_interface::PostgresqlDatabase( params_.db_host, 
-                                                params_.db_port, 
-                                                params_.db_user, 
-                                                params_.db_pass, 
-                                                params_.db_name));
+    new database_interface::PostgresqlDatabase( "localhost", 
+                                                "5432", 
+                                                "postgres", 
+                                                "postgres", 
+                                                "graph"));
   boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr_2( 
-    new database_interface::PostgresqlDatabase( params_.db_host, 
-                                                params_.db_port, 
-                                                params_.db_user, 
-                                                params_.db_pass, 
-                                                params_.db_name));
+    new database_interface::PostgresqlDatabase( "localhost", 
+                                                "5432", 
+                                                "postgres", 
+                                                "postgres", 
+                                                "graph"));
   pg_db_ptr_thread_1_ = db_ptr_1;
   pg_db_ptr_thread_2_ = db_ptr_2;
 
@@ -313,8 +287,7 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
     ROS_INFO("[StereoSlam:] Database connected successfully!");
 
     // Database table creation. New connection is needed due to the interface design
-    std::string conn_info = "host=" + params_.db_host + " port=" + params_.db_port + 
-      " user=" + params_.db_user + " password=" + params_.db_pass + " dbname=" + params_.db_name;
+    std::string conn_info = "host=localhost port=5432 user=postgres password=postgres dbname=graph";
     connection_init_= PQconnectdb(conn_info.c_str());
     if (PQstatus(connection_init_)!=CONNECTION_OK) 
     {

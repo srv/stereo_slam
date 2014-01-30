@@ -14,7 +14,6 @@
 #include <cv_bridge/cv_bridge.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
-#include <message_filters/sync_policies/exact_time.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <image_transport/subscriber_filter.h>
 #include <image_geometry/stereo_camera_model.h>
@@ -46,9 +45,6 @@ public:
 
   struct Params
   {
-    // Database parameters
-    std::string db_host, db_port, db_user, db_pass, db_name;
-
     // G2O Optimization
     double update_rate;              //!> Timer callback rate (in seconds) to optimize the graph.
     int g2o_algorithm;               //!> Set to 0 for LinearSlam Solver with gauss-newton. Set to 1 for LinearSlam Solver with Levenberg.
@@ -60,8 +56,8 @@ public:
     double max_candidate_threshold;  //!> Maximum distance between graph vertices to be considered for possible candidates of loop closure.
     int neighbor_offset;             //!> Number of neighbor nodes discarted for loop-closing.
     bool save_graph_to_file;         //!> True if user wants to save the graph into file.
-    std::string files_path;          //!> Path where save the graph data.
     bool save_graph_images;          //!> True to save the graph images into the path
+    std::string files_path;          //!> Path where save the graph data.
 
     // Stereo vision parameters
     std::string desc_type;           //!> Descriptor type can be SIFT or SURF
@@ -69,8 +65,6 @@ public:
     double epipolar_threshold;       //!> Maximum epipolar distance for stereo matching.
     int matches_threshold;           //!> Minimum number of matches to consider that there is overlap between two images.
     int min_inliers;                 //!> Minimum number of inliers found by solvePnPRansac to take into account the edge in the graph.
-    int max_inliers;                 //!> Maximum number of inliers for solvePnPRansac, stop if more inliers than this are found.
-    int max_solvepnp_iter;           //!> Maximum number of interations of the solvePnPRansac algorithm.
     double allowed_reprojection_err; //!> Maximum reprojection error allowed in solvePnPRansac algorithm.
     double max_edge_err;             //!> Maximum pose difference to take the new edge as valid.
     bool stereo_vision_verbose;      //!> True to output the messages of stereo matching process, false otherwise.
@@ -85,39 +79,31 @@ public:
 
     // default settings
     Params () {
-      db_host                     = "localhost";
-      db_port                     = "5432";
-      db_user                     = "postgres";
-      db_pass                     = "postgres";
-      db_name                     = "graph";
-
       update_rate                 = 3.0;
       g2o_algorithm               = 1;
-      go2_opt_max_iter            = 10;
+      go2_opt_max_iter            = 20;
       go2_verbose                 = false;
 
       min_displacement            = 0.2;
-      max_candidate_threshold     = 0.5;;
+      max_candidate_threshold     = 2.0;
       neighbor_offset             = 3;
       save_graph_to_file          = false;
-      files_path                  = "/home";
       save_graph_images           = false;
+      files_path                  = "/home";
 
       desc_type                   = "SIFT";
       descriptor_threshold        = 0.8;
       epipolar_threshold          = 3.0;
       matches_threshold           = 100;
       min_inliers                 = 15;
-      max_inliers                 = 50;
-      max_solvepnp_iter           = 100;
-      allowed_reprojection_err    = 5.0;
+      allowed_reprojection_err    = 3.0;
       max_edge_err                = 10.0;
       stereo_vision_verbose       = false;
       bucket_width                = 50;
       bucket_height               = 50;
       max_bucket_features         = 3;
 
-      queue_size                  = 2;
+      queue_size                  = 5;
       map_frame_id                = "/map";
       base_link_frame_id          = "/base_link";
     }
@@ -197,19 +183,12 @@ private:
   ros::Publisher odom_pub_;
 
   // Topic sync properties
-  typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry, 
-                                                    sensor_msgs::Image, 
-                                                    sensor_msgs::Image, 
-                                                    sensor_msgs::CameraInfo, 
-                                                    sensor_msgs::CameraInfo> ExactPolicy;
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry, 
                                                     sensor_msgs::Image, 
                                                     sensor_msgs::Image, 
                                                     sensor_msgs::CameraInfo, 
                                                     sensor_msgs::CameraInfo> ApproximatePolicy;
-  typedef message_filters::Synchronizer<ExactPolicy> ExactSync;
   typedef message_filters::Synchronizer<ApproximatePolicy> ApproximateSync;
-  boost::shared_ptr<ExactSync> exact_sync_;
   boost::shared_ptr<ApproximateSync> approximate_sync_;
 
   /// Stores parameters

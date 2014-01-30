@@ -154,8 +154,8 @@ bool stereo_slam::StereoSlamBase::getLoopClosing(g2o::VertexSE3* v_i, g2o::Verte
   std::vector<int> inliers;
   cv::solvePnPRansac(matched_3d_points, matched_points_j, camera_matrix_, 
                      cv::Mat(), rvec, tvec, false, 
-                     params_.max_solvepnp_iter, params_.allowed_reprojection_err, 
-                     params_.max_inliers, inliers);
+                     100, params_.allowed_reprojection_err, 
+                     40, inliers);
 
   if (params_.stereo_vision_verbose)
     ROS_INFO_STREAM("[StereoSlam:] Found " << inliers.size() <<

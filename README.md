@@ -9,13 +9,13 @@ You can see it in action here:
 [Stereo SLAM and 3D reconstruction ][link_yt_1]
 [Stereo SLAM at UIB outdoor pond][link_yt_2]
 
-Installation (Ubuntu + ROS fuerte)
+Installation (Ubuntu + ROS fuerte/hydro)
 -------
 
 1) Install the dependencies
 ```bash
-sudo apt-get install ros-fuerte-libg2o
-sudo apt-get install ros-fuerte-sql-database
+sudo apt-get install ros-<your ros distro>-libg2o
+sudo apt-get install ros-<your ros distro>-sql-database
 sudo apt-get install postgresql pgadmin3
 ```
 You also need to setup a stereo visual odometer (e.g. [viso2][link_viso2] or [fovis][link_fovis]).
@@ -58,13 +58,6 @@ Parameters
 
 ### Other parameters (do not touch by default) ###
 
-#### PostgreSQL Database ####
-* `db_host` - url to the PostgreSQL database server (localhost by default).
-* `db_port` - PostgreSQL port (5432 by default).
-* `db_user` - PostgreSQL user (postgres by default).
-* `db_pass` - PostgreSQL password (postgres by default).
-* `db_name` - Database name (graph by default).
-
 #### G2O Library ####
 * `g2o_algorithm` - Set to 0 for LinearSlam Solver with gauss-newton. Set to 1 for LinearSlam Solver with Levenberg (Default 1).
 * `go2_verbose` - True to output the g2o iteration messages.
@@ -75,8 +68,6 @@ Parameters
 #### Stereo vision ####
 * `desc_type` - Can be SIFT or SURF (SIFT by default).
 * `epipolar_threshold` - Maximum epipolar distance for stereo matching.
-* `max_inliers` - Maximum number of inliers for solvePnPRansac, stop if more inliers than this are found.
-* `max_solvepnp_iter` - Maximum number of interations of the solvePnPRansac algorithm.
 * `allowed_reprojection_err` - Maximum reprojection error allowed in solvePnPRansac algorithm.
 * `stereo_vision_verbose` - True to output the messages of stereo matching process.
 * `bucket_width` - Bucket width.
