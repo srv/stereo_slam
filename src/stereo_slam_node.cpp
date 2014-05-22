@@ -18,7 +18,7 @@ int main(int argc, char **argv)
   // Use 2 async threads, one for every callback: messages and timer
   ros::AsyncSpinner spinner(2);
   spinner.start();
-	ros::waitForShutdown();
+  ros::waitForShutdown();
 
   return 0;
 }

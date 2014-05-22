@@ -62,7 +62,7 @@
 		<param name="files_path" value="<!-- Path to your data directory (e.g. /home/user/stereo_slam/data) -->" />
 
 		<!-- Maximum number of iteration for the g2o algorithm -->
-		<param name="go2_opt_max_iter" value="10" />
+		<param name="g2o_opt_max_iter" value="10" />
 	</node>
 
 </launch>

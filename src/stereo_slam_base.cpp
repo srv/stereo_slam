@@ -30,7 +30,10 @@ stereo_slam::StereoSlamBase::StereoSlamBase(
   * message are received.
   * @return 
   * \param odom_msg ros odometry message of type nav_msgs::Odometry
-  * \param left_msg ros image message of type sensor_msgs::Image
+  * \param l_img left stereo image message of type sensor_msgs::Image
+  * \param r_img right stereo image message of type sensor_msgs::Image
+  * \param l_info left stereo info message of type sensor_msgs::CameraInfo
+  * \param r_info right stereo info message of type sensor_msgs::CameraInfo
   */
 void stereo_slam::StereoSlamBase::msgsCallback(
                                   const nav_msgs::Odometry::ConstPtr& odom_msg,
@@ -110,14 +113,15 @@ void stereo_slam::StereoSlamBase::msgsCallback(
   }
 
   // Publish slam (map)
-  if (odom_pub_.getNumSubscribers() > 0)
+  if (pose_pub_.getNumSubscribers() > 0)
   {
-    nav_msgs::Odometry odometry_msg = *odom_msg;
-    odometry_msg.header.stamp = odom_msg->header.stamp;
-    odometry_msg.header.frame_id = params_.map_frame_id;
-    odometry_msg.child_frame_id = params_.base_link_frame_id;
-    tf::poseTFToMsg(corrected_pose, odometry_msg.pose.pose);
-    odom_pub_.publish(odometry_msg);
+    geometry_msgs::PoseStamped pose_msg;
+    geometry_msgs::Pose temp_pose;
+    tf::poseTFToMsg(corrected_pose, temp_pose);
+    pose_msg.header.stamp = odom_msg->header.stamp;
+    pose_msg.header.frame_id = params_.map_frame_id;
+    pose_msg.pose = temp_pose;
+    pose_pub_.publish(pose_msg);
   }
 }
 
@@ -141,7 +145,7 @@ void stereo_slam::StereoSlamBase::timerCallback(const ros::WallTimerEvent& event
     ROS_INFO_STREAM("[StereoSlam:] Optimizing global pose graph with " << 
                     graph_optimizer_.vertices().size() << " vertices...");
     graph_optimizer_.initializeOptimization();
-    graph_optimizer_.optimize(params_.go2_opt_max_iter);
+    graph_optimizer_.optimize(params_.g2o_opt_max_iter);
     block_insertion_ = false;
     ROS_INFO("[StereoSlam:] Optimization done.");
   }
@@ -163,8 +167,8 @@ void stereo_slam::StereoSlamBase::readParameters()
   // G2O parameters
   nh_private_.getParam("update_rate", stereo_slam_params.update_rate);
   nh_private_.getParam("g2o_algorithm", stereo_slam_params.g2o_algorithm);
-  nh_private_.getParam("go2_opt_max_iter", stereo_slam_params.go2_opt_max_iter);
-  nh_private_.getParam("go2_verbose", stereo_slam_params.go2_verbose);
+  nh_private_.getParam("g2o_opt_max_iter", stereo_slam_params.g2o_opt_max_iter);
+  nh_private_.getParam("g2o_verbose", stereo_slam_params.g2o_verbose);
 
   // Graph operational parameters
   nh_private_.getParam("min_displacement", stereo_slam_params.min_displacement);
@@ -190,7 +194,6 @@ void stereo_slam::StereoSlamBase::readParameters()
   // Topic parameters
   nh_private_.getParam("queue_size", stereo_slam_params.queue_size);
   nh_private_.getParam("map_frame_id", stereo_slam_params.map_frame_id);
-  nh_private_.getParam("base_link_frame_id", stereo_slam_params.base_link_frame_id);
 
   setParams(stereo_slam_params);
 
@@ -232,7 +235,7 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
       this, _1, _2, _3, _4, _5));
 
   // Advertise topics and services
-  odom_pub_ = nh_private_.advertise<nav_msgs::Odometry>("odometry", 1);
+  pose_pub_ = nh_private_.advertise<geometry_msgs::PoseStamped>("slam_pose", 1);
 
   // Initialize the g2o graph optimizer
   if (params_.g2o_algorithm == 0)
@@ -260,7 +263,7 @@ bool stereo_slam::StereoSlamBase::initializeStereoSlam()
     ROS_ERROR("[StereoSlam:] g2o_algorithm parameter must be 0 or 1.");
     return false;
   }  
-  graph_optimizer_.setVerbose(params_.go2_verbose);
+  graph_optimizer_.setVerbose(params_.g2o_verbose);
 
   // Database initialization
   boost::shared_ptr<database_interface::PostgresqlDatabase> db_ptr_1( 
@@ -386,8 +389,7 @@ bool stereo_slam::StereoSlamBase::saveGraph()
           timestamp  << "," << 
           i << "," << 
           timestamp << "," << 
-          params_.map_frame_id << "," << 
-          params_.base_link_frame_id << "," << 
+          params_.map_frame_id << "," << "," << 
           std::setprecision(6) << 
           pose.getOrigin().x() << "," << 
           pose.getOrigin().y() << "," << 

@@ -54,13 +54,13 @@ Parameters
 * `max_edge_err` - Maximum allowed error between loop closing candidates (Step 3 of the candidate search stage).
 * `save_graph_to_file` - true to save the graph to an output file.
 * `files_path` - Path where the graphvertices.txt and graphedges.txt files are saved.
-* `go2_opt_max_iter` - Maximum number of g2o alogirthm iterations (typically between 10-50)
+* `g2o_opt_max_iter` - Maximum number of g2o alogirthm iterations (typically between 10-50)
 
 ### Other parameters (do not touch by default) ###
 
 #### G2O Library ####
 * `g2o_algorithm` - Set to 0 for LinearSlam Solver with gauss-newton. Set to 1 for LinearSlam Solver with Levenberg (Default 1).
-* `go2_verbose` - True to output the g2o iteration messages.
+* `g2o_verbose` - True to output the g2o iteration messages.
 
 #### Graph ####
 * `neighbor_offset` - Number of neighbor graph vertices discarted for loop-closing.
@@ -77,7 +77,6 @@ Parameters
 #### Topics ####
 * `queue_size` - Indicate the maximum number of messages encued (typically between 2-6).
 * `map_frame_id` - The map frame id (map by default).
-* `base_link_frame_id` - The robot base link frame id.
 
 
 Run the node

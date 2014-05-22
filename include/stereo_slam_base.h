@@ -48,8 +48,8 @@ public:
     // G2O Optimization
     double update_rate;              //!> Timer callback rate (in seconds) to optimize the graph.
     int g2o_algorithm;               //!> Set to 0 for LinearSlam Solver with gauss-newton. Set to 1 for LinearSlam Solver with Levenberg.
-    int go2_opt_max_iter;            //!> Maximum number of iteration for the graph optimization.
-    bool go2_verbose;                //!> True to output the g2o iteration messages
+    int g2o_opt_max_iter;            //!> Maximum number of iteration for the graph optimization.
+    bool g2o_verbose;                //!> True to output the g2o iteration messages
 
     // Graph operational parameters
     double min_displacement;         //!> Minimum odometry displacement between poses to be saved as graph vertices. 
@@ -75,14 +75,13 @@ public:
     // Topic parameters
     int queue_size;                  //!> Indicate the maximum number of messages encued.
     std::string map_frame_id;        //!> The map frame id.
-    std::string base_link_frame_id;  //!> The robot base link frame id.
 
     // default settings
     Params () {
       update_rate                 = 3.0;
       g2o_algorithm               = 1;
-      go2_opt_max_iter            = 20;
-      go2_verbose                 = false;
+      g2o_opt_max_iter            = 20;
+      g2o_verbose                 = false;
 
       min_displacement            = 0.2;
       max_candidate_threshold     = 2.0;
@@ -105,7 +104,6 @@ public:
 
       queue_size                  = 5;
       map_frame_id                = "/map";
-      base_link_frame_id          = "/base_link";
     }
   };
 
@@ -180,7 +178,7 @@ private:
   	left_sub_, right_sub_;
   message_filters::Subscriber<sensor_msgs::CameraInfo> left_info_sub_, right_info_sub_;
   message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
-  ros::Publisher odom_pub_;
+  ros::Publisher pose_pub_;
 
   // Topic sync properties
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry, 

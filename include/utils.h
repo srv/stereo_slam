@@ -364,10 +364,10 @@ public:
 	  * \param descriptor matching 2
 	  */
 	static std::vector<cv::DMatch> bucketFeatures(std::vector<cv::DMatch> matches, 
-																								std::vector<cv::KeyPoint> kp, 
-																								int b_width, 
-																								int b_height, 
-																								int b_num_feautres)
+												std::vector<cv::KeyPoint> kp, 
+												int b_width, 
+												int b_height, 
+												int b_num_feautres)
 	{
 		// Find max values
 	  float x_max = 0;

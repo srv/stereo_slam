@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
 	nav_msgs
 	tf
 	sensor_msgs
+	geometry_msgs
 	image_transport
 	message_filters
 	pcl_ros
@@ -65,4 +66,9 @@ add_executable(stereo_slam
 			   src/vertex_insertion.cpp
 			   src/graph_updater.cpp)
 
+add_executable(icp_refinement 
+			   src/icp_refinement_node.cpp
+			   src/icp_refinement_base.cpp)
+
 target_link_libraries(stereo_slam pq ${Boost_LIBRARIES} ${OpenCV_LIBRARIES} ${SUITESPARSE_LIBRARIES} ${G2O_LIBRARIES} ${catkin_LIBRARIES})
+target_link_libraries(icp_refinement ${Boost_LIBRARIES} ${catkin_LIBRARIES})
