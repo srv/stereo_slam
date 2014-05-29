@@ -5,7 +5,7 @@
 
 
 #include <ros/ros.h>
-#include "stereo_slam_base.h"
+#include "base.h"
 
 int main(int argc, char **argv)
 {
