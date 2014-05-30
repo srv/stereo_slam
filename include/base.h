@@ -34,8 +34,9 @@ class StereoSlamBase
 
 public:
 
-	// Constructor
+	// Constructor and destructor
   StereoSlamBase(ros::NodeHandle nh, ros::NodeHandle nhp);
+  ~StereoSlamBase();
 
   struct Params
   {
@@ -83,11 +84,6 @@ protected:
 
 private:
 
-  // Stereo vision properties
-  image_geometry::StereoCameraModel 
-  	stereo_camera_model_;						//!> Object to save the image camera model
-  cv::Mat camera_matrix_;						//!> Used to save the camera matrix
-
   // Topic properties
   image_transport::SubscriberFilter left_sub_, right_sub_;
   message_filters::Subscriber<sensor_msgs::CameraInfo> left_info_sub_, right_info_sub_;
@@ -107,7 +103,6 @@ private:
   stereo_slam::Pose pose_;          //!> Pose object
   stereo_slam::Graph graph_;        //!> Graph object
   bool first_iter_;                 //!> Indicates first iteration
-  double scale_factor_;             //!> Scale factor for images
 };
 
 } // namespace

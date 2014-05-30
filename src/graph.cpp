@@ -85,15 +85,14 @@ int stereo_slam::Graph::addVertice(tf::Transform current_odom,
   // Convert pose for graph
   Eigen::Isometry3d vertice_pose = stereo_slam::Tools::tfToEigen(corrected_odom);
 
-  // Get last_id
-  int last_id = graph_optimizer_.vertices().size();
-  int cur_id = last_id + 1;
+  // Set node id equal to graph size
+  int id = graph_optimizer_.vertices().size();
 
   // Build the vertex
   g2o::VertexSE3* cur_vertex = new g2o::VertexSE3();
-  cur_vertex->setId(cur_id);
+  cur_vertex->setId(id);
   cur_vertex->setEstimate(vertice_pose);
-  if (last_id == 0)
+  if (id == 0)
   {
     // First time, no edges.
     cur_vertex->setFixed(true);
@@ -106,7 +105,7 @@ int stereo_slam::Graph::addVertice(tf::Transform current_odom,
 
     // Get last vertex
     g2o::VertexSE3* prev_vertex = dynamic_cast<g2o::VertexSE3*>(
-      graph_optimizer_.vertices()[last_id - 1]);
+      graph_optimizer_.vertices()[id - 1]);
     graph_optimizer_.addVertex(cur_vertex);
 
     // Odometry edges
@@ -121,7 +120,7 @@ int stereo_slam::Graph::addVertice(tf::Transform current_odom,
   // Save the original odometry for this new node
   odom_history_.push_back(make_pair(current_odom, timestamp));
 
-  return cur_id;
+  return id;
 }
 
 /** \brief Add new edge to the graph

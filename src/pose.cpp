@@ -29,7 +29,7 @@ tf::Transform stereo_slam::Pose::correctOdom( tf::Transform current_odom,
   tf::Transform odom_diff = last_graph_odom.inverse() * current_odom;
 
   // Compute the corrected pose
-  return last_graph_odom * odom_diff;
+  return last_graph_pose * odom_diff;
 }
 
 /** \brief Publish some pose.

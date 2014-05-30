@@ -18,6 +18,16 @@ stereo_slam::StereoSlamBase::StereoSlamBase(
   init();
 }
 
+/** \brief Class destructor. Finalizes all the modules.
+  * @return 
+  */
+stereo_slam::StereoSlamBase::~StereoSlamBase()
+{
+  ROS_INFO("[StereoSlam:] Finalizing...");
+  lc_.finalize();
+  ROS_INFO("[StereoSlam:] Done!");
+}
+
 /** \brief Messages callback. This function is called when syncronized odometry and image
   * message are received.
   * @return 
@@ -48,7 +58,7 @@ void stereo_slam::StereoSlamBase::msgsCallback(
   double pose_diff = stereo_slam::Tools::poseDiff(last_graph_odom, current_odom);
   if (pose_diff <= params_.min_displacement && !first_iter_)
   {
-    ROS_INFO_STREAM("[StereoSlam:] Small displacement (" << pose_diff << ") publishing corrected pose.");
+    ROS_INFO_STREAM("[StereoSlam:] Small displacement: " << pose_diff);
 
     // Publish and exit
     pose_.publish(*odom_msg, corrected_odom);
@@ -64,10 +74,10 @@ void stereo_slam::StereoSlamBase::msgsCallback(
 
   // Detect loop closure
   int img_lc = -1;
-  string lc_id_str = "";
+  string lc_id = "";
   tf::Transform edge;
   lc_.setNode(l_img, r_img, boost::lexical_cast<string>(cur_id));
-  if (!lc_.getLoopClosure(img_lc, lc_id_str, edge))
+  if (!lc_.getLoopClosure(img_lc, lc_id, edge))
   {
     // No loop closures, publish the corrected pose and exit
     ROS_INFO_STREAM("[StereoSlam:] New node inserted with id " << cur_id << " (no closes loop).");
@@ -77,8 +87,8 @@ void stereo_slam::StereoSlamBase::msgsCallback(
   }
 
   // Insert the new loop closure into the graph and update
-  ROS_INFO_STREAM("[StereoSlam:] New node inserted with id " << cur_id << " closes loop with " << lc_id_str);
-  graph_.addEdge(boost::lexical_cast<int>(lc_id_str), cur_id, edge);
+  ROS_INFO_STREAM("[StereoSlam:] New node inserted with id " << cur_id << " closes loop with " << lc_id);
+  graph_.addEdge(boost::lexical_cast<int>(lc_id), cur_id, edge);
   graph_.update();
 
   // Publish the corrected pose
@@ -101,14 +111,19 @@ void stereo_slam::StereoSlamBase::readParameters()
   haloc::LoopClosure::Params lc_params;
   lc_params.num_proj = 2;
   lc_params.validate = true;
+  lc_params.verbose = true;
 
   // Operational directories
-  nh_private_.param("work_dir", lc_params.work_dir, string(""));
+  string work_dir;
+  nh_private_.param("work_dir", work_dir, string(""));
+  if (work_dir[work_dir.length()-1] != '/')
+    work_dir += "/";
+  lc_params.work_dir = work_dir;
 
   // Topic parameters
   string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic;
-  nh_private_.getParam("pose_frame_id", pose_params.pose_frame_id);
-  nh_private_.getParam("pose_child_frame_id", pose_params.pose_child_frame_id);
+  nh_private_.param("pose_frame_id", pose_params.pose_frame_id, string("/map"));
+  nh_private_.param("pose_child_frame_id", pose_params.pose_child_frame_id, string("/robot"));
   nh_private_.param("odom_topic", odom_topic, string("/odometry"));
   nh_private_.param("left_topic", left_topic, string("/left/image_rect_color"));
   nh_private_.param("right_topic", right_topic, string("/right/image_rect_color"));
@@ -121,7 +136,6 @@ void stereo_slam::StereoSlamBase::readParameters()
   // Loop closure parameters
   nh_private_.param("desc_type", lc_params.desc_type, string("SIFT"));
   nh_private_.getParam("desc_thresh", lc_params.desc_thresh);
-  nh_private_.getParam("epipolar_thresh", lc_params.epipolar_thresh);
   nh_private_.getParam("min_neighbour", lc_params.min_neighbour);
   nh_private_.getParam("n_candidates", lc_params.n_candidates);
   nh_private_.getParam("min_matches", lc_params.min_matches);
@@ -163,7 +177,7 @@ bool stereo_slam::StereoSlamBase::init()
   pose_.adverticePoseMsg(nh_private_);
 
   // Callback syncronization
-  approximate_sync_.reset(new ApproximateSync(ApproximatePolicy(1),
+  approximate_sync_.reset(new ApproximateSync(ApproximatePolicy(3),
                                   odom_sub_, 
                                   left_sub_, 
                                   right_sub_, 
@@ -191,12 +205,11 @@ bool stereo_slam::StereoSlamBase::getImages(sensor_msgs::Image l_img_msg,
                                             sensor_msgs::CameraInfo r_info_msg, 
                                             Mat &l_img, Mat &r_img)
 {
-  // Convert message to cv::Mat
-  Mat l_img_src, r_img_src;
+  // Convert message to Mat
   try
   {
-    l_img_src = (cv_bridge::toCvCopy(l_img_msg, enc::BGR8))->image;
-    r_img_src = (cv_bridge::toCvCopy(r_img_msg, enc::BGR8))->image;
+    l_img = (cv_bridge::toCvCopy(l_img_msg, enc::BGR8))->image;
+    r_img = (cv_bridge::toCvCopy(r_img_msg, enc::BGR8))->image;
   }
   catch (cv_bridge::Exception& e)
   {
@@ -207,16 +220,12 @@ bool stereo_slam::StereoSlamBase::getImages(sensor_msgs::Image l_img_msg,
   // Set camera model (only once)
   if (first_iter_)
   {
-    scale_factor_ = 320.0/l_img_src.cols;
-    stereo_camera_model_.fromCameraInfo(l_info_msg, r_info_msg);
-    const cv::Mat P(3,4, CV_64FC1, const_cast<double*>(l_info_msg.P.data()));
-    camera_matrix_ = P.colRange(cv::Range(0,3)).clone();
+    image_geometry::StereoCameraModel stereo_camera_model;
+    stereo_camera_model.fromCameraInfo(l_info_msg, r_info_msg);
+    const Mat P(3,4, CV_64FC1, const_cast<double*>(l_info_msg.P.data()));
+    Mat camera_matrix = P.colRange(Range(0,3)).clone();
+    lc_.setCameraModel(stereo_camera_model, camera_matrix);
     first_iter_ = false;
   }
-
-  // Scale images
-  resize(l_img_src, l_img, Size(), scale_factor_, scale_factor_);
-  resize(r_img_src, r_img, Size(), scale_factor_, scale_factor_);
-
   return true;
 }
