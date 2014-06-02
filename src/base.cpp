@@ -18,10 +18,10 @@ stereo_slam::StereoSlamBase::StereoSlamBase(
   init();
 }
 
-/** \brief Class destructor. Finalizes all the modules.
+/** \brief Finalize stereo slam node
   * @return 
   */
-stereo_slam::StereoSlamBase::~StereoSlamBase()
+void stereo_slam::StereoSlamBase::finalize()
 {
   ROS_INFO("[StereoSlam:] Finalizing...");
   lc_.finalize();
@@ -110,7 +110,7 @@ void stereo_slam::StereoSlamBase::readParameters()
   stereo_slam::Graph::Params graph_params;
   haloc::LoopClosure::Params lc_params;
   lc_params.num_proj = 2;
-  lc_params.validate = true;
+  lc_params.validate = false;
   lc_params.verbose = true;
 
   // Operational directories
@@ -220,10 +220,26 @@ bool stereo_slam::StereoSlamBase::getImages(sensor_msgs::Image l_img_msg,
   // Set camera model (only once)
   if (first_iter_)
   {
+    // Get the stereo camera model
     image_geometry::StereoCameraModel stereo_camera_model;
     stereo_camera_model.fromCameraInfo(l_info_msg, r_info_msg);
+
+    // Get the projection/camera matrix
     const Mat P(3,4, CV_64FC1, const_cast<double*>(l_info_msg.P.data()));
     Mat camera_matrix = P.colRange(Range(0,3)).clone();
+
+    // Are the images scaled?
+    int binning_x = l_info_msg.binning_x;
+    int binning_y = l_info_msg.binning_y;
+    if (binning_x > 1 || binning_y > 1)
+    {
+      camera_matrix.at<double>(0,0) = camera_matrix.at<double>(0,0) / binning_x;
+      camera_matrix.at<double>(0,2) = camera_matrix.at<double>(0,2) / binning_x;
+      camera_matrix.at<double>(1,1) = camera_matrix.at<double>(1,1) / binning_y;
+      camera_matrix.at<double>(1,2) = camera_matrix.at<double>(1,2) / binning_y;
+    }
+
+    // Set all for the loop closure class
     lc_.setCameraModel(stereo_camera_model, camera_matrix);
     first_iter_ = false;
   }

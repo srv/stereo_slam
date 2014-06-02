@@ -61,15 +61,30 @@ public:
     */
   static tf::Transform odomTotf(nav_msgs::Odometry odom_msg)
   {
-    tf::Vector3 tf_trans( odom_msg.pose.pose.position.x,
-                          odom_msg.pose.pose.position.y,
-                          odom_msg.pose.pose.position.z);
-    tf::Quaternion tf_q ( odom_msg.pose.pose.orientation.x,
-                          odom_msg.pose.pose.orientation.y,
-                          odom_msg.pose.pose.orientation.z,
-                          odom_msg.pose.pose.orientation.w);
-    tf::Transform odom(tf_q, tf_trans);
-    return odom;
+    // Get the data
+    double tx = odom_msg.pose.pose.position.x;
+    double ty = odom_msg.pose.pose.position.y;
+    double tz = odom_msg.pose.pose.position.z;
+
+    double qx = odom_msg.pose.pose.orientation.x;
+    double qy = odom_msg.pose.pose.orientation.y;
+    double qz = odom_msg.pose.pose.orientation.z;
+    double qw = odom_msg.pose.pose.orientation.w;
+
+    // Sanity check
+    if(qx == 0.0 && qy == 0.0 && qz == 0.0 && qw == 0.0)
+    {
+      tf::Transform odom;
+      odom.setIdentity();
+      return odom;
+    }
+    else
+    {
+      tf::Vector3 tf_trans(tx, ty, tz);
+      tf::Quaternion tf_q (qx, qy, qz, qw);
+      tf::Transform odom(tf_q, tf_trans);
+      return odom;
+    }    
   }
 
   /** \brief get the pose of vertex in format tf::Transform
@@ -108,6 +123,22 @@ public:
         xyz(0), xyz(1), xyz(2),
         rpy(0) * 180/M_PI, rpy(1) * 180/M_PI, rpy(2) * 180/M_PI);
     return string(result);
+  }
+
+  /** \brief Show a tf in the console (useful for debugin purposes)
+    * @return
+    * \param tf matrix
+    */
+  static void showTf(tf::Transform input)
+  {
+    tf::Vector3 tran = input.getOrigin();
+    tf::Matrix3x3 rot = input.getBasis();
+    tf::Vector3 r0 = rot.getRow(0);
+    tf::Vector3 r1 = rot.getRow(1);
+    tf::Vector3 r2 = rot.getRow(2);
+    ROS_INFO_STREAM("[StereoSlam:]\n" << r0.x() << ", " << r0.y() << ", " << r0.z() << ", " << tran.x() <<
+                    "\n" << r1.x() << ", " << r1.y() << ", " << r1.z() << ", " << tran.y() <<
+                    "\n" << r2.x() << ", " << r2.y() << ", " << r2.z() << ", " << tran.z());
   }
 };
 

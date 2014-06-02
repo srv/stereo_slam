@@ -34,9 +34,11 @@ class StereoSlamBase
 
 public:
 
-	// Constructor and destructor
+	// Constructor
   StereoSlamBase(ros::NodeHandle nh, ros::NodeHandle nhp);
-  ~StereoSlamBase();
+
+  // Finalize stereo slam node
+  void finalize();
 
   struct Params
   {
