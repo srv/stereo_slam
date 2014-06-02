@@ -28,38 +28,40 @@
 
 	<!-- Stereo SLAM -->
 	<node pkg="stereo_slam" type="stereo_slam" name="stereo_slam" output="screen">
+
+		<!-- Working directory -->
+		<param name="work_dir" value="<!-- Path to your data directory (e.g. /home/user/stereo_slam/data) -->" />
+
+		<!-- Topic parameters -->
 		<param name="odom_topic" value="stereo_odometer/odometry"/>
 		<param name="left_topic" value="$(arg camera)/left/image_rect_color"/>
 		<param name="right_topic" value="$(arg camera)/right/image_rect_color"/>
 		<param name="left_info_topic" value="$(arg camera)/left/camera_info"/>
 		<param name="right_info_topic" value="$(arg camera)/right/camera_info"/>
 
-		<!-- Parameters -->
-
 		<!-- Min displacement between graph vertices (in meters) -->
 		<param name="min_displacement" value="0.25"/>
 
-		<!-- Candidate search radius (in meters) -->
-		<param name="max_candidate_threshold" value="2.0"/>
-
-		<!-- G2O update rate (in seconds) -->
-		<param name="update_rate" value="3" />
+		<!-- Descriptor type: SIFT or SURF -->
+		<param name="desc_type" value="SIFT"/>
 
 		<!-- Descriptor threshold (for SIFT typically between 0.8-0.9)  -->
-		<param name="descriptor_threshold" value="0.88" />
+		<param name="desc_thresh" value="0.88" />
 
-		<!-- Minimum number of matches between loop closing candidates. (Step 1 of the candidate search stage) -->
-		<param name="matches_threshold" value="100" />
+		<!-- Minimum number of neighbours that will be skiped for the loop closure (tipically between 5-20, but depends on the frame rate) -->
+		<param name="min_neighbour" value="10" />
 
-		<!-- Minimum number of inliers between loop closing candidates (Step 2 of the candidate search stage) -->
-		<param name="min_inliers" value="12" />
+		<!-- Get the n first candidates of the hash matching (tipically between 1-5) -->
+		<param name="n_candidates" value="5" />
 
-		<!-- Maximum allowed error between loop closing candidates (Step 3 of the candidate search stage) -->
-		<param name="max_edge_err" value="3.0" />
+		<!-- Minimun number of descriptor matches to consider a matching as possible loop closure (>8) -->
+		<param name="min_matches" value="30" />
 
-		<!-- Graph to file -->
-		<param name="save_graph_to_file" value="true" />
-		<param name="files_path" value="<!-- Path to your data directory (e.g. /home/user/stereo_slam/data) -->" />
+		<!-- Minimum number of inliers to consider a matching as possible loop closure (>8) -->
+		<param name="min_inliers" value="15" />
+
+		<!-- Set to 0 for LinearSlam Solver with gauss-newton. Set to 1 for LinearSlam Solver with Levenberg -->
+		<param name="g2o_algorithm" value="0" />
 
 		<!-- Maximum number of iteration for the g2o algorithm -->
 		<param name="g2o_opt_max_iter" value="10" />
