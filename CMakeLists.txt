@@ -46,13 +46,14 @@ include_directories(include
 					${SUITESPARSE_INCLUDE_DIRS}
 					${G2O_INCLUDE_DIRS})
 
-add_executable(stereo_slam 
-			   src/node.cpp
-			   src/base.cpp
-			   src/graph.cpp
-			   src/pose.cpp)
 
-target_link_libraries(stereo_slam 
+add_executable(slam 
+			   src/slam/node.cpp
+			   src/slam/base.cpp
+			   src/slam/graph.cpp
+			   src/slam/pose.cpp)
+
+target_link_libraries(slam 
 					  ${eigen_LIBRARIES} 
 					  ${libhaloc_LIBRARIES} 
 					  ${OpenCV_LIBRARIES} 
