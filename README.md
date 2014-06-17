@@ -1,7 +1,7 @@
 Stereo SLAM
 =============
 
-stereo_slam is a [ROS][link_ros] node to execute Simultaneous Localization And Mapping (SLAM) using only one stereo camera. The algorithm was designed and tested for underwater robotics. This node is based on the [G2O][link_g2o] library for graph optimization and uses the power of PostgreSQL to store the image keypoints and descriptors. The workflow of the stereo_slam node is as follows:
+stereo_slam is a [ROS][link_ros] node to execute Simultaneous Localization And Mapping (SLAM) using only one stereo camera. The algorithm was designed and tested for underwater robotics. This node is based on the [G2O][link_g2o] library for graph optimization and uses the power of [libhaloc][link_libhaloc] to find loop closures between graph nodes. The workflow of the stereo_slam node is as follows:
 
 ![alt tag](https://raw.github.com/srv/stereo_slam/hydro/resources/flowchart.png)
 
@@ -15,16 +15,11 @@ Installation (Ubuntu + ROS fuerte/hydro)
 1) Install the dependencies
 ```bash
 sudo apt-get install ros-<your ros distro>-libg2o
-sudo apt-get install ros-<your ros distro>-sql-database
-sudo apt-get install postgresql pgadmin3
 ```
-You also need to setup a stereo visual odometer (e.g. [viso2][link_viso2] or [fovis][link_fovis]).
 
-2) Configure the PostgreSQL database. This creates the user postgres with password postgres. You can setup a different user and password but then you must specify these parameters to the stereo_slam ROS node.
-```bash
-sudo -u postgres psql postgres
-\password postgres
-```
+Install libhaloc as specified here: [libhaloc][link_libhaloc].
+
+You also need to setup a stereo visual odometer (e.g. [viso2][link_viso2] or [fovis][link_fovis]).
 
 3) Download the code, save it to your ROS workspace enviroment and compile.
 ```bash
@@ -46,37 +41,26 @@ Parameters
 * `left_info_topic` - Left info camera topic (type sensor_msgs::CameraInfo).
 * `right_info_topic` - Right info camera topic (type sensor_msgs::CameraInfo).
 * `min_displacement` - Min displacement between graph vertices (in meters).
-* `max_candidate_threshold` - Loop closing candidate search radius (in meters).
-* `update_rate` - G2O update rate (in seconds).
-* `descriptor_threshold` - Descriptor threshold (for SIFT typically between 0.8-0.9).
-* `matches_threshold` - Minimum number of matches between loop closing candidates. (Step 1 of the candidate search stage). If you don't have loop closings, try to decrese this parameter.
-* `min_inliers` - Minimum number of inliers between loop closing candidates (Step 2 of the candidate search stage). If you don't have loop closings, try to decrese this parameter (minimum value = 7).
-* `max_edge_err` - Maximum allowed error between loop closing candidates (Step 3 of the candidate search stage).
-* `save_graph_to_file` - true to save the graph to an output file.
-* `files_path` - Path where the graphvertices.txt and graphedges.txt files are saved.
-* `g2o_opt_max_iter` - Maximum number of g2o alogirthm iterations (typically between 10-50)
+* `min_matches` - Minimun number of descriptor matches to consider a matching as possible loop closure. If you don't have loop closings, try to decrese this parameter (minimum value = 8).
+* `min_inliers` - Minimum number of inliers between loop closing candidates. If you don't have loop closings, try to decrese this parameter (minimum value = 7).
+
 
 ### Other parameters (do not touch by default) ###
 
 #### G2O Library ####
 * `g2o_algorithm` - Set to 0 for LinearSlam Solver with gauss-newton. Set to 1 for LinearSlam Solver with Levenberg (Default 1).
-* `g2o_verbose` - True to output the g2o iteration messages.
+* `g2o_opt_max_iter` - Maximum number of g2o alogirthm iterations (typically between 10-50)
 
 #### Graph ####
-* `neighbor_offset` - Number of neighbor graph vertices discarted for loop-closing.
+* `min_neighbour` - Minimum number of neighbours to considerate for loop closing.
 
 #### Stereo vision ####
 * `desc_type` - Can be SIFT or SURF (SIFT by default).
-* `epipolar_threshold` - Maximum epipolar distance for stereo matching.
-* `allowed_reprojection_err` - Maximum reprojection error allowed in solvePnPRansac algorithm.
-* `stereo_vision_verbose` - True to output the messages of stereo matching process.
-* `bucket_width` - Bucket width.
-* `bucket_height` - Bucket height.
-* `max_bucket_features` - Maximum number of features per bucket.
+* `desc_thresh` - Descriptor threshold (for SIFT typically between 0.8-0.9).
 
 #### Topics ####
-* `queue_size` - Indicate the maximum number of messages encued (typically between 2-6).
-* `map_frame_id` - The map frame id (map by default).
+* `pose_frame_id` - Frame name where pose will be published.
+* `pose_child_frame_id` - Child frame name of the pose.
 
 
 Run the node
@@ -94,7 +78,7 @@ Online graph viewer
 The node provides a python script to visualize the results of the stereo_slam during the execution: scripts/graph_viewer.py:
 
 ```bash
-usage: graph_viewer.py [-h]
+usage: 	graph_viewer.py [-h]
 	ground_truth_file visual_odometry_file
 	graph_vertices_file graph_edges_file
 ```
@@ -131,5 +115,6 @@ This script perform a set of operations in order to evaluate the performance of 
 [link_viso2]: http://wiki.ros.org/viso2_ros
 [link_fovis]: http://wiki.ros.org/fovis_ros
 [link_g2o]: http://wiki.ros.org/g2o
+[link_libhaloc]: https://github.com/srv/libhaloc
 [link_yt_1]: http://www.youtube.com/watch?v=GXOhWmzSqUM
 [link_yt_2]: http://www.youtube.com/watch?v=8NR6ono1SUI
