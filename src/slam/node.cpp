@@ -46,7 +46,7 @@ int main(int argc, char **argv)
   // Stereo slam class
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
-  stereo_slam::StereoSlamBase stereo_slam_node(nh,nh_private);
+  slam::SlamBase slam_node(nh,nh_private);
 
   // Do our own spin loop
   while (!g_request_shutdown)
@@ -57,7 +57,7 @@ int main(int argc, char **argv)
   }
 
   // Finalize stereo slam
-  stereo_slam_node.finalize();
+  slam_node.finalize();
 
   // Exit
   ros::shutdown();

@@ -3,8 +3,8 @@
  * @brief Stereo slam using visual odometry and g2o optimization (presentation).
  */
 
-#ifndef STEREO_SLAM_BASE_H
-#define STEREO_SLAM_BASE_H
+#ifndef BASE_H
+#define BASE_H
 
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
@@ -15,27 +15,26 @@
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <image_transport/subscriber_filter.h>
-#include <image_geometry/stereo_camera_model.h>
 #include <sensor_msgs/image_encodings.h>
 #include <libhaloc/lc.h>
 #include "pose.h"
-#include "graph.h"
+#include "../common/graph.h"
 
 namespace enc = sensor_msgs::image_encodings;
 
 using namespace std;
 using namespace cv;
 
-namespace stereo_slam
+namespace slam
 {
 
-class StereoSlamBase
+class SlamBase
 {
 
 public:
 
 	// Constructor
-  StereoSlamBase(ros::NodeHandle nh, ros::NodeHandle nhp);
+  SlamBase(ros::NodeHandle nh, ros::NodeHandle nhp);
 
   // Finalize stereo slam node
   void finalize();
@@ -102,11 +101,11 @@ private:
 
   Params params_;                   //!> Stores parameters
   haloc::LoopClosure lc_;           //!> Loop closure object
-  stereo_slam::Pose pose_;          //!> Pose object
-  stereo_slam::Graph graph_;        //!> Graph object
+  slam::Pose pose_;                 //!> Pose object
+  slam::Graph graph_;               //!> Graph object
   bool first_iter_;                 //!> Indicates first iteration
 };
 
 } // namespace
 
-#endif // STEREO_SLAM_BASE_H
+#endif // BASE_H

@@ -3,13 +3,13 @@
 /** \brief Class constructor.
   * @return 
   */
-stereo_slam::Pose::Pose(){}
+slam::Pose::Pose(){}
 
 /** \brief Advertises the pose message
   * @return 
   * \param Node handle where pose will be advertised.
   */
-void stereo_slam::Pose::advertisePoseMsg(ros::NodeHandle nh)
+void slam::Pose::advertisePoseMsg(ros::NodeHandle nh)
 {
   // Advertise the pose publication
   pose_pub_ = nh.advertise<nav_msgs::Odometry>("corrected_odom", 1);
@@ -22,7 +22,7 @@ void stereo_slam::Pose::advertisePoseMsg(ros::NodeHandle nh)
   * \param Last graph pose.
   * \param The corresponding original odometry for the last graph pose.
   */
-tf::Transform stereo_slam::Pose::correctOdom( tf::Transform current_odom, 
+tf::Transform slam::Pose::correctOdom( tf::Transform current_odom, 
                                               tf::Transform last_graph_pose, 
                                               tf::Transform last_graph_odom)
 {
@@ -39,7 +39,7 @@ tf::Transform stereo_slam::Pose::correctOdom( tf::Transform current_odom,
   * \param Corrected odometry to be published.
   * \param true to publish the graph pose.
   */
-void stereo_slam::Pose::publish(nav_msgs::Odometry odom_msg, tf::Transform pose, bool publish_graph)
+void slam::Pose::publish(nav_msgs::Odometry odom_msg, tf::Transform pose, bool publish_graph)
 {
   // Publish pose
   if (pose_pub_.getNumSubscribers() > 0)

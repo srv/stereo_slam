@@ -1,0 +1,11 @@
+x_filter_min: -2.0
+x_filter_max: 2.0
+y_filter_min: -2.0
+y_filter_max: 2.0
+z_filter_min: 0.2
+z_filter_max: 2.0
+
+voxel_size: 0.01
+
+radius_search: 0.2
+min_neighors_in_radius: 20

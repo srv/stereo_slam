@@ -12,7 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
 	message_filters
 	cv_bridge
 	image_geometry
-	std_srvs)
+	std_srvs
+	pcl_ros)
 
 ####################################################
 # Dependencies:
@@ -20,6 +21,9 @@ find_package(PkgConfig)
 
 # Dependencies - Eigen:
 find_package(Eigen REQUIRED)
+
+# Dependencies - PCL:
+find_package(PCL REQUIRED)
 
 # Dependencies - Libhaloc:
 find_package(libhaloc REQUIRED)
@@ -46,11 +50,10 @@ include_directories(include
 					${SUITESPARSE_INCLUDE_DIRS}
 					${G2O_INCLUDE_DIRS})
 
-
 add_executable(slam 
 			   src/slam/node.cpp
 			   src/slam/base.cpp
-			   src/slam/graph.cpp
+			   src/common/graph.cpp
 			   src/slam/pose.cpp)
 
 target_link_libraries(slam 
@@ -59,4 +62,12 @@ target_link_libraries(slam
 					  ${OpenCV_LIBRARIES} 
 					  ${SUITESPARSE_LIBRARIES} 
 					  ${G2O_LIBRARIES} 
+					  ${catkin_LIBRARIES})
+
+add_executable(collector 
+			   src/reconstruction/collector_node.cpp
+			   src/reconstruction/collector_base.cpp)
+
+target_link_libraries(collector 
+					  ${eigen_LIBRARIES} 
 					  ${catkin_LIBRARIES})

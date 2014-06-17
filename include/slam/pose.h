@@ -12,7 +12,7 @@
 
 using namespace std;
 
-namespace stereo_slam
+namespace slam
 {
 
 class Pose

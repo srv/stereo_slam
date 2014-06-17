@@ -12,7 +12,7 @@
 using namespace std;
 using namespace cv;
 
-namespace stereo_slam
+namespace slam
 {
 
 class Tools
@@ -94,7 +94,7 @@ public:
   static tf::Transform getVertexPose(g2o::VertexSE3* v)
   {
     Eigen::Isometry3d pose_eigen = v->estimate();
-    tf::Transform pose_tf = stereo_slam::Tools::eigenToTf(pose_eigen);
+    tf::Transform pose_tf = slam::Tools::eigenToTf(pose_eigen);
     return pose_tf;
   }
 

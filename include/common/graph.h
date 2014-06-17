@@ -21,7 +21,7 @@ using namespace std;
 typedef g2o::BlockSolver< g2o::BlockSolverTraits<-1, -1> >  SlamBlockSolver;
 typedef g2o::LinearSolverCholmod<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
 
-namespace stereo_slam
+namespace slam
 {
 
 class Graph

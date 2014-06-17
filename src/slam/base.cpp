@@ -1,5 +1,5 @@
 #include "slam/base.h"
-#include "slam/tools.h"
+#include "common/tools.h"
 #include "opencv2/core/core.hpp"
 #include <cv_bridge/cv_bridge.h>
 
@@ -8,7 +8,7 @@
   * \param nh public node handler
   * \param nhp private node handler
   */
-stereo_slam::StereoSlamBase::StereoSlamBase(
+slam::SlamBase::SlamBase(
   ros::NodeHandle nh, ros::NodeHandle nhp) : nh_(nh), nh_private_(nhp)
 {
   // Read the node parameters
@@ -21,7 +21,7 @@ stereo_slam::StereoSlamBase::StereoSlamBase(
 /** \brief Finalize stereo slam node
   * @return 
   */
-void stereo_slam::StereoSlamBase::finalize()
+void slam::SlamBase::finalize()
 {
   ROS_INFO("[StereoSlam:] Finalizing...");
   lc_.finalize();
@@ -37,7 +37,7 @@ void stereo_slam::StereoSlamBase::finalize()
   * \param l_info left stereo info message of type sensor_msgs::CameraInfo
   * \param r_info right stereo info message of type sensor_msgs::CameraInfo
   */
-void stereo_slam::StereoSlamBase::msgsCallback(
+void slam::SlamBase::msgsCallback(
                                   const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::ImageConstPtr& l_img_msg,
                                   const sensor_msgs::ImageConstPtr& r_img_msg,
@@ -45,7 +45,7 @@ void stereo_slam::StereoSlamBase::msgsCallback(
                                   const sensor_msgs::CameraInfoConstPtr& r_info_msg)
 {
   // Get the current odometry for these images
-  tf::Transform current_odom = stereo_slam::Tools::odomTotf(*odom_msg);
+  tf::Transform current_odom = slam::Tools::odomTotf(*odom_msg);
 
   // Get the latest poses of the graph (if any)
   tf::Transform last_graph_pose, last_graph_odom;
@@ -55,7 +55,7 @@ void stereo_slam::StereoSlamBase::msgsCallback(
   tf::Transform corrected_odom = pose_.correctOdom(current_odom, last_graph_pose, last_graph_odom);
 
    // Check if difference between poses is larger than minimum displacement 
-  double pose_diff = stereo_slam::Tools::poseDiff(last_graph_odom, current_odom);
+  double pose_diff = slam::Tools::poseDiff(last_graph_odom, current_odom);
   if (pose_diff <= params_.min_displacement && !first_iter_)
   {
     // Publish and exit
@@ -103,11 +103,11 @@ void stereo_slam::StereoSlamBase::msgsCallback(
 /** \brief Reads the stereo slam node parameters
   * @return
   */
-void stereo_slam::StereoSlamBase::readParameters()
+void slam::SlamBase::readParameters()
 {
-  Params stereo_slam_params;
-  stereo_slam::Pose::Params pose_params;
-  stereo_slam::Graph::Params graph_params;
+  Params slam_params;
+  slam::Pose::Params pose_params;
+  slam::Graph::Params graph_params;
   haloc::LoopClosure::Params lc_params;
   lc_params.num_proj = 2;
   lc_params.validate = false;
@@ -131,7 +131,7 @@ void stereo_slam::StereoSlamBase::readParameters()
   nh_private_.param("right_info_topic", right_info_topic, string("/right/camera_info"));
 
   // Motion parameters
-  nh_private_.getParam("min_displacement", stereo_slam_params.min_displacement);
+  nh_private_.getParam("min_displacement", slam_params.min_displacement);
 
   // Loop closure parameters
   nh_private_.param("desc_type", lc_params.desc_type, string("SIFT"));
@@ -149,7 +149,7 @@ void stereo_slam::StereoSlamBase::readParameters()
   graph_params.pose_child_frame_id = pose_params.pose_child_frame_id;
 
   // Set the class parameters
-  setParams(stereo_slam_params);
+  setParams(slam_params);
   pose_.setParams(pose_params);
   graph_.setParams(graph_params);
   lc_.setParams(lc_params);
@@ -166,7 +166,7 @@ void stereo_slam::StereoSlamBase::readParameters()
 /** \brief Initializes the stereo slam node
   * @return true if init OK
   */
-bool stereo_slam::StereoSlamBase::init()
+bool slam::SlamBase::init()
 {
   first_iter_ = true;
 
@@ -184,7 +184,7 @@ bool stereo_slam::StereoSlamBase::init()
                                   left_info_sub_, 
                                   right_info_sub_) );
   approximate_sync_->registerCallback(boost::bind(
-      &stereo_slam::StereoSlamBase::msgsCallback,
+      &slam::SlamBase::msgsCallback,
       this, _1, _2, _3, _4, _5));
 
   return true;
@@ -199,7 +199,7 @@ bool stereo_slam::StereoSlamBase::init()
   * \param right scaled output image
   * @return true if all OK.
   */
-bool stereo_slam::StereoSlamBase::getImages(sensor_msgs::Image l_img_msg, 
+bool slam::SlamBase::getImages(sensor_msgs::Image l_img_msg, 
                                             sensor_msgs::Image r_img_msg, 
                                             sensor_msgs::CameraInfo l_info_msg, 
                                             sensor_msgs::CameraInfo r_info_msg, 

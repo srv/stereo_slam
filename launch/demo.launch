@@ -67,4 +67,16 @@
 		<param name="g2o_opt_max_iter" value="10" />
 	</node>
 
+	<!-- Pointcloud collector -->
+	<node pkg="stereo_slam" type="collector" name="collector" output="screen">
+
+		<param name="work_dir" value="<!-- Path to your data directory (e.g. /home/user/stereo_slam/data) -->" />
+
+		<param name="graph_topic" value="slam/graph"/>
+		<param name="cloud_topic" value="$(arg camera)/scaled/points2"/>
+
+		<rosparam file="$(find stereo_slam)/etc/reconstruction.yaml" />
+
+	</node>
+
 </launch>

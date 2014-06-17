@@ -1,10 +1,10 @@
-#include "slam/graph.h"
-#include "slam/tools.h"
+#include "common/graph.h"
+#include "common/tools.h"
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
   * @return 
   */
-stereo_slam::Graph::Graph()
+slam::Graph::Graph()
 {
   init();
 }
@@ -12,7 +12,7 @@ stereo_slam::Graph::Graph()
 /** \brief Init the graph
   * @return 
   */
-bool stereo_slam::Graph::init()
+bool slam::Graph::init()
 {
   // Initialize the g2o graph optimizer
     if (params_.g2o_algorithm == 0)
@@ -48,7 +48,7 @@ bool stereo_slam::Graph::init()
   * \param Contains the last graph pose.
   * \param Contains the last odometry pose.
   */
-void stereo_slam::Graph::getLastPoses(tf::Transform current_odom, 
+void slam::Graph::getLastPoses(tf::Transform current_odom, 
                                       tf::Transform &last_graph_pose, 
                                       tf::Transform &last_graph_odom)
 {
@@ -63,7 +63,7 @@ void stereo_slam::Graph::getLastPoses(tf::Transform current_odom,
     // Get the last optimized pose
     g2o::VertexSE3* last_vertex =  dynamic_cast<g2o::VertexSE3*>
           (graph_optimizer_.vertices()[last_idx]);
-    last_graph_pose = stereo_slam::Tools::getVertexPose(last_vertex);
+    last_graph_pose = slam::Tools::getVertexPose(last_vertex);
 
     // Original odometry
     last_graph_odom = odom_history_.at(last_idx).first;
@@ -78,12 +78,12 @@ void stereo_slam::Graph::getLastPoses(tf::Transform current_odom,
   * \param Current read odometry.
   * \param Timestamp for the current odometry.
   */
-int stereo_slam::Graph::addVertice(tf::Transform current_odom, 
+int slam::Graph::addVertice(tf::Transform current_odom, 
                                    tf::Transform corrected_odom,
                                    double timestamp)
 {
   // Convert pose for graph
-  Eigen::Isometry3d vertice_pose = stereo_slam::Tools::tfToEigen(corrected_odom);
+  Eigen::Isometry3d vertice_pose = slam::Tools::tfToEigen(corrected_odom);
 
   // Set node id equal to graph size
   int id = graph_optimizer_.vertices().size();
@@ -129,7 +129,7 @@ int stereo_slam::Graph::addVertice(tf::Transform current_odom,
   * \param Id vertice 2.
   * \param Edge transform that joins both vertices.
   */
-void stereo_slam::Graph::addEdge(int i, int j, tf::Transform edge)
+void slam::Graph::addEdge(int i, int j, tf::Transform edge)
 {
   // TODO: Check size of graph
 
@@ -139,7 +139,7 @@ void stereo_slam::Graph::addEdge(int i, int j, tf::Transform edge)
 
   // Add the new edge to graph
   g2o::EdgeSE3* e = new g2o::EdgeSE3();
-  Eigen::Isometry3d t = stereo_slam::Tools::tfToEigen(edge);
+  Eigen::Isometry3d t = slam::Tools::tfToEigen(edge);
   e->setVertex(0, v_j);
   e->setVertex(1, v_i);
   e->setMeasurement(t);
@@ -149,7 +149,7 @@ void stereo_slam::Graph::addEdge(int i, int j, tf::Transform edge)
 /** \brief Update the graph
   * @return 
   */
-void stereo_slam::Graph::update()
+void slam::Graph::update()
 {
     graph_optimizer_.initializeOptimization();
     graph_optimizer_.optimize(params_.go2_opt_max_iter);
@@ -159,7 +159,7 @@ void stereo_slam::Graph::update()
 /** \brief Save the optimized graph into a file with the same format than odometry_msgs.
   * @return
   */
-bool stereo_slam::Graph::saveGraphToFile()
+bool slam::Graph::saveGraphToFile()
 {
   string block_file, vertices_file, edges_file;
   vertices_file = params_.save_dir + "graph_vertices.txt";
@@ -180,8 +180,8 @@ bool stereo_slam::Graph::saveGraphToFile()
     double timestamp = odom_history_.at(i).second;
 
     g2o::VertexSE3* v = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
-    tf::Transform pose = stereo_slam::Tools::getVertexPose(v);
-    f_vertices <<  setprecision(19) << 
+    tf::Transform pose = slam::Tools::getVertexPose(v);
+    f_vertices << fixed << setprecision(9) << 
           timestamp  << "," << 
           i << "," << 
           timestamp << "," << 
@@ -211,8 +211,8 @@ bool stereo_slam::Graph::saveGraphToFile()
       {
         g2o::VertexSE3* v_0 = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[e->vertices()[0]->id()]);
         g2o::VertexSE3* v_1 = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[e->vertices()[1]->id()]);
-        tf::Transform pose_0 = stereo_slam::Tools::getVertexPose(v_0);
-        tf::Transform pose_1 = stereo_slam::Tools::getVertexPose(v_1);
+        tf::Transform pose_0 = slam::Tools::getVertexPose(v_0);
+        tf::Transform pose_1 = slam::Tools::getVertexPose(v_1);
 
         f_edges << counter << "," << 
               setprecision(6) << 
