@@ -63,3 +63,15 @@ target_link_libraries(slam
 					  ${SUITESPARSE_LIBRARIES}
 					  ${G2O_LIBRARIES}
 					  ${catkin_LIBRARIES})
+
+# Registration node
+add_executable(registration
+			   src/registration/node.cpp
+			   src/registration/base.cpp)
+target_link_libraries(registration
+					  ${eigen_LIBRARIES}
+					  ${libhaloc_LIBRARIES}
+					  ${OpenCV_LIBRARIES}
+					  ${SUITESPARSE_LIBRARIES}
+					  ${G2O_LIBRARIES}
+					  ${catkin_LIBRARIES})

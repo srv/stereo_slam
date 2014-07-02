@@ -23,8 +23,10 @@ using namespace std;
 
 typedef pcl::PointXYZRGB                  Point;
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloud;
+typedef pcl::PointNormal                  PointNormalT;
+typedef pcl::PointCloud<PointNormalT>     PointCloudWithNormals;
 
-namespace reconstruction
+namespace registration
 {
 
 class RegistrationBase
@@ -38,8 +40,6 @@ public:
 
   struct Params
   {
-    string work_dir;                  //!> Directory where pointcloud files will be saved.
-    int queue_size;                   //!> Size of the pointcloud queue
     double x_filter_min;              //!> Statistical filter
     double x_filter_max;
     double y_filter_min;
@@ -54,8 +54,6 @@ public:
 
     // Default settings
     Params () {
-      work_dir                = "";
-      queue_size              = 15;
       x_filter_min            = -2.0;
       x_filter_max            = 2.0;
       y_filter_min            = -2.0;
@@ -92,18 +90,28 @@ protected:
   // Protected functions and callbacks
   bool init();
   void readParameters();
-  void msgsCallback(  const nav_msgs::Odometry::ConstPtr& graph_msg,
-                      const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
+  void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
+                    const sensor_msgs::ImageConstPtr& l_img_msg,
+                    const sensor_msgs::ImageConstPtr& r_img_msg,
+                    const sensor_msgs::CameraInfoConstPtr& l_info_msg,
+                    const sensor_msgs::CameraInfoConstPtr& r_info_msg,
+                    const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
   void filter(PointCloud::Ptr cloud);
 
 private:
 
   // Topic properties
-  message_filters::Subscriber<nav_msgs::Odometry> graph_sub_;
+  image_transport::SubscriberFilter left_sub_, right_sub_;
+  message_filters::Subscriber<sensor_msgs::CameraInfo> left_info_sub_, right_info_sub_;
+  message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
   message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
 
   // Topic sync properties
   typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry,
+                                                    sensor_msgs::Image,
+                                                    sensor_msgs::Image,
+                                                    sensor_msgs::CameraInfo,
+                                                    sensor_msgs::CameraInfo,
                                                     sensor_msgs::PointCloud2> ExactPolicy;
   typedef message_filters::Synchronizer<ExactPolicy> ExactSync;
   boost::shared_ptr<ExactSync> exact_sync_;

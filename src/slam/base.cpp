@@ -37,8 +37,7 @@ void slam::SlamBase::finalize()
   * \param l_info left stereo info message of type sensor_msgs::CameraInfo
   * \param r_info right stereo info message of type sensor_msgs::CameraInfo
   */
-void slam::SlamBase::msgsCallback(
-                                  const nav_msgs::Odometry::ConstPtr& odom_msg,
+void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::ImageConstPtr& l_img_msg,
                                   const sensor_msgs::ImageConstPtr& r_img_msg,
                                   const sensor_msgs::CameraInfoConstPtr& l_info_msg,

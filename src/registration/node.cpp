@@ -4,7 +4,7 @@
  */
 
 #include <ros/ros.h>
-#include "reconstruction/registration_base.h"
+#include "registration/base.h"
 
 int main(int argc, char **argv)
 {
@@ -12,7 +12,7 @@ int main(int argc, char **argv)
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
 
-  reconstruction::RegistrationBase registration(nh,nh_private);
+  registration::RegistrationBase registration(nh,nh_private);
 
   ros::spin();
   return 0;
