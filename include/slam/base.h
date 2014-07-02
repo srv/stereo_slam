@@ -13,7 +13,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
-#include <message_filters/sync_policies/approximate_time.h>
+#include <message_filters/sync_policies/exact_time.h>
 #include <image_transport/subscriber_filter.h>
 #include <sensor_msgs/image_encodings.h>
 #include <libhaloc/lc.h>
@@ -42,7 +42,7 @@ public:
   struct Params
   {
     // Motion parameters
-    double min_displacement;         //!> Minimum odometry displacement between poses to be saved as graph vertices. 
+    double min_displacement;         //!> Minimum odometry displacement between poses to be saved as graph vertices.
 
     // Default settings
     Params () {
@@ -77,10 +77,10 @@ protected:
                       const sensor_msgs::ImageConstPtr& r_img_msg,
                       const sensor_msgs::CameraInfoConstPtr& l_info_msg,
                       const sensor_msgs::CameraInfoConstPtr& r_info_msg);
-  bool getImages( sensor_msgs::Image l_img_msg, 
-                  sensor_msgs::Image r_img_msg, 
-                  sensor_msgs::CameraInfo l_info_msg, 
-                  sensor_msgs::CameraInfo r_info_msg, 
+  bool getImages( sensor_msgs::Image l_img_msg,
+                  sensor_msgs::Image r_img_msg,
+                  sensor_msgs::CameraInfo l_info_msg,
+                  sensor_msgs::CameraInfo r_info_msg,
                   Mat &l_img, Mat &r_img);
 
 private:
@@ -91,13 +91,13 @@ private:
   message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
 
   // Topic sync properties
-  typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry, 
-                                                    sensor_msgs::Image, 
-                                                    sensor_msgs::Image, 
-                                                    sensor_msgs::CameraInfo, 
-                                                    sensor_msgs::CameraInfo> ApproximatePolicy;
-  typedef message_filters::Synchronizer<ApproximatePolicy> ApproximateSync;
-  boost::shared_ptr<ApproximateSync> approximate_sync_;
+  typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry,
+                                                    sensor_msgs::Image,
+                                                    sensor_msgs::Image,
+                                                    sensor_msgs::CameraInfo,
+                                                    sensor_msgs::CameraInfo> ExactPolicy;
+  typedef message_filters::Synchronizer<ExactPolicy> ExactSync;
+  boost::shared_ptr<ExactSync> exact_sync_;
 
   Params params_;                   //!> Stores parameters
   haloc::LoopClosure lc_;           //!> Loop closure object

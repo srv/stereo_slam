@@ -4,7 +4,7 @@
 #include <cv_bridge/cv_bridge.h>
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
-  * @return 
+  * @return
   * \param nh public node handler
   * \param nhp private node handler
   */
@@ -19,7 +19,7 @@ slam::SlamBase::SlamBase(
 }
 
 /** \brief Finalize stereo slam node
-  * @return 
+  * @return
   */
 void slam::SlamBase::finalize()
 {
@@ -30,7 +30,7 @@ void slam::SlamBase::finalize()
 
 /** \brief Messages callback. This function is called when synchronized odometry and image
   * message are received.
-  * @return 
+  * @return
   * \param odom_msg ros odometry message of type nav_msgs::Odometry
   * \param l_img left stereo image message of type sensor_msgs::Image
   * \param r_img right stereo image message of type sensor_msgs::Image
@@ -54,7 +54,7 @@ void slam::SlamBase::msgsCallback(
   // Correct current odometry with the graph information
   tf::Transform corrected_odom = pose_.correctOdom(current_odom, last_graph_pose, last_graph_odom);
 
-   // Check if difference between poses is larger than minimum displacement 
+   // Check if difference between poses is larger than minimum displacement
   double pose_diff = slam::Tools::poseDiff(last_graph_odom, current_odom);
   if (pose_diff <= params_.min_displacement && !first_iter_)
   {
@@ -177,13 +177,13 @@ bool slam::SlamBase::init()
   pose_.advertisePoseMsg(nh_private_);
 
   // Callback synchronization
-  approximate_sync_.reset(new ApproximateSync(ApproximatePolicy(10),
-                                  odom_sub_, 
-                                  left_sub_, 
-                                  right_sub_, 
-                                  left_info_sub_, 
+  exact_sync_.reset(new ExactSync(ExactPolicy(10),
+                                  odom_sub_,
+                                  left_sub_,
+                                  right_sub_,
+                                  left_info_sub_,
                                   right_info_sub_) );
-  approximate_sync_->registerCallback(boost::bind(
+  exact_sync_->registerCallback(boost::bind(
       &slam::SlamBase::msgsCallback,
       this, _1, _2, _3, _4, _5));
 
@@ -199,10 +199,10 @@ bool slam::SlamBase::init()
   * \param right scaled output image
   * @return true if all OK.
   */
-bool slam::SlamBase::getImages(sensor_msgs::Image l_img_msg, 
-                                            sensor_msgs::Image r_img_msg, 
-                                            sensor_msgs::CameraInfo l_info_msg, 
-                                            sensor_msgs::CameraInfo r_info_msg, 
+bool slam::SlamBase::getImages(sensor_msgs::Image l_img_msg,
+                                            sensor_msgs::Image r_img_msg,
+                                            sensor_msgs::CameraInfo l_info_msg,
+                                            sensor_msgs::CameraInfo r_info_msg,
                                             Mat &l_img, Mat &r_img)
 {
   // Convert message to Mat

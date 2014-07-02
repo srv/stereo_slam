@@ -3,8 +3,6 @@
 
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
-#include <opencv2/features2d/features2d.hpp>
-#include <opencv2/nonfree/nonfree.hpp>
 #include <g2o/types/slam3d/edge_se3.h>
 #include <image_geometry/stereo_camera_model.h>
 #include <nav_msgs/Odometry.h>
@@ -84,7 +82,7 @@ public:
       tf::Quaternion tf_q (qx, qy, qz, qw);
       tf::Transform odom(tf_q, tf_trans);
       return odom;
-    }    
+    }
   }
 
   /** \brief get the pose of vertex in format tf::Transform

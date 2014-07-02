@@ -56,8 +56,8 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
   rm_ax(ax_odom)
   rm_ax(ax_vertices)
 
-  # Load visual odometry data (saved with rostopic echo -p /stereo_odometer/odometry > file.txt)
-  if (gt_file != "" and os.path.exists(gt_file) and check_file_len(gt_file)):
+  # Ground truth
+  if (gt_file != "" and os.path.exists(gt_file) and check_file_len(gt_file) and gt_file != "none"):
 
     # Check gt file type
     f = open(gt_file)

@@ -1,16 +1,16 @@
 /**
  * @file
- * @brief Collector of pointclouds (presentation).
+ * @brief Pointcloud registration (presentation).
  */
 
-#ifndef COLLECTOR_BASE_H
-#define COLLECTOR_BASE_H
+#ifndef REGISTRATION_BASE_H
+#define REGISTRATION_BASE_H
 
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
-#include <message_filters/sync_policies/approximate_time.h>
+#include <message_filters/sync_policies/exact_time.h>
 #include <image_transport/subscriber_filter.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
@@ -27,38 +27,44 @@ typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloud;
 namespace reconstruction
 {
 
-class CollectorBase
+class RegistrationBase
 {
 
 public:
 
 	// Constructor
-  CollectorBase(ros::NodeHandle nh, ros::NodeHandle nhp);
+  RegistrationBase(ros::NodeHandle nh, ros::NodeHandle nhp);
 
 
   struct Params
   {
     string work_dir;                  //!> Directory where pointcloud files will be saved.
+    int queue_size;                   //!> Size of the pointcloud queue
     double x_filter_min;              //!> Statistical filter
     double x_filter_max;
     double y_filter_min;
     double y_filter_max;
     double z_filter_min;
     double z_filter_max;
-    double voxel_size;                //!> Voxel grid
+    double voxel_size_x;              //!> Voxel grid
+    double voxel_size_y;
+    double voxel_size_z;
     double radius_search;             //!> Remove isolated points
     int min_neighors_in_radius;
 
     // Default settings
     Params () {
       work_dir                = "";
+      queue_size              = 15;
       x_filter_min            = -2.0;
       x_filter_max            = 2.0;
       y_filter_min            = -2.0;
       y_filter_max            = 2.0;
       z_filter_min            = 0.2;
       z_filter_max            = 2.0;
-      voxel_size              = 0.01;
+      voxel_size_x            = 0.005;
+      voxel_size_y            = 0.005;
+      voxel_size_z            = 0.005;
       radius_search           = 0.2;
       min_neighors_in_radius  = 20;
     }
@@ -88,7 +94,7 @@ protected:
   void readParameters();
   void msgsCallback(  const nav_msgs::Odometry::ConstPtr& graph_msg,
                       const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
-  void filter(PointCloud& cloud);
+  void filter(PointCloud::Ptr cloud);
 
 private:
 
@@ -97,14 +103,14 @@ private:
   message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
 
   // Topic sync properties
-  typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry, 
-                                                    sensor_msgs::PointCloud2> ApproximatePolicy;
-  typedef message_filters::Synchronizer<ApproximatePolicy> ApproximateSync;
-  boost::shared_ptr<ApproximateSync> approximate_sync_;
+  typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry,
+                                                    sensor_msgs::PointCloud2> ExactPolicy;
+  typedef message_filters::Synchronizer<ExactPolicy> ExactSync;
+  boost::shared_ptr<ExactSync> exact_sync_;
 
   Params params_;                   //!> Stores parameters
 };
 
 } // namespace
 
-#endif // COLLECTOR_BASE_H
+#endif // REGISTRATION_BASE_H
