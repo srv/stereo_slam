@@ -48,7 +48,9 @@ include_directories(include
 					${libhaloc_INCLUDE_DIRS}
 					${OpenCV_INCLUDE_DIRS}
 					${SUITESPARSE_INCLUDE_DIRS}
-					${G2O_INCLUDE_DIRS})
+					${G2O_INCLUDE_DIRS}
+					${PCL_INCLUDE_DIRS}
+					/usr/include/vtk-5.8)
 
 # Slam node
 add_executable(slam
@@ -74,4 +76,5 @@ target_link_libraries(registration
 					  ${OpenCV_LIBRARIES}
 					  ${SUITESPARSE_LIBRARIES}
 					  ${G2O_LIBRARIES}
-					  ${catkin_LIBRARIES})
+					  ${catkin_LIBRARIES}
+					  libvtkCommon.so libvtkFiltering.so libvtkRendering.so)

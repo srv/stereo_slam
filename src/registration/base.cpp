@@ -4,6 +4,8 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/common/common.h>
+#include <pcl/visualization/pcl_visualizer.h>
 
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
@@ -38,6 +40,8 @@ void registration::RegistrationBase::msgsCallback(const nav_msgs::Odometry::Cons
                                                   const sensor_msgs::CameraInfoConstPtr& r_info_msg,
                                                   const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 {
+  if (!first_iter_) return;
+
   // Get the cloud
   PointCloud::Ptr pcl_cloud(new PointCloud);
   pcl::fromROSMsg(*cloud_msg, *pcl_cloud);
@@ -45,8 +49,16 @@ void registration::RegistrationBase::msgsCallback(const nav_msgs::Odometry::Cons
   // Filter the cloud
   filter(pcl_cloud);
 
+  Point min_pt, max_pt;
+  pcl::getMinMax3D(*pcl_cloud, min_pt, max_pt);
 
+  first_iter_ = false;
 
+  // draw the cloud and the box
+  pcl::visualization::PCLVisualizer viewer;
+  viewer.addPointCloud(pcl_cloud);
+  viewer.addCube(min_pt.x, max_pt.x, min_pt.y, max_pt.y, min_pt.z, max_pt.z);
+  viewer.spin();
 }
 
 /** \brief Reads the stereo slam node parameters
@@ -107,6 +119,8 @@ bool registration::RegistrationBase::init()
   exact_sync_->registerCallback(boost::bind(
       &registration::RegistrationBase::msgsCallback,
       this, _1, _2, _3, _4, _5, _6));
+
+  first_iter_ = true;
 
   return true;
 }

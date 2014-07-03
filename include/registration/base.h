@@ -117,6 +117,7 @@ private:
   boost::shared_ptr<ExactSync> exact_sync_;
 
   Params params_;                   //!> Stores parameters
+  bool first_iter_;
 };
 
 } // namespace
