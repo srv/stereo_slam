@@ -18,10 +18,13 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <tf/transform_broadcaster.h>
+
+//#include "polybool/polybool.h"
 
 using namespace std;
 
-typedef pcl::PointXYZRGB                  Point;
+//typedef pcl::PointXYZRGB                  Point;
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloud;
 typedef pcl::PointNormal                  PointNormalT;
 typedef pcl::PointCloud<PointNormalT>     PointCloudWithNormals;
@@ -68,6 +71,14 @@ public:
     }
   };
 
+  struct rectangle
+  {
+    pcl::PointXYZRGB corner_down_left;
+    pcl::PointXYZRGB corner_down_right; 
+    pcl::PointXYZRGB corner_up_right; 
+    pcl::PointXYZRGB corner_up_left;
+  };
+  rectangle last_rectangle;
   /**
    * @param params new parameters
    */
@@ -97,6 +108,9 @@ protected:
                     const sensor_msgs::CameraInfoConstPtr& r_info_msg,
                     const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
   void filter(PointCloud::Ptr cloud);
+  void compute_2D_vertex(pcl::PointXYZRGB minims, pcl::PointXYZRGB max, rectangle *r1);
+  double compute_Intersect_Area(rectangle current_rect, rectangle last_rect);
+  
 
 private:
 
@@ -118,6 +132,8 @@ private:
 
   Params params_;                   //!> Stores parameters
   bool first_iter_;
+  tf::Transform last_odom;
+  
 };
 
 } // namespace

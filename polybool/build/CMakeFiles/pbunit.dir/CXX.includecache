@@ -1,0 +1,28 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/user/polybool/pbdefs.h
+
+/home/user/polybool/pbgeom.h
+pbdefs.h
+/home/user/polybool/pbdefs.h
+iso646.h
+-
+
+/home/user/polybool/pbunit.cpp
+stdlib.h
+-
+polybool.h
+/home/user/polybool/polybool.h
+
+/home/user/polybool/polybool.h
+pbdefs.h
+/home/user/polybool/pbdefs.h
+pbgeom.h
+/home/user/polybool/pbgeom.h
+

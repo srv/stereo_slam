@@ -1,0 +1,2 @@
+/usr/bin/ar cr libpolybool.a  CMakeFiles/polybool.dir/pbgeom.cpp.o CMakeFiles/polybool.dir/pbio.cpp.o CMakeFiles/polybool.dir/pbpolys.cpp.o CMakeFiles/polybool.dir/pbsweep.cpp.o CMakeFiles/polybool.dir/pbunit.cpp.o CMakeFiles/polybool.dir/polybool.cpp.o CMakeFiles/polybool.dir/triacons.cpp.o CMakeFiles/polybool.dir/triamono.cpp.o
+/usr/bin/ranlib libpolybool.a
