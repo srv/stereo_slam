@@ -51,8 +51,18 @@ include_directories(include
 					${G2O_INCLUDE_DIRS}
 					${PCL_INCLUDE_DIRS}
 					/usr/include/vtk-5.8)
+# generate the polybool lib. 
+add_library(polybool 
+polybool/pbgeom.cpp 
+polybool/pbio.cpp 
+polybool/pbpolys.cpp 
+polybool/pbsweep.cpp 
+polybool/pbunit.cpp 
+polybool/polybool.cpp 
+polybool/triacons.cpp 
+polybool/triamono.cpp)
 
-# Slam node
+# Slam node, include the link of the polybool lib. into the slam executable
 add_executable(slam
 			   src/slam/node.cpp
 			   src/slam/base.cpp
@@ -77,4 +87,5 @@ target_link_libraries(registration
 					  ${SUITESPARSE_LIBRARIES}
 					  ${G2O_LIBRARIES}
 					  ${catkin_LIBRARIES}
+ 					  polybool
 					  libvtkCommon.so libvtkFiltering.so libvtkRendering.so)

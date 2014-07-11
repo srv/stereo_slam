@@ -7,7 +7,7 @@
 #include <pcl/common/common.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <stdlib.h>
-#include "polybool/polybool.h"
+#include "../polybool/polybool.h"
 #include <common/tools.h>
 
 using namespace POLYBOOLEAN; 
