@@ -1,7 +1,8 @@
 #include "slam/base.h"
-#include "common/tools.h"
 #include "opencv2/core/core.hpp"
-#include <cv_bridge/cv_bridge.h>
+#include <boost/filesystem.hpp>
+
+namespace fs=boost::filesystem;
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
   * @return
@@ -36,6 +37,32 @@ void slam::SlamBase::finalize()
   * \param r_img right stereo image message of type sensor_msgs::Image
   * \param l_info left stereo info message of type sensor_msgs::CameraInfo
   * \param r_info right stereo info message of type sensor_msgs::CameraInfo
+  * \param cloud_msg ros pointcloud message of type sensor_msgs::PointCloud2
+  */
+void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
+                                  const sensor_msgs::ImageConstPtr& l_img_msg,
+                                  const sensor_msgs::ImageConstPtr& r_img_msg,
+                                  const sensor_msgs::CameraInfoConstPtr& l_info_msg,
+                                  const sensor_msgs::CameraInfoConstPtr& r_info_msg,
+                                  const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
+{
+  // Get the cloud
+  PointCloud::Ptr pcl_cloud(new PointCloud);
+  pcl::fromROSMsg(*cloud_msg, *pcl_cloud);
+  pcl::copyPointCloud(*pcl_cloud, pcl_cloud_);
+
+  // Call the general slam callback
+  msgsCallback(odom_msg, l_img_msg, r_img_msg, l_info_msg, r_info_msg);
+}
+
+/** \brief Messages callback. This function is called when synchronized odometry and image
+  * message are received.
+  * @return
+  * \param odom_msg ros odometry message of type nav_msgs::Odometry
+  * \param l_img left stereo image message of type sensor_msgs::Image
+  * \param r_img right stereo image message of type sensor_msgs::Image
+  * \param l_info left stereo info message of type sensor_msgs::CameraInfo
+  * \param r_info right stereo info message of type sensor_msgs::CameraInfo
   */
 void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::ImageConstPtr& l_img_msg,
@@ -43,50 +70,104 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::CameraInfoConstPtr& l_info_msg,
                                   const sensor_msgs::CameraInfoConstPtr& r_info_msg)
 {
-  // Get the current odometry for these images
-  tf::Transform current_odom = slam::Tools::odomTotf(*odom_msg);
+  // Get the messages
+  Mat l_img, r_img;
+  Tools::imgMsgToMat(*l_img_msg, *r_img_msg, l_img, r_img);
+  double timestamp = odom_msg->header.stamp.toSec();
+  tf::Transform current_odom = Tools::odomTotf(*odom_msg);
 
-  // Get the latest poses of the graph (if any)
-  tf::Transform last_graph_pose, last_graph_odom;
-  graph_.getLastPoses(current_odom, last_graph_pose, last_graph_odom);
+  // Initialization
+  if (first_iter_)
+  {
+    // Set the camera model (only once)
+    Mat camera_matrix;
+    image_geometry::StereoCameraModel stereo_camera_model;
+    Tools::getCameraModel(*l_info_msg, *r_info_msg, stereo_camera_model, camera_matrix);
+    lc_.setCameraModel(stereo_camera_model, camera_matrix);
+
+    // Save the first node
+    int cur_id = graph_.addVertice(current_odom, current_odom, timestamp);
+    string lc_ref = boost::lexical_cast<string>(cur_id);
+    lc_.setNode(l_img, r_img, lc_ref);
+
+    // Publish and exit
+    pose_.publish(*odom_msg, current_odom, true);
+    first_iter_ = false;
+    return;
+  }
 
   // Correct current odometry with the graph information
+  tf::Transform last_graph_pose, last_graph_odom;
+  graph_.getLastPoses(current_odom, last_graph_pose, last_graph_odom);
   tf::Transform corrected_odom = pose_.correctOdom(current_odom, last_graph_pose, last_graph_odom);
 
    // Check if difference between poses is larger than minimum displacement
-  double pose_diff = slam::Tools::poseDiff(last_graph_odom, current_odom);
-  if (pose_diff <= params_.min_displacement && !first_iter_)
+  double pose_diff = Tools::poseDiff(last_graph_odom, current_odom);
+  if (pose_diff <= params_.min_displacement)
   {
-    // Publish and exit
-    pose_.publish(*odom_msg, corrected_odom, false);
+    pose_.publish(*odom_msg, corrected_odom);
     return;
   }
 
   // Insert this new node into the graph
-  int cur_id = graph_.addVertice(current_odom, corrected_odom, odom_msg->header.stamp.toSec());
+  int cur_id = graph_.addVertice(current_odom, corrected_odom, timestamp);
+  string lc_ref = boost::lexical_cast<string>(cur_id);
+  lc_.setNode(l_img, r_img, lc_ref);
+  ROS_INFO_STREAM("[StereoSlam:] New node inserted with id " << cur_id << ".");
 
-  // Get the images from message
-  Mat l_img, r_img;
-  getImages(*l_img_msg, *r_img_msg, *l_info_msg, *r_info_msg, l_img, r_img);
-
-  // Detect loop closure
-  int img_lc = -1;
-  string lc_id = "";
-  tf::Transform edge;
-  lc_.setNode(l_img, r_img, boost::lexical_cast<string>(cur_id));
-  if (!lc_.getLoopClosure(img_lc, lc_id, edge))
+  // Save the pointcloud for this new node
+  if (params_.save_clouds && pcl_cloud_.size() > 0)
   {
-    // No loop closures, publish the corrected pose and exit
-    ROS_INFO_STREAM("[StereoSlam:] New node inserted with id " << cur_id << " (no closes loop).");
-    pose_.publish(*odom_msg, corrected_odom, true);
-    graph_.saveGraphToFile();
-    return;
+    // The file name will be the timestamp
+    stringstream s;
+    s << fixed << setprecision(9) << timestamp;
+    string filename = s.str();
+    filename.erase(std::remove(filename.begin(), filename.end(), '.'), filename.end());
+    pcl::io::savePCDFileBinary(params_.clouds_dir + filename + ".pcd", pcl_cloud_);
   }
 
-  // Insert the new loop closure into the graph and update
-  ROS_INFO_STREAM("[StereoSlam:] New node inserted with id " << cur_id << " closes loop with " << lc_id);
-  graph_.addEdge(boost::lexical_cast<int>(lc_id), cur_id, edge);
-  graph_.update();
+  // Correct the position of this new node by closing the loop with the previous one
+  tf::Transform node_movement;
+  string lc_prev = boost::lexical_cast<string>(cur_id - 1);
+  bool valid_movement = lc_.getLoopClosureById(lc_ref, lc_prev, node_movement);
+  if (valid_movement)
+  {
+    ROS_INFO_STREAM("[StereoSlam:] Updating node pose with the loop closure information.");
+    tf::Transform new_estimate = last_graph_pose*node_movement.inverse();
+    graph_.setVerticeEstimate(cur_id, new_estimate);
+  }
+
+  // Detect loop closures between nodes by distance
+  bool any_loop_closure = false;
+  vector<int> neighbors;
+  graph_.findClosestNodes(20, 3, neighbors);
+  for (uint i=0; i<neighbors.size(); i++)
+  {
+    tf::Transform edge;
+    string lc_id = boost::lexical_cast<string>(neighbors[i]);
+    bool valid_lc = lc_.getLoopClosureById(lc_ref, lc_id, edge);
+    if (valid_lc)
+    {
+      ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id);
+      graph_.addEdge(boost::lexical_cast<int>(lc_id), cur_id, edge);
+      any_loop_closure = true;
+      break;
+    }
+  }
+
+  // Detect loop closures between nodes using hashes
+  string lc_id = "";
+  tf::Transform edge;
+  bool valid_lc = lc_.getLoopClosure(lc_id, edge);
+  if (valid_lc)
+  {
+    ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id);
+    graph_.addEdge(boost::lexical_cast<int>(lc_id), cur_id, edge);
+    any_loop_closure = true;
+  }
+
+  // Update the graph if any loop closing
+  if (any_loop_closure) graph_.update();
 
   // Publish the corrected pose
   graph_.getLastPoses(current_odom, last_graph_pose, last_graph_odom);
@@ -95,6 +176,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
 
   // Save graph to file
   graph_.saveGraphToFile();
+
   return;
 }
 
@@ -104,7 +186,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   */
 void slam::SlamBase::readParameters()
 {
-  Params slam_params;
+  Params params;
   slam::Pose::Params pose_params;
   slam::Graph::Params graph_params;
   haloc::LoopClosure::Params lc_params;
@@ -118,54 +200,65 @@ void slam::SlamBase::readParameters()
   if (work_dir[work_dir.length()-1] != '/')
     work_dir += "/";
   lc_params.work_dir = work_dir;
+  params.clouds_dir = work_dir + "clouds/";
+  if (fs::is_directory(params.clouds_dir))
+    fs::remove_all(params.clouds_dir);
+  fs::path dir(params.clouds_dir);
+  if (!fs::create_directory(dir))
+    ROS_ERROR("[StereoSlam:] ERROR -> Impossible to create the clouds directory.");
 
   // Topic parameters
-  string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic;
-  nh_private_.param("pose_frame_id", pose_params.pose_frame_id, string("/map"));
-  nh_private_.param("pose_child_frame_id", pose_params.pose_child_frame_id, string("/robot"));
-  nh_private_.param("odom_topic", odom_topic, string("/odometry"));
-  nh_private_.param("left_topic", left_topic, string("/left/image_rect_color"));
-  nh_private_.param("right_topic", right_topic, string("/right/image_rect_color"));
-  nh_private_.param("left_info_topic", left_info_topic, string("/left/camera_info"));
-  nh_private_.param("right_info_topic", right_info_topic, string("/right/camera_info"));
+  string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic, cloud_topic;
+  nh_private_.param("pose_frame_id",        pose_params.pose_frame_id,        string("/map"));
+  nh_private_.param("pose_child_frame_id",  pose_params.pose_child_frame_id,  string("/robot"));
+  nh_private_.param("odom_topic",           odom_topic,                       string("/odometry"));
+  nh_private_.param("left_topic",           left_topic,                       string("/left/image_rect_color"));
+  nh_private_.param("right_topic",          right_topic,                      string("/right/image_rect_color"));
+  nh_private_.param("left_info_topic",      left_info_topic,                  string("/left/camera_info"));
+  nh_private_.param("right_info_topic",     right_info_topic,                 string("/right/camera_info"));
+  nh_private_.param("cloud_topic",          cloud_topic,                      string("/points2"));
 
   // Motion parameters
-  nh_private_.getParam("min_displacement", slam_params.min_displacement);
+  nh_private_.param("save_clouds",  params.save_clouds, false);
+  nh_private_.getParam("min_displacement",  params.min_displacement);
 
   // Loop closure parameters
-  nh_private_.param("desc_type", lc_params.desc_type, string("SIFT"));
-  nh_private_.getParam("desc_thresh", lc_params.desc_thresh);
-  nh_private_.getParam("min_neighbour", lc_params.min_neighbour);
-  nh_private_.getParam("n_candidates", lc_params.n_candidates);
-  nh_private_.getParam("min_matches", lc_params.min_matches);
-  nh_private_.getParam("min_inliers", lc_params.min_inliers);
+  nh_private_.param("desc_type",            lc_params.desc_type,              string("SIFT"));
+  nh_private_.getParam("desc_thresh",       lc_params.desc_thresh);
+  nh_private_.getParam("min_neighbour",     lc_params.min_neighbour);
+  nh_private_.getParam("n_candidates",      lc_params.n_candidates);
+  nh_private_.getParam("min_matches",       lc_params.min_matches);
+  nh_private_.getParam("min_inliers",       lc_params.min_inliers);
 
   // G2O parameters
-  nh_private_.getParam("g2o_algorithm", graph_params.g2o_algorithm);
-  nh_private_.getParam("g2o_opt_max_iter", graph_params.go2_opt_max_iter);
+  nh_private_.getParam("g2o_algorithm",     graph_params.g2o_algorithm);
+  nh_private_.getParam("g2o_opt_max_iter",  graph_params.go2_opt_max_iter);
   graph_params.save_dir = lc_params.work_dir;
   graph_params.pose_frame_id = pose_params.pose_frame_id;
   graph_params.pose_child_frame_id = pose_params.pose_child_frame_id;
 
   // Set the class parameters
-  setParams(slam_params);
+  setParams(params);
   pose_.setParams(pose_params);
   graph_.setParams(graph_params);
   lc_.setParams(lc_params);
 
   // Topics subscriptions
   image_transport::ImageTransport it(nh_);
-  odom_sub_ .subscribe(nh_, odom_topic, 1);
-  left_sub_ .subscribe(it, left_topic, 1);
-  right_sub_.subscribe(it, right_topic, 1);
-  left_info_sub_.subscribe(nh_, left_info_topic, 1);
-  right_info_sub_.subscribe(nh_, right_info_topic, 1);
+  odom_sub_       .subscribe(nh_, odom_topic,       1);
+  left_sub_       .subscribe(it,  left_topic,       1);
+  right_sub_      .subscribe(it,  right_topic,      1);
+  left_info_sub_  .subscribe(nh_, left_info_topic,  1);
+  right_info_sub_ .subscribe(nh_, right_info_topic, 1);
+
+  if (params_.save_clouds)
+    cloud_sub_    .subscribe(nh_, cloud_topic,      1);
 }
 
 /** \brief Initializes the stereo slam node
   * @return true if init OK
   */
-bool slam::SlamBase::init()
+void slam::SlamBase::init()
 {
   first_iter_ = true;
 
@@ -176,71 +269,30 @@ bool slam::SlamBase::init()
   pose_.advertisePoseMsg(nh_private_);
 
   // Callback synchronization
-  exact_sync_.reset(new ExactSync(ExactPolicy(10),
-                                  odom_sub_,
-                                  left_sub_,
-                                  right_sub_,
-                                  left_info_sub_,
-                                  right_info_sub_) );
-  exact_sync_->registerCallback(boost::bind(
-      &slam::SlamBase::msgsCallback,
-      this, _1, _2, _3, _4, _5));
-
-  return true;
-}
-
-/** \brief Get the images from the ros messages and scale it
-  * \param l_img left stereo image message of type sensor_msgs::Image
-  * \param r_img right stereo image message of type sensor_msgs::Image
-  * \param l_info left stereo info message of type sensor_msgs::CameraInfo
-  * \param r_info right stereo info message of type sensor_msgs::CameraInfo
-  * \param left scaled output image
-  * \param right scaled output image
-  * @return true if all OK.
-  */
-bool slam::SlamBase::getImages(sensor_msgs::Image l_img_msg,
-                                            sensor_msgs::Image r_img_msg,
-                                            sensor_msgs::CameraInfo l_info_msg,
-                                            sensor_msgs::CameraInfo r_info_msg,
-                                            Mat &l_img, Mat &r_img)
-{
-  // Convert message to Mat
-  try
+  if (params_.save_clouds)
   {
-    l_img = (cv_bridge::toCvCopy(l_img_msg, enc::BGR8))->image;
-    r_img = (cv_bridge::toCvCopy(r_img_msg, enc::BGR8))->image;
+    exact_sync_cloud_.reset(new ExactSyncCloud(ExactPolicyCloud(1),
+                                    odom_sub_,
+                                    left_sub_,
+                                    right_sub_,
+                                    left_info_sub_,
+                                    right_info_sub_,
+                                    cloud_sub_) );
+    exact_sync_cloud_->registerCallback(boost::bind(
+        &slam::SlamBase::msgsCallback,
+        this, _1, _2, _3, _4, _5, _6));
   }
-  catch (cv_bridge::Exception& e)
+  else
   {
-    ROS_ERROR("[StereoSlam:] cv_bridge exception: %s", e.what());
-    return false;
+    exact_sync_no_cloud_.reset(new ExactSyncNoCloud(ExactPolicyNoCloud(1),
+                                    odom_sub_,
+                                    left_sub_,
+                                    right_sub_,
+                                    left_info_sub_,
+                                    right_info_sub_) );
+    exact_sync_no_cloud_->registerCallback(boost::bind(
+        &slam::SlamBase::msgsCallback,
+        this, _1, _2, _3, _4, _5));
   }
 
-  // Set camera model (only once)
-  if (first_iter_)
-  {
-    // Get the stereo camera model
-    image_geometry::StereoCameraModel stereo_camera_model;
-    stereo_camera_model.fromCameraInfo(l_info_msg, r_info_msg);
-
-    // Get the projection/camera matrix
-    const Mat P(3,4, CV_64FC1, const_cast<double*>(l_info_msg.P.data()));
-    Mat camera_matrix = P.colRange(Range(0,3)).clone();
-
-    // Are the images scaled?
-    int binning_x = l_info_msg.binning_x;
-    int binning_y = l_info_msg.binning_y;
-    if (binning_x > 1 || binning_y > 1)
-    {
-      camera_matrix.at<double>(0,0) = camera_matrix.at<double>(0,0) / binning_x;
-      camera_matrix.at<double>(0,2) = camera_matrix.at<double>(0,2) / binning_x;
-      camera_matrix.at<double>(1,1) = camera_matrix.at<double>(1,1) / binning_y;
-      camera_matrix.at<double>(1,2) = camera_matrix.at<double>(1,2) / binning_y;
-    }
-
-    // Set all for the loop closure class
-    lc_.setCameraModel(stereo_camera_model, camera_matrix);
-    first_iter_ = false;
-  }
-  return true;
 }

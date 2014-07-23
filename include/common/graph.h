@@ -15,8 +15,10 @@
 #include <g2o/types/slam3d/edge_se3.h>
 #include <g2o/core/optimization_algorithm_levenberg.h>
 #include <g2o/solvers/dense/linear_solver_dense.h>
+#include "common/tools.h"
 
 using namespace std;
+using namespace tools;
 
 typedef g2o::BlockSolver< g2o::BlockSolverTraits<-1, -1> >  SlamBlockSolver;
 typedef g2o::LinearSolverCholmod<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
@@ -65,14 +67,23 @@ public:
   inline Params params() const { return params_; }
 
   // Get the last pose of the graph (corrected graph pose and original odometry)
-  void getLastPoses(tf::Transform current_odom, 
-                    tf::Transform &last_graph_pose, 
+  void getLastPoses(tf::Transform current_odom,
+                    tf::Transform &last_graph_pose,
                     tf::Transform &last_graph_odom);
 
+  // Get the best neighbors by distance
+  void findClosestNodes(int discart_first_n,
+                        int best_n,
+                        vector<int> &neighbors);
+
   // Add a vertice to the graph
-  int addVertice(tf::Transform current_odom, 
-                 tf::Transform corrected_odom,
+  int addVertice(tf::Transform pose_corrected);
+  int addVertice(tf::Transform pose,
+                 tf::Transform pose_corrected,
                  double timestamp);
+
+  // Sets the vertice estimate
+  void setVerticeEstimate(int vertice_id, tf::Transform pose);
 
   // Add an edge to the graph
   void addEdge(int i, int j, tf::Transform edge);
@@ -90,10 +101,11 @@ protected:
 private:
 
 	// Pose properties
-  vector< pair<tf::Transform,double > > odom_history_;  //!> Vector to save the odometry history
+  vector< pair<tf::Transform,double> >
+    odom_history_;  //!> Vector to save the odometry history
 
   // G2O Optimization
-  g2o::SparseOptimizer 
+  g2o::SparseOptimizer
   	graph_optimizer_;								//!> G2O graph optimizer
 
   // Stores parameters

@@ -83,7 +83,7 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
 
     # Read the data
     data = pylab.loadtxt(odom_file, delimiter=',', skiprows=1, usecols=(5,6,7,8,9,10,11))
-    
+
     # Plot
     if (len(data.shape) == 1):
       data = np.array([data])
@@ -101,7 +101,7 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
 
     # Read the data
     data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(0,5,6,7,8,9,10,11))
-    
+
     # Plot
     if (len(data.shape) == 1):
       data = np.array([data])
@@ -139,7 +139,7 @@ def draw_edges():
       time.sleep(0.5)
 
     # Read the data
-    data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(1,2,3,4,5,6))
+    data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(2,3,4,9,10,11))
 
     # Plot current
     if (len(data.shape) == 1):
@@ -167,14 +167,14 @@ def remove_edges():
     wl = weakref.ref(l)
     l.remove()
     del l
-    
+
   ax_edges = []
   edges_shown = False
 
 def onclick(event):
   """ Handle the click event """
   global edges_shown
- 
+
   if (event.button == 3):
     if (edges_shown):
       remove_edges()
@@ -188,13 +188,13 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(
           description='Plot 3D graphics of odometry data files in real time.',
           formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-  parser.add_argument('ground_truth_file', 
+  parser.add_argument('ground_truth_file',
           help='file with ground truth')
-  parser.add_argument('visual_odometry_file', 
+  parser.add_argument('visual_odometry_file',
           help='file with visual odometry')
-  parser.add_argument('graph_vertices_file', 
+  parser.add_argument('graph_vertices_file',
           help='file the vertices of stereo slam')
-  parser.add_argument('graph_edges_file', 
+  parser.add_argument('graph_edges_file',
           help='file the edges of stereo slam')
   parser.add_argument('-dim','--dim', type=int,
             help='defines the plot dimensions: 2 for xy and 3 for xyz',
@@ -236,8 +236,8 @@ if __name__ == "__main__":
   timer = fig.canvas.new_timer(2500)
   real_time_plot(args.ground_truth_file, args.visual_odometry_file, args.graph_vertices_file)
   timer.add_callback( real_time_plot,
-                      args.ground_truth_file, 
-                      args.visual_odometry_file, 
+                      args.ground_truth_file,
+                      args.visual_odometry_file,
                       args.graph_vertices_file)
   timer.start()
   pylab.show()

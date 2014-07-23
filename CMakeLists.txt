@@ -49,25 +49,14 @@ include_directories(include
 					${OpenCV_INCLUDE_DIRS}
 					${SUITESPARSE_INCLUDE_DIRS}
 					${G2O_INCLUDE_DIRS}
-					${PCL_INCLUDE_DIRS}
-					/usr/include/vtk-5.8)
-# generate the polybool lib. 
-add_library(polybool 
-polybool/pbgeom.cpp 
-polybool/pbio.cpp 
-polybool/pbpolys.cpp 
-polybool/pbsweep.cpp 
-polybool/pbunit.cpp 
-polybool/polybool.cpp 
-polybool/triacons.cpp 
-polybool/triamono.cpp)
+					${PCL_INCLUDE_DIRS})
 
-# Slam node, include the link of the polybool lib. into the slam executable
+# Slam node
 add_executable(slam
 			   src/slam/node.cpp
 			   src/slam/base.cpp
 			   src/common/graph.cpp
-			   src/slam/pose.cpp)
+			   src/common/pose.cpp)
 target_link_libraries(slam
 					  ${eigen_LIBRARIES}
 					  ${libhaloc_LIBRARIES}
@@ -75,17 +64,3 @@ target_link_libraries(slam
 					  ${SUITESPARSE_LIBRARIES}
 					  ${G2O_LIBRARIES}
 					  ${catkin_LIBRARIES})
-
-# Registration node
-add_executable(registration
-			   src/registration/node.cpp
-			   src/registration/base.cpp)
-target_link_libraries(registration
-					  ${eigen_LIBRARIES}
-					  ${libhaloc_LIBRARIES}
-					  ${OpenCV_LIBRARIES}
-					  ${SUITESPARSE_LIBRARIES}
-					  ${G2O_LIBRARIES}
-					  ${catkin_LIBRARIES}
- 					  polybool
-					  libvtkCommon.so libvtkFiltering.so libvtkRendering.so)
