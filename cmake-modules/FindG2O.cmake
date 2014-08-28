@@ -1,8 +1,8 @@
 # Locate the g2o libraries
-# A general framework for graph optimization. 
+# A general framework for graph optimization.
 #
 # This module defines
-# G2O_FOUND, if false, do not try to link against g2o 
+# G2O_FOUND, if false, do not try to link against g2o
 # G2O_LIBRARIES, path to the libg2o
 # G2O_INCLUDE_DIR, where to find the g2o header files
 #
@@ -18,7 +18,7 @@ IF(UNIX)
   MESSAGE(STATUS "Searching for g2o ...")
 
   FIND_PATH(G2O_INCLUDE_DIR
-    NAMES core math_groups types  
+    NAMES core math_groups types
     PATHS
     /usr/local
     /usr
@@ -28,32 +28,32 @@ IF(UNIX)
     MESSAGE(STATUS "Found g2o headers in: ${G2O_INCLUDE_DIR}")
   ENDIF (G2O_INCLUDE_DIR)
 
-  FIND_LIBRARY(G2O_CORE_LIBRARIES 
-    NAMES g2o_core    
+  FIND_LIBRARY(G2O_CORE_LIBRARIES
+    NAMES g2o_core
     PATHS
     /usr/local
     /usr
     PATH_SUFFIXES lib
   )
 
-  FIND_LIBRARY(G2O_CLI_LIBRARIES 
-    NAMES g2o_cli 
+  FIND_LIBRARY(G2O_CLI_LIBRARIES
+    NAMES g2o_cli
     PATHS
     /usr/local
     /usr
     PATH_SUFFIXES lib
   )
 
-  FIND_LIBRARY(G2O_INCREMENTAL 
-    NAMES g2o_incremental 
+  FIND_LIBRARY(G2O_INCREMENTAL
+    NAMES g2o_incremental
     PATHS
     /usr/local
     /usr
     PATH_SUFFIXES lib
   )
 
-  FIND_LIBRARY(G2O_INTERACTIVE 
-    NAMES g2o_interactive 
+  FIND_LIBRARY(G2O_INTERACTIVE
+    NAMES g2o_interactive
     PATHS
     /usr/local
     /usr
@@ -61,7 +61,7 @@ IF(UNIX)
   )
 
   FIND_LIBRARY(G2O_INTERFACE
-    NAMES g2o_interface 
+    NAMES g2o_interface
     PATHS
     /usr/local
     /usr
@@ -69,7 +69,7 @@ IF(UNIX)
   )
 
   FIND_LIBRARY(G2O_PARSER
-    NAMES g2o_parser 
+    NAMES g2o_parser
     PATHS
     /usr/local
     /usr
@@ -77,7 +77,7 @@ IF(UNIX)
   )
 
   FIND_LIBRARY(G2O_SOLVER_CHOLMOD
-    NAMES g2o_solver_cholmod 
+    NAMES g2o_solver_cholmod
     PATHS
     /usr/local
     /usr
@@ -85,7 +85,7 @@ IF(UNIX)
   )
 
   FIND_LIBRARY(G2O_SOLVER_DENSE
-    NAMES g2o_solver_dense 
+    NAMES g2o_solver_dense
     PATHS
     /usr/local
     /usr
@@ -93,7 +93,7 @@ IF(UNIX)
   )
 
   FIND_LIBRARY(G2O_SOLVER_PCG
-    NAMES g2o_solver_pcg 
+    NAMES g2o_solver_pcg
     PATHS
     /usr/local
     /usr
@@ -101,22 +101,22 @@ IF(UNIX)
   )
 
   FIND_LIBRARY(G2O_STUFF
-    NAMES g2o_stuff 
+    NAMES g2o_stuff
     PATHS
     /usr/local
     /usr
     PATH_SUFFIXES lib
   )
 
-  FIND_LIBRARY(G2O_SLAM2D_LIBRARIES 
+  FIND_LIBRARY(G2O_SLAM2D_LIBRARIES
     NAMES g2o_types_slam2d
     PATHS
     /usr/local
     /usr
     PATH_SUFFIXES lib
   )
-  
-  FIND_LIBRARY(G2O_SLAM3D_LIBRARIES 
+
+  FIND_LIBRARY(G2O_SLAM3D_LIBRARIES
     NAMES g2o_types_slam3d
     PATHS
     /usr/local
@@ -178,9 +178,9 @@ IF(UNIX)
     /usr/local
     /usr
     PATH_SUFFIXES lib
-  )  
+  )
 
-  SET(G2O_LIBRARIES ${G2O_CORE_LIBRARIES} 
+  SET(G2O_LIBRARIES ${G2O_CORE_LIBRARIES}
                     ${G2O_CLI_LIBRARIES}
                     ${G2O_INCREMENTAL}
                     ${G2O_INTERACTIVE}
@@ -190,7 +190,7 @@ IF(UNIX)
                     ${G2O_SOLVER_DENSE}
                     ${G2O_SOLVER_PCG}
                     ${G2O_STUFF}
-                    ${G2O_SLAM2D_LIBRARIES} 
+                    ${G2O_SLAM2D_LIBRARIES}
                     ${G2O_SLAM3D_LIBRARIES}
                     ${G2O_SOLVER_CSPARSE}
                     ${G2O_CSPARSE_EXTENSION}
@@ -199,7 +199,7 @@ IF(UNIX)
                     ${G2O_TYPES_SIM3}
                     ${G2O_TYPES_SLAM2D}
                     ${G2O_TYPES_SLAM3D})
- 
+
   IF(G2O_LIBRARIES AND G2O_INCLUDE_DIR)
     SET(G2O_FOUND "YES")
     IF(NOT G2O_FIND_QUIETLY)

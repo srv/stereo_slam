@@ -156,13 +156,14 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   }
 
   // Detect loop closures between nodes using hashes
-  string lc_id = "";
+  int lc_id_num = -1;
+  string lc_id_name = "";
   tf::Transform edge;
-  bool valid_lc = lc_.getLoopClosure(lc_id, edge);
+  bool valid_lc = lc_.getLoopClosure(lc_id_num, lc_id_name, edge);
   if (valid_lc)
   {
-    ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id);
-    graph_.addEdge(boost::lexical_cast<int>(lc_id), cur_id, edge);
+    ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id_name);
+    graph_.addEdge(boost::lexical_cast<int>(lc_id_name), cur_id, edge);
     any_loop_closure = true;
   }
 

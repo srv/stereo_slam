@@ -13,7 +13,8 @@ find_package(catkin REQUIRED COMPONENTS
 	cv_bridge
 	image_geometry
 	std_srvs
-	pcl_ros)
+	pcl_ros
+    cmake_modules)
 
 ####################################################
 # Dependencies:
@@ -43,24 +44,25 @@ find_package(G2O REQUIRED)
 catkin_package()
 
 include_directories(include
-					${catkin_INCLUDE_DIRS}
-					${Eigen_INCLUDE_DIRS}
-					${libhaloc_INCLUDE_DIRS}
-					${OpenCV_INCLUDE_DIRS}
-					${SUITESPARSE_INCLUDE_DIRS}
-					${G2O_INCLUDE_DIRS}
-					${PCL_INCLUDE_DIRS})
+		    ${catkin_INCLUDE_DIRS}
+		    ${Eigen_INCLUDE_DIRS}
+		    ${libhaloc_INCLUDE_DIRS}
+		    ${OpenCV_INCLUDE_DIRS}
+		    ${SUITESPARSE_INCLUDE_DIRS}
+		    ${G2O_INCLUDE_DIRS}
+		    ${PCL_INCLUDE_DIRS})
 
 # Slam node
 add_executable(slam
-			   src/slam/node.cpp
-			   src/slam/base.cpp
-			   src/common/graph.cpp
-			   src/common/pose.cpp)
+	       src/slam/node.cpp
+	       src/slam/base.cpp
+	       src/common/graph.cpp
+	       src/common/pose.cpp)
 target_link_libraries(slam
-					  ${eigen_LIBRARIES}
-					  ${libhaloc_LIBRARIES}
-					  ${OpenCV_LIBRARIES}
-					  ${SUITESPARSE_LIBRARIES}
-					  ${G2O_LIBRARIES}
-					  ${catkin_LIBRARIES})
+	          ${eigen_LIBRARIES}
+		      ${libhaloc_LIBRARIES}
+		      ${OpenCV_LIBRARIES}
+		      ${SUITESPARSE_LIBRARIES}
+		      ${G2O_LIBRARIES}
+		      cholmod
+		      ${catkin_LIBRARIES})
