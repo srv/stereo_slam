@@ -12,7 +12,7 @@
 
 using namespace std;
 
-namespace stereo_slam
+namespace slam
 {
 
 class Pose
@@ -48,22 +48,23 @@ public:
    */
   inline Params params() const { return params_; }
 
-  // Advertices the pose message
-  void adverticePoseMsg(ros::NodeHandle nh);
+  // Advertises the pose message
+  void advertisePoseMsg(ros::NodeHandle nh);
 
   // Correct odometry
   tf::Transform correctOdom(tf::Transform current_odom, tf::Transform last_graph_pose, tf::Transform last_graph_odom);
 
   // Publish pose
-  void publish(nav_msgs::Odometry odom_msg, tf::Transform pose);
+  void publish(nav_msgs::Odometry odom_msg, tf::Transform pose, bool publish_graph = false);
 
 private:
 
   // Stores parameters
   Params params_;
 
-  // Pose publisher
+  // Pose publishers
   ros::Publisher pose_pub_;
+  ros::Publisher graph_pub_;
 
 };
 

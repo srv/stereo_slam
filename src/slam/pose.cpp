@@ -1,18 +1,19 @@
-#include "pose.h"
+#include "slam/pose.h"
 
 /** \brief Class constructor.
   * @return 
   */
-stereo_slam::Pose::Pose(){}
+slam::Pose::Pose(){}
 
-/** \brief Advertices the pose message
+/** \brief Advertises the pose message
   * @return 
-  * \param Node handle where pose will be adverticed.
+  * \param Node handle where pose will be advertised.
   */
-void stereo_slam::Pose::adverticePoseMsg(ros::NodeHandle nh)
+void slam::Pose::advertisePoseMsg(ros::NodeHandle nh)
 {
-  // Advertice the pose publication
+  // Advertise the pose publication
   pose_pub_ = nh.advertise<nav_msgs::Odometry>("corrected_odom", 1);
+  graph_pub_ = nh.advertise<nav_msgs::Odometry>("graph", 1);
 }
 
 /** \brief Correct the current odometry with the information of the graph.
@@ -21,22 +22,24 @@ void stereo_slam::Pose::adverticePoseMsg(ros::NodeHandle nh)
   * \param Last graph pose.
   * \param The corresponding original odometry for the last graph pose.
   */
-tf::Transform stereo_slam::Pose::correctOdom( tf::Transform current_odom, 
+tf::Transform slam::Pose::correctOdom( tf::Transform current_odom, 
                                               tf::Transform last_graph_pose, 
                                               tf::Transform last_graph_odom)
 {
-  // Odometry diference
+  // Odometry difference
   tf::Transform odom_diff = last_graph_odom.inverse() * current_odom;
 
   // Compute the corrected pose
   return last_graph_pose * odom_diff;
 }
 
-/** \brief Publish some pose.
+/** \brief Publish pose.
   * @return
-  * \param Pose to be publised.
+  * \param original odometry message.
+  * \param Corrected odometry to be published.
+  * \param true to publish the graph pose.
   */
-void stereo_slam::Pose::publish(nav_msgs::Odometry odom_msg, tf::Transform pose)
+void slam::Pose::publish(nav_msgs::Odometry odom_msg, tf::Transform pose, bool publish_graph)
 {
   // Publish pose
   if (pose_pub_.getNumSubscribers() > 0)
@@ -47,6 +50,15 @@ void stereo_slam::Pose::publish(nav_msgs::Odometry odom_msg, tf::Transform pose)
     pose_msg.child_frame_id = params_.pose_child_frame_id;
     tf::poseTFToMsg(pose, pose_msg.pose.pose);
     pose_pub_.publish(pose_msg);
+  }
+  if (graph_pub_.getNumSubscribers() > 0 and publish_graph)
+  {
+    nav_msgs::Odometry pose_msg = odom_msg;
+    pose_msg.header.stamp = odom_msg.header.stamp;
+    pose_msg.header.frame_id = params_.pose_frame_id;
+    pose_msg.child_frame_id = params_.pose_child_frame_id;
+    tf::poseTFToMsg(pose, pose_msg.pose.pose);
+    graph_pub_.publish(pose_msg);
   }
 }
 

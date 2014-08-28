@@ -6,7 +6,7 @@
 #include <signal.h>
 #include <ros/ros.h>
 #include <ros/xmlrpc_manager.h>
-#include "base.h"
+#include "slam/base.h"
 
 // Signal-safe flag for whether shutdown is requested
 sig_atomic_t volatile g_request_shutdown = 0;
@@ -43,10 +43,10 @@ int main(int argc, char **argv)
   ros::XMLRPCManager::instance()->unbind("shutdown");
   ros::XMLRPCManager::instance()->bind("shutdown", shutdownCallback);
 
-  // Create publishers, subscribers, etc.
+  // Stereo slam class
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
-  stereo_slam::StereoSlamBase stereo_slam_node(nh,nh_private);
+  slam::SlamBase slam_node(nh,nh_private);
 
   // Do our own spin loop
   while (!g_request_shutdown)
@@ -57,7 +57,7 @@ int main(int argc, char **argv)
   }
 
   // Finalize stereo slam
-  stereo_slam_node.finalize();
+  slam_node.finalize();
 
   // Exit
   ros::shutdown();
