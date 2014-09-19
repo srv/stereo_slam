@@ -96,7 +96,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     return;
   }
 
-  // Correct current odometry with the graph information
+  // Correct the current odometry with the graph information
   tf::Transform last_graph_pose, last_graph_odom;
   graph_.getLastPoses(current_odom, last_graph_pose, last_graph_odom);
   tf::Transform corrected_odom = pose_.correctOdom(current_odom, last_graph_pose, last_graph_odom);
@@ -126,21 +126,10 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     pcl::io::savePCDFileBinary(params_.clouds_dir + filename + ".pcd", pcl_cloud_);
   }
 
-  // Correct the position of this new node by closing the loop with the previous one
-  tf::Transform node_movement;
-  string lc_prev = boost::lexical_cast<string>(cur_id - 1);
-  bool valid_movement = lc_.getLoopClosureById(lc_ref, lc_prev, node_movement);
-  if (valid_movement)
-  {
-    ROS_INFO_STREAM("[StereoSlam:] Updating node pose with the loop closure information.");
-    tf::Transform new_estimate = last_graph_pose*node_movement.inverse();
-    graph_.setVerticeEstimate(cur_id, new_estimate);
-  }
-
   // Detect loop closures between nodes by distance
   bool any_loop_closure = false;
   vector<int> neighbors;
-  graph_.findClosestNodes(20, 3, neighbors);
+  graph_.findClosestNodes(params_.min_neighbour, 2, neighbors);
   for (uint i=0; i<neighbors.size(); i++)
   {
     tf::Transform edge;
@@ -151,9 +140,10 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
       ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id);
       graph_.addEdge(boost::lexical_cast<int>(lc_id), cur_id, edge);
       any_loop_closure = true;
-      break;
     }
   }
+
+  // TODO: do not repeat loop closures in libhaloc!
 
   // Detect loop closures between nodes using hashes
   int lc_id_num = -1;
@@ -239,6 +229,7 @@ void slam::SlamBase::readParameters()
   graph_params.pose_child_frame_id = pose_params.pose_child_frame_id;
 
   // Set the class parameters
+  params.min_neighbour = lc_params.min_neighbour;
   setParams(params);
   pose_.setParams(pose_params);
   graph_.setParams(graph_params);

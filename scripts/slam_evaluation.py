@@ -64,7 +64,7 @@ def sigmoid(p, vertices, gt_rebased):
   roll, pitch, yaw = p
   q = quaternion_from_rpy(roll, pitch, yaw)
   cur_delta = utils.to_transform([0.0, 0.0, 0.0, 0.0, q[0], q[1], q[2], q[3]])
-  
+
   # Compute the quadratic error for the current delta transformation
   err = 0.0
   for i in range(len(vertices)):
@@ -100,13 +100,13 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(
           description='Plot 3D graphics of SLAM.',
           formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-  parser.add_argument('ground_truth_file', 
+  parser.add_argument('ground_truth_file',
           help='file with ground truth')
-  parser.add_argument('visual_odometry_file', 
+  parser.add_argument('visual_odometry_file',
           help='file with visual odometry')
-  parser.add_argument('graph_vertices_file', 
+  parser.add_argument('graph_vertices_file',
           help='file the vertices of stereo slam')
-  parser.add_argument('graph_edges_file', 
+  parser.add_argument('graph_edges_file',
           help='file the edges of stereo slam')
   args = parser.parse_args()
   colors = ['g','r','b']
@@ -140,7 +140,7 @@ if __name__ == "__main__":
   # Load the visual odometry
   odom = pylab.loadtxt(args.visual_odometry_file, delimiter=',', skiprows=1, usecols=(0,5,6,7,8,9,10,11))
   odom[:,0] = odom[:,0] / 1000000000
-  
+
   # Load the graph vertices
   vertices = pylab.loadtxt(args.graph_vertices_file, delimiter=',', skiprows=0, usecols=(0,5,6,7,8,9,10,11))
   ax.plot(vertices[:,1], vertices[:,2], vertices[:,3], colors[2], label='Stereo slam', marker='o')
@@ -228,6 +228,6 @@ if __name__ == "__main__":
   ax2.set_xlabel("Distance (m)")
   ax2.set_ylabel("Error (m)")
   ax2.legend(loc=2)
-  
+
   pyplot.draw()
   pylab.show()

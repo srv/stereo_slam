@@ -211,7 +211,7 @@ void slam::Graph::addEdge(int i, int j, tf::Transform edge)
   graph_optimizer_.addEdge(e);
 }
 
-/** \brief Updates som vertice estimate
+/** \brief Updates vertice estimate
   * @return
   * \param Id vertice.
   * \param New estimate
