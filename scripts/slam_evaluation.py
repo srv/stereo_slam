@@ -7,11 +7,36 @@ from mpl_toolkits.mplot3d import Axes3D
 import tf.transformations as tf
 import scipy.optimize as optimize
 import collections
-from odometry_evaluation import utils
+import math
+import string
 
 class Error(Exception):
   """ Base class for exceptions in this module. """
   pass
+
+def trajectory_distances(data):
+    dist = []
+    dist.append(0)
+    for i in range(len(data) - 1):
+        dist.append(dist[i] + calc_dist(data[i, :], data[i + 1, : ]))
+    return dist
+
+def calc_dist_xyz(data_point1, data_point2):
+    xdiff = data_point1[1] - data_point2[1]
+    ydiff = data_point1[2] - data_point2[2]
+    zdiff = data_point1[3] - data_point2[3]
+    return xdiff, ydiff, zdiff
+
+def calc_dist(data_point1, data_point2):
+    xdiff, ydiff, zdiff = calc_dist_xyz(data_point1, data_point2)
+    return math.sqrt(xdiff*xdiff + ydiff*ydiff + zdiff*zdiff)
+
+def to_transform(data_point):
+    t = [data_point[1], data_point[2], data_point[3]]
+    q = [data_point[4], data_point[5], data_point[6], data_point[7]]
+    rot_mat = tf.quaternion_matrix(q)
+    trans_mat = tf.translation_matrix(t)
+    return tf.concatenate_matrices(trans_mat, rot_mat)
 
 def rebase(base_vector, rebased_vector):
   min_idx_vec = []
@@ -32,7 +57,7 @@ def rebase(base_vector, rebased_vector):
 def apply_tf_to_matrix(tf_delta, data):
   corrected_data = []
   for i in range(len(data)):
-    point = utils.to_transform(data[i,:])
+    point = to_transform(data[i,:])
     point_d = tf.concatenate_matrices(point, tf_delta)
     t_d = tf.translation_from_matrix(point_d)
     q_d = tf.quaternion_from_matrix(point_d)
@@ -42,7 +67,7 @@ def apply_tf_to_matrix(tf_delta, data):
 def apply_tf_to_vector(tf_delta, data):
   corrected_data = []
   for i in range(len(data)):
-    point = utils.to_transform(data[i,:])
+    point = to_transform(data[i,:])
     t_d = tf.translation_from_matrix(point)
     q_d = tf.quaternion_from_matrix(point)
     t_d = np.array([t_d[0], t_d[1], t_d[2], 1.0])
@@ -63,20 +88,20 @@ def sigmoid(p, vertices, gt_rebased):
   # Get the current parameter set and build the transform
   roll, pitch, yaw = p
   q = quaternion_from_rpy(roll, pitch, yaw)
-  cur_delta = utils.to_transform([0.0, 0.0, 0.0, 0.0, q[0], q[1], q[2], q[3]])
+  cur_delta = to_transform([0.0, 0.0, 0.0, 0.0, q[0], q[1], q[2], q[3]])
 
   # Compute the quadratic error for the current delta transformation
   err = 0.0
   for i in range(len(vertices)):
     # Compute the corrected ground truth
-    tf_gt = utils.to_transform(gt_rebased[i])
+    tf_gt = to_transform(gt_rebased[i])
     tf_gt_t = tf.translation_from_matrix(tf_gt)
     tf_gt_t = np.array([tf_gt_t[0], tf_gt_t[1], tf_gt_t[2], 1.0])
     tf_gt_corrected = tf.concatenate_matrices(cur_delta, tf_gt_t)
     tf_gt_corr_vect = [0.0, tf_gt_corrected[0], tf_gt_corrected[1], tf_gt_corrected[2], 0.0, 0.0, 0.0, 1.0]
 
     # Compute the error
-    err += np.power(utils.calc_dist(vertices[i], tf_gt_corr_vect), 2)
+    err += np.power(calc_dist(vertices[i], tf_gt_corr_vect), 2)
 
   return np.sqrt(err)
 
@@ -85,7 +110,7 @@ def calc_errors(vector_1, vector_2):
   assert(len(vector_1) == len(vector_1))
   output = []
   for i in range(len(vector_1)):
-    output.append(utils.calc_dist(vector_1[i,:], vector_2[i,:]))
+    output.append(calc_dist(vector_1[i,:], vector_2[i,:]))
   return np.array(output)
 
 def calc_time_vector(data):
@@ -94,6 +119,38 @@ def calc_time_vector(data):
   for i in range(len(data)):
     output.append((data[i,0] - start_time))
   return np.array(output)
+
+def toRSTtable(rows, header=True, vdelim="  ", padding=1, justify='right'):
+    """
+    Outputs a list of lists as a Restructured Text Table
+    - rows - list of lists
+    - header - if True the first row is treated as a table header
+    - vdelim - vertical delimiter between columns
+    - padding - nr. of spaces are left around the longest element in the column
+    - justify - may be left, center, right
+    """
+    border="=" # character for drawing the border
+    justify = {'left':string.ljust,'center':string.center,'right':string.rjust}[justify.lower()]
+
+    # calculate column widhts (longest item in each col
+    # plus "padding" nr of spaces on both sides)
+    cols = zip(*rows)
+    colWidths = [max([len(str(item))+2*padding for item in col]) for col in cols]
+
+    # the horizontal border needed by rst
+    borderline = vdelim.join([w*border for w in colWidths])
+
+    # outputs table in rst format
+    output = ""
+    output += borderline + "\n"
+    for row in rows:
+        output += vdelim.join([justify(str(item),width) for (item,width) in zip(row,colWidths)])
+        output += "\n"
+        if header: output += borderline + "\n"; header=False
+    output += borderline + "\n"
+    print output
+    return output
+
 
 if __name__ == "__main__":
   import argparse
@@ -146,7 +203,7 @@ if __name__ == "__main__":
   ax.plot(vertices[:,1], vertices[:,2], vertices[:,3], colors[2], label='Stereo slam', marker='o')
 
   # Load the graph edges
-  edges = pylab.loadtxt(args.graph_edges_file, delimiter=',', skiprows=0, usecols=(1,2,3,4,5,6))
+  edges = pylab.loadtxt(args.graph_edges_file, delimiter=',', skiprows=0, usecols=(2,3,4,9,10,11))
   for i in range(len(edges)):
     vect = []
     vect.append([edges[i,0], edges[i,1], edges[i,2]])
@@ -159,8 +216,8 @@ if __name__ == "__main__":
   odom_rebased = rebase(vertices, odom)
 
   # Compute the translation to make the same origin for all curves
-  first_vertice = utils.to_transform(vertices[0,:])
-  first_gt_coincidence = utils.to_transform(gt_rebased[0,:])
+  first_vertice = to_transform(vertices[0,:])
+  first_gt_coincidence = to_transform(gt_rebased[0,:])
   tf_delta = tf.concatenate_matrices(tf.inverse_matrix(first_gt_coincidence), first_vertice)
 
   # Move all the gt and odometry points with the correction
@@ -178,7 +235,7 @@ if __name__ == "__main__":
   # Build the rotation matrix
   roll, pitch, yaw = p
   q = quaternion_from_rpy(roll, pitch, yaw)
-  tf_correction = utils.to_transform([0.0, 0.0, 0.0, 0.0, q[0], q[1], q[2], q[3]])
+  tf_correction = to_transform([0.0, 0.0, 0.0, 0.0, q[0], q[1], q[2], q[3]])
 
   # Correct ground truth and odometry
   gt_corrected = apply_tf_to_vector(tf_correction, gt_moved)
@@ -188,8 +245,8 @@ if __name__ == "__main__":
 
   # Compute the errors
   print "Computing errors, please wait..."
-  odom_dist = utils.trajectory_distances(odom_rb_corrected)
-  vertices_dist = utils.trajectory_distances(vertices)
+  odom_dist = trajectory_distances(odom_rb_corrected)
+  vertices_dist = trajectory_distances(vertices)
   odom_errors = calc_errors(gt_rb_corrected, odom_rb_corrected)
   vertices_errors = calc_errors(gt_rb_corrected, vertices)
   time = calc_time_vector(gt_rb_corrected)
@@ -202,7 +259,7 @@ if __name__ == "__main__":
 
   # Build the header for the output table
   header = [  "Input", "Data Points", "Traj. Distance (m)", "Trans. MAE (m)"]
-  utils.toRSTtable([header] + rows)
+  toRSTtable([header] + rows)
 
   # Plot graph
   ax.plot(gt_corrected[:,1], gt_corrected[:,2], gt_corrected[:,3], colors[0], label='Ground Truth')
@@ -211,16 +268,7 @@ if __name__ == "__main__":
 
   # Plot errors
   fig1 = pylab.figure()
-  ax1 = fig1.gca()
-  ax1.plot(time, odom_errors, label='Odometry', marker='o')
-  ax1.plot(time, vertices_errors, label='SLAM', marker='o')
-  ax1.grid(True)
-  ax1.set_title("Error: Odometry vs SLAM")
-  ax1.set_xlabel("Time (s)")
-  ax1.set_ylabel("Error (m)")
-  ax1.legend(loc=2)
-  fig2 = pylab.figure()
-  ax2 = fig2.gca()
+  ax2 = fig1.gca()
   ax2.plot(odom_dist, odom_errors, label='Odometry', marker='o')
   ax2.plot(vertices_dist, vertices_errors, label='SLAM', marker='o')
   ax2.grid(True)

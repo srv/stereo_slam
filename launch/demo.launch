@@ -45,8 +45,11 @@
 		<!-- Descriptor type: SIFT or SURF -->
 		<param name="desc_type" value="SIFT"/>
 
-		<!-- Descriptor threshold (for SIFT typically between 0.8-0.9)  -->
-		<param name="desc_thresh" value="0.88" />
+		<!-- Can be "CROSSCHECK" or "RATIO" -->
+		<param name="desc_matching_type" value="CROSSCHECK"/>
+
+		<!-- Descriptor threshold for crosscheck matching (typically between 0.7-0.9) or ratio for ratio matching (typically between 0.6-0.8).  -->
+		<param name="desc_thresh_ratio" value="0.88" />
 
 		<!-- Minimum number of neighbours that will be skiped for the loop closure (tipically between 5-20, but depends on the frame rate) -->
 		<param name="min_neighbour" value="10" />

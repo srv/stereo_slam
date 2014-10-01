@@ -113,7 +113,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   int cur_id = graph_.addVertice(current_odom, corrected_odom, timestamp);
   string lc_ref = boost::lexical_cast<string>(cur_id);
   lc_.setNode(l_img, r_img, lc_ref);
-  ROS_INFO_STREAM("[StereoSlam:] New node inserted with id " << cur_id << ".");
+  ROS_INFO_STREAM("[StereoSlam:] Node " << cur_id << " inserted.");
 
   // Save the pointcloud for this new node
   if (params_.save_clouds && pcl_cloud_.size() > 0)
@@ -215,7 +215,8 @@ void slam::SlamBase::readParameters()
 
   // Loop closure parameters
   nh_private_.param("desc_type",            lc_params.desc_type,              string("SIFT"));
-  nh_private_.getParam("desc_thresh",       lc_params.desc_thresh);
+  nh_private_.param("desc_matching_type",   lc_params.desc_matching_type,     string("CROSSCHECK"));
+  nh_private_.getParam("desc_thresh_ratio", lc_params.desc_thresh_ratio);
   nh_private_.getParam("min_neighbour",     lc_params.min_neighbour);
   nh_private_.getParam("n_candidates",      lc_params.n_candidates);
   nh_private_.getParam("min_matches",       lc_params.min_matches);
