@@ -20,9 +20,9 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <libhaloc/lc.h>
-#include "common/pose.h"
-#include "common/graph.h"
-#include "common/tools.h"
+#include "pose.h"
+#include "graph.h"
+#include "tools.h"
 
 using namespace std;
 using namespace cv;

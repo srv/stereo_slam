@@ -54,10 +54,10 @@ include_directories(include
 
 # Slam node
 add_executable(slam
-	       src/slam/node.cpp
-	       src/slam/base.cpp
-	       src/common/graph.cpp
-	       src/common/pose.cpp)
+	       src/node.cpp
+	       src/base.cpp
+	       src/graph.cpp
+	       src/pose.cpp)
 target_link_libraries(slam
 	          ${eigen_LIBRARIES}
 		      ${libhaloc_LIBRARIES}

@@ -1,5 +1,5 @@
-#include "common/graph.h"
-#include "common/vertex.h"
+#include "graph.h"
+#include "vertex.h"
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
   * @return

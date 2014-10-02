@@ -1,4 +1,4 @@
-#include "slam/base.h"
+#include "base.h"
 #include "opencv2/core/core.hpp"
 #include <boost/filesystem.hpp>
 
@@ -105,7 +105,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   double pose_diff = Tools::poseDiff(last_graph_odom, current_odom);
   if (pose_diff <= params_.min_displacement)
   {
-    pose_.publish(*odom_msg, corrected_odom);
+    pose_.publish(*odom_msg, corrected_odom, false);
     return;
   }
 

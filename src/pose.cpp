@@ -1,12 +1,12 @@
-#include "slam/pose.h"
+#include "pose.h"
 
 /** \brief Class constructor.
-  * @return 
+  * @return
   */
 slam::Pose::Pose(){}
 
 /** \brief Advertises the pose message
-  * @return 
+  * @return
   * \param Node handle where pose will be advertised.
   */
 void slam::Pose::advertisePoseMsg(ros::NodeHandle nh)
@@ -22,8 +22,8 @@ void slam::Pose::advertisePoseMsg(ros::NodeHandle nh)
   * \param Last graph pose.
   * \param The corresponding original odometry for the last graph pose.
   */
-tf::Transform slam::Pose::correctOdom( tf::Transform current_odom, 
-                                              tf::Transform last_graph_pose, 
+tf::Transform slam::Pose::correctOdom( tf::Transform current_odom,
+                                              tf::Transform last_graph_pose,
                                               tf::Transform last_graph_odom)
 {
   // Odometry difference
@@ -41,6 +41,12 @@ tf::Transform slam::Pose::correctOdom( tf::Transform current_odom,
   */
 void slam::Pose::publish(nav_msgs::Odometry odom_msg, tf::Transform pose, bool publish_graph)
 {
+  // Broadcast the transformation
+  frame_to_child_.sendTransform(tf::StampedTransform(pose,
+                                                     odom_msg.header.stamp,
+                                                     params_.pose_frame_id,
+                                                     params_.pose_child_frame_id));
+
   // Publish pose
   if (pose_pub_.getNumSubscribers() > 0)
   {

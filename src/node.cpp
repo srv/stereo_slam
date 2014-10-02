@@ -6,7 +6,7 @@
 #include <signal.h>
 #include <ros/ros.h>
 #include <ros/xmlrpc_manager.h>
-#include "slam/base.h"
+#include "base.h"
 
 // Signal-safe flag for whether shutdown is requested
 sig_atomic_t volatile g_request_shutdown = 0;

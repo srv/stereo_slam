@@ -15,7 +15,7 @@
 #include <g2o/types/slam3d/edge_se3.h>
 #include <g2o/core/optimization_algorithm_levenberg.h>
 #include <g2o/solvers/dense/linear_solver_dense.h>
-#include "common/tools.h"
+#include "tools.h"
 
 using namespace std;
 using namespace tools;
