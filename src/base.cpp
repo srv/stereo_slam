@@ -181,8 +181,6 @@ void slam::SlamBase::readParameters()
   slam::Pose::Params pose_params;
   slam::Graph::Params graph_params;
   haloc::LoopClosure::Params lc_params;
-  lc_params.num_proj = 2;
-  lc_params.validate = false;
   lc_params.verbose = true;
 
   // Operational directories
