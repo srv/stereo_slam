@@ -134,7 +134,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   {
     tf::Transform edge;
     string lc_id = boost::lexical_cast<string>(neighbors[i]);
-    bool valid_lc = lc_.getLoopClosureById(lc_ref, lc_id, edge);
+    bool valid_lc = lc_.getLoopClosure(lc_ref, lc_id, edge);
     if (valid_lc)
     {
       ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id);
@@ -182,7 +182,6 @@ void slam::SlamBase::readParameters()
   slam::Graph::Params graph_params;
   haloc::LoopClosure::Params lc_params;
   lc_params.num_proj = 2;
-  lc_params.validate = false;
   lc_params.verbose = true;
 
   // Operational directories
