@@ -1,12 +1,7 @@
-/**
- * @file
- * @brief ROS node for stereo_slam code
- */
-
 #include <signal.h>
 #include <ros/ros.h>
 #include <ros/xmlrpc_manager.h>
-#include "base.h"
+#include "localization/base.h"
 
 // Signal-safe flag for whether shutdown is requested
 sig_atomic_t volatile g_request_shutdown = 0;

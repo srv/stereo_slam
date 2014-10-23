@@ -43,26 +43,34 @@ find_package(G2O REQUIRED)
 
 catkin_package()
 
-include_directories(include
-		    ${catkin_INCLUDE_DIRS}
-		    ${Eigen_INCLUDE_DIRS}
-		    ${libhaloc_INCLUDE_DIRS}
-		    ${OpenCV_INCLUDE_DIRS}
-		    ${SUITESPARSE_INCLUDE_DIRS}
-		    ${G2O_INCLUDE_DIRS}
-		    ${PCL_INCLUDE_DIRS})
+include_directories(	include
+						${catkin_INCLUDE_DIRS}
+						${Eigen_INCLUDE_DIRS}
+						${libhaloc_INCLUDE_DIRS}
+						${OpenCV_INCLUDE_DIRS}
+						${SUITESPARSE_INCLUDE_DIRS}
+						${G2O_INCLUDE_DIRS}
+						${PCL_INCLUDE_DIRS})
 
-# Slam node
-add_executable(slam
-	       src/node.cpp
-	       src/base.cpp
-	       src/graph.cpp
-	       src/pose.cpp)
-target_link_libraries(slam
-	          ${eigen_LIBRARIES}
-		      ${libhaloc_LIBRARIES}
-		      ${OpenCV_LIBRARIES}
-		      ${SUITESPARSE_LIBRARIES}
-		      ${G2O_LIBRARIES}
-		      cholmod
-		      ${catkin_LIBRARIES})
+# Localization node
+add_executable(			localization
+						src/localization/node.cpp
+						src/localization/base.cpp
+						src/localization/graph.cpp
+						src/localization/pose.cpp)
+target_link_libraries(	localization
+						${eigen_LIBRARIES}
+						${libhaloc_LIBRARIES}
+						${OpenCV_LIBRARIES}
+						${SUITESPARSE_LIBRARIES}
+						${G2O_LIBRARIES}
+						cholmod
+						${catkin_LIBRARIES})
+
+# Reconstruction node
+add_executable(			reconstruction
+						src/reconstruction/node.cpp
+						src/reconstruction/base.cpp)
+target_link_libraries(	reconstruction
+						${eigen_LIBRARIES}
+						${catkin_LIBRARIES})

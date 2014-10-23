@@ -1,4 +1,4 @@
-#include "base.h"
+#include "localization/base.h"
 #include "opencv2/core/core.hpp"
 #include <boost/filesystem.hpp>
 
@@ -90,6 +90,16 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     string lc_ref = boost::lexical_cast<string>(cur_id);
     lc_.setNode(l_img, r_img, lc_ref);
 
+    ROS_INFO_STREAM("[StereoSlam:] Node " << cur_id << " inserted.");
+
+    // Save the pointcloud for this new node
+    if (params_.save_clouds && pcl_cloud_.size() > 0)
+    {
+      // The file name will be the node id
+      string filename = boost::lexical_cast<string>(cur_id);
+      pcl::io::savePCDFileBinary(params_.clouds_dir + filename + ".pcd", pcl_cloud_);
+    }
+
     // Publish and exit
     pose_.publish(*odom_msg, current_odom, true);
     first_iter_ = false;
@@ -118,11 +128,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Save the pointcloud for this new node
   if (params_.save_clouds && pcl_cloud_.size() > 0)
   {
-    // The file name will be the timestamp
-    stringstream s;
-    s << fixed << setprecision(9) << timestamp;
-    string filename = s.str();
-    filename.erase(std::remove(filename.begin(), filename.end(), '.'), filename.end());
+    // The file name will be the node id
+    string filename = boost::lexical_cast<string>(cur_id);
     pcl::io::savePCDFileBinary(params_.clouds_dir + filename + ".pcd", pcl_cloud_);
   }
 
@@ -173,7 +180,6 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
 
 
 /** \brief Reads the stereo slam node parameters
-  * @return
   */
 void slam::SlamBase::readParameters()
 {
@@ -248,7 +254,6 @@ void slam::SlamBase::readParameters()
 }
 
 /** \brief Initializes the stereo slam node
-  * @return true if init OK
   */
 void slam::SlamBase::init()
 {

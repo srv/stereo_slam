@@ -1,5 +1,5 @@
-#include "graph.h"
-#include "vertex.h"
+#include "localization/graph.h"
+#include "localization/vertex.h"
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
   * @return
@@ -238,7 +238,7 @@ bool slam::Graph::saveGraphToFile()
   string block_file, vertices_file, edges_file;
   vertices_file = params_.save_dir + "graph_vertices.txt";
   edges_file = params_.save_dir + "graph_edges.txt";
-  block_file = params_.save_dir + ".graph.block";
+  block_file = params_.save_dir + ".graph.lock";
 
   // Create a blocking element
   fstream f_block(block_file.c_str(), ios::out | ios::trunc);
