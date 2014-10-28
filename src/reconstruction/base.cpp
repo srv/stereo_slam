@@ -48,11 +48,11 @@ void reconstruction::ReconstructionBase::process()
   // Init the voxel grid filter
   pcl::VoxelGrid<PointRGB> grid;
   PointCloud::Ptr cloud_downsampled_ptr(new PointCloud);
-  grid.setLeafSize(0.008, 0.008, 0.008);
+  grid.setLeafSize(0.003, 0.003, 0.003);
   grid.setDownsampleAllData(true);
 
   // Load, convert and accumulate every pointcloud
-  PointCloud acc;
+  PointCloud::Ptr acc(new PointCloud);
   for (uint i=0; i<cloud_poses.size(); i++)
   {
     string file_idx = cloud_poses[i].first;
@@ -78,20 +78,19 @@ void reconstruction::ReconstructionBase::process()
     pcl_ros::transformPointCloud(*cloud, *cloud, cloud_poses[i].second);
 
     // First iteration
-    if (acc.points.size() == 0)
+    if (acc->points.size() == 0)
     {
-      acc = *cloud;
+      copyPointCloud(*cloud, *acc);
       continue;
     }
 
     // Convert the accumulated cloud to PointXY
-    // FIXME: this implies two copies of the accumulated cloud :(
-    pcl::PointCloud<PointXY> acc_xy;
-    copyPointCloud(acc, acc_xy);
+    pcl::PointCloud<PointXY>::Ptr acc_xy(new pcl::PointCloud<PointXY>);
+    copyPointCloud(*acc, *acc_xy);
 
     vector<int> point_idx;
     vector<float> point_distance;
-    kdtree.setInputCloud(acc_xy.makeShared());
+    kdtree.setInputCloud(acc_xy);
 
     int total = 0;
     int added = 0;
@@ -107,21 +106,21 @@ void reconstruction::ReconstructionBase::process()
       if (kdtree.radiusSearch(cur_point, radius, point_idx, point_distance) <= 0)
       {
         added++;
-        acc.push_back(cloud->points[i]);
+        acc->push_back(cloud->points[i]);
       }
     }
 
     ROS_INFO_STREAM("[StereoSlam:] Original size: " << total << ". Finally added: " << added);
 
     // Filter the accumulated cloud
-    grid.setInputCloud(acc.makeShared());
+    grid.setInputCloud(acc);
     grid.filter(*cloud_downsampled_ptr);
-    acc = *cloud_downsampled_ptr;
+    acc = cloud_downsampled_ptr;
   }
 
   // Save accumulated cloud
   ROS_INFO("[StereoSlam:] Saving pointcloud...");
-  pcl::io::savePCDFile(params_.work_dir + "reconstruction.pcd", acc);
+  pcl::io::savePCDFile(params_.work_dir + "reconstruction.pcd", *acc);
   ROS_INFO("[StereoSlam:] Accumulated cloud saved.");
 }
 
