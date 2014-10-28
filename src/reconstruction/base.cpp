@@ -17,25 +17,11 @@ reconstruction::ReconstructionBase::ReconstructionBase(
 {
   // Read the node parameters
   readParameters();
-
-  // Initialize the stereo slam
-  init();
 }
 
-/** \brief Timer callback to launch the process
+/** \brief Build the 3D
   */
-void reconstruction::ReconstructionBase::timerCallback(const ros::WallTimerEvent&)
-{
-  // Avoid callback overwrite. ROS Timer documentation does no indicate what
-  // happens when a timer callback is called before it finish.
-  m_.lock ();
-  reconstruction::ReconstructionBase::process();
-  m_.unlock ();
-}
-
-/** \brief Build the 3D environment
-  */
-void reconstruction::ReconstructionBase::process()
+void reconstruction::ReconstructionBase::build3D()
 {
   // Read the graph poses
   vector< pair<string, tf::Transform> > cloud_poses;
@@ -190,13 +176,4 @@ bool reconstruction::ReconstructionBase::readPoses(vector< pair<string, tf::Tran
     cloud_poses.push_back(make_pair(cloud_name, transf));
   }
   return true;
-}
-
-/** \brief Initializes the reconstruction node
-  */
-void reconstruction::ReconstructionBase::init()
-{
-  // Init the timer
-  //timer_ = nh_.createWallTimer(ros::WallDuration(10), &reconstruction::ReconstructionBase::timerCallback, this);
-  reconstruction::ReconstructionBase::process();
 }

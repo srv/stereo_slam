@@ -13,8 +13,8 @@ int main(int argc, char **argv)
   // Init node
   ReconstructionBase reconstruction(nh,nh_private);
 
-  // Subscription is handled at start and stop service callbacks.
-  //ros::spin();
+  // Accumulate all the clouds
+  reconstruction.build3D();
 
   return 0;
 }

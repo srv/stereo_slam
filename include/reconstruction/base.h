@@ -55,6 +55,9 @@ public:
    */
   inline Params params() const { return params_; }
 
+  // 3D reconstruction
+  void build3D();
+
 protected:
 
 	// Node handlers
@@ -62,17 +65,12 @@ protected:
   ros::NodeHandle nh_private_;
 
   // Protected functions and callbacks
-  void init();
   void readParameters();
-  void timerCallback(const ros::WallTimerEvent&);
 
 private:
 
   // Read the poses from the graph file
   bool readPoses(vector< pair<string, tf::Transform> > &cloud_poses);
-
-  // 3D reconstruction
-  void process();
 
   Params params_;                   //!> Stores parameters
   boost::mutex m_;                  //!> Lock timer while executing
