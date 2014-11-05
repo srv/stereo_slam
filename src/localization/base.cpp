@@ -87,8 +87,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
 
     // Save the first node
     int cur_id = graph_.addVertice(current_odom, current_odom, timestamp);
-    string lc_ref = boost::lexical_cast<string>(cur_id);
-    lc_.setNode(l_img, r_img, lc_ref);
+    lc_.setNode(l_img, r_img);
 
     ROS_INFO_STREAM("[StereoSlam:] Node " << cur_id << " inserted.");
 
@@ -101,7 +100,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     }
 
     // Publish and exit
-    pose_.publish(*odom_msg, current_odom, true);
+    pose_.publish(*odom_msg, current_odom);
     first_iter_ = false;
     return;
   }
@@ -115,14 +114,13 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   double pose_diff = Tools::poseDiff(last_graph_odom, current_odom);
   if (pose_diff <= params_.min_displacement)
   {
-    pose_.publish(*odom_msg, corrected_odom, false);
+    pose_.publish(*odom_msg, corrected_odom);
     return;
   }
 
   // Insert this new node into the graph
   int cur_id = graph_.addVertice(current_odom, corrected_odom, timestamp);
-  string lc_ref = boost::lexical_cast<string>(cur_id);
-  lc_.setNode(l_img, r_img, lc_ref);
+  lc_.setNode(l_img, r_img);
   ROS_INFO_STREAM("[StereoSlam:] Node " << cur_id << " inserted.");
 
   // Save the pointcloud for this new node
@@ -141,7 +139,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   {
     tf::Transform edge;
     string lc_id = boost::lexical_cast<string>(neighbors[i]);
-    bool valid_lc = lc_.getLoopClosure(lc_ref, lc_id, edge);
+    bool valid_lc = lc_.getLoopClosure(boost::lexical_cast<string>(cur_id), lc_id, edge);
     if (valid_lc)
     {
       ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id);
@@ -150,17 +148,14 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     }
   }
 
-  // TODO: do not repeat loop closures in libhaloc!
-
   // Detect loop closures between nodes using hashes
   int lc_id_num = -1;
-  string lc_id_name = "";
   tf::Transform edge;
-  bool valid_lc = lc_.getLoopClosure(lc_id_num, lc_id_name, edge);
+  bool valid_lc = lc_.getLoopClosure(lc_id_num, edge);
   if (valid_lc)
   {
-    ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id_name);
-    graph_.addEdge(boost::lexical_cast<int>(lc_id_name), cur_id, edge);
+    ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id_num);
+    graph_.addEdge(lc_id_num, cur_id, edge);
     any_loop_closure = true;
   }
 
@@ -170,7 +165,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Publish the corrected pose
   graph_.getLastPoses(current_odom, last_graph_pose, last_graph_odom);
   corrected_odom = pose_.correctOdom(current_odom, last_graph_pose, last_graph_odom);
-  pose_.publish(*odom_msg, corrected_odom, true);
+  pose_.publish(*odom_msg, corrected_odom);
 
   // Save graph to file
   graph_.saveGraphToFile();

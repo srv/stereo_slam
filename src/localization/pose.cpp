@@ -12,8 +12,7 @@ slam::Pose::Pose(){}
 void slam::Pose::advertisePoseMsg(ros::NodeHandle nh)
 {
   // Advertise the pose publication
-  pose_pub_ = nh.advertise<nav_msgs::Odometry>("corrected_odom", 1);
-  graph_pub_ = nh.advertise<nav_msgs::Odometry>("graph", 1);
+  pose_pub_ = nh.advertise<nav_msgs::Odometry>("slam", 1);
 }
 
 /** \brief Correct the current odometry with the information of the graph.
@@ -39,7 +38,7 @@ tf::Transform slam::Pose::correctOdom( tf::Transform current_odom,
   * \param Corrected odometry to be published.
   * \param true to publish the graph pose.
   */
-void slam::Pose::publish(nav_msgs::Odometry odom_msg, tf::Transform pose, bool publish_graph)
+void slam::Pose::publish(nav_msgs::Odometry odom_msg, tf::Transform pose)
 {
   // Broadcast the transformation
   frame_to_child_.sendTransform(tf::StampedTransform(pose,
@@ -56,15 +55,6 @@ void slam::Pose::publish(nav_msgs::Odometry odom_msg, tf::Transform pose, bool p
     pose_msg.child_frame_id = params_.pose_child_frame_id;
     tf::poseTFToMsg(pose, pose_msg.pose.pose);
     pose_pub_.publish(pose_msg);
-  }
-  if (graph_pub_.getNumSubscribers() > 0 and publish_graph)
-  {
-    nav_msgs::Odometry pose_msg = odom_msg;
-    pose_msg.header.stamp = odom_msg.header.stamp;
-    pose_msg.header.frame_id = params_.pose_frame_id;
-    pose_msg.child_frame_id = params_.pose_child_frame_id;
-    tf::poseTFToMsg(pose, pose_msg.pose.pose);
-    graph_pub_.publish(pose_msg);
   }
 }
 

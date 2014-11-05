@@ -55,7 +55,7 @@ public:
   tf::Transform correctOdom(tf::Transform current_odom, tf::Transform last_graph_pose, tf::Transform last_graph_odom);
 
   // Publish pose
-  void publish(nav_msgs::Odometry odom_msg, tf::Transform pose, bool publish_graph);
+  void publish(nav_msgs::Odometry odom_msg, tf::Transform pose);
 
 private:
 
@@ -64,7 +64,6 @@ private:
 
   // Pose publishers
   ros::Publisher pose_pub_;
-  ros::Publisher graph_pub_;
   tf::TransformBroadcaster frame_to_child_;
 
 };
