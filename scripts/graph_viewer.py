@@ -212,7 +212,7 @@ if __name__ == "__main__":
   print " - Right button: activates/deactivates the visualization of graph edges."
 
   # Save blocking file into global
-  blocking_file = os.path.dirname(args.graph_vertices_file) + "/.block.txt"
+  blocking_file = os.path.dirname(args.graph_vertices_file) + "/.lock.txt"
 
   # Save graph edges file into global
   graph_edges_file = args.graph_edges_file

@@ -27,7 +27,7 @@
 	</node-->
 
 	<!-- Stereo SLAM -->
-	<node pkg="stereo_slam" type="slam" name="slam" output="screen">
+	<node pkg="stereo_slam" type="localization" name="slam" output="screen">
 
 		<!-- Working directory -->
 		<param name="work_dir" value="<!-- Path to your data directory (e.g. /home/user/stereo_slam/data) -->" />
