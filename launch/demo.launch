@@ -51,8 +51,8 @@
 		<!-- Descriptor threshold for crosscheck matching (typically between 0.7-0.9) or ratio for ratio matching (typically between 0.6-0.8).  -->
 		<param name="desc_thresh_ratio" value="0.88" />
 
-		<!-- Minimum number of neighbours that will be skiped for the loop closure (tipically between 5-20, but depends on the frame rate) -->
-		<param name="min_neighbour" value="10" />
+		<!-- Minimum number of neighbors that will be skiped for the loop closure (tipically between 5-20, but depends on the frame rate) -->
+		<param name="min_neighbor" value="10" />
 
 		<!-- Get the n first candidates of the hash matching (tipically between 1-5) -->
 		<param name="n_candidates" value="5" />

@@ -134,7 +134,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Detect loop closures between nodes by distance
   bool any_loop_closure = false;
   vector<int> neighbors;
-  graph_.findClosestNodes(params_.min_neighbour, 2, neighbors);
+  graph_.findClosestNodes(params_.min_neighbor, 2, neighbors);
   for (uint i=0; i<neighbors.size(); i++)
   {
     tf::Transform edge;
@@ -210,14 +210,15 @@ void slam::SlamBase::readParameters()
   nh_private_.param("cloud_topic",          cloud_topic,                      string("/points2"));
 
   // Motion parameters
-  nh_private_.param("save_clouds",  params.save_clouds, false);
+  nh_private_.param("save_clouds",          params.save_clouds,               false);
+  nh_private_.param("refine_neighbors",     params.refine_neighbors,          false);
   nh_private_.getParam("min_displacement",  params.min_displacement);
 
   // Loop closure parameters
   nh_private_.param("desc_type",            lc_params.desc_type,              string("SIFT"));
   nh_private_.param("desc_matching_type",   lc_params.desc_matching_type,     string("CROSSCHECK"));
   nh_private_.getParam("desc_thresh_ratio", lc_params.desc_thresh_ratio);
-  nh_private_.getParam("min_neighbour",     lc_params.min_neighbour);
+  nh_private_.getParam("min_neighbor",      lc_params.min_neighbor);
   nh_private_.getParam("n_candidates",      lc_params.n_candidates);
   nh_private_.getParam("min_matches",       lc_params.min_matches);
   nh_private_.getParam("min_inliers",       lc_params.min_inliers);
@@ -230,7 +231,7 @@ void slam::SlamBase::readParameters()
   graph_params.pose_child_frame_id = pose_params.pose_child_frame_id;
 
   // Set the class parameters
-  params.min_neighbour = lc_params.min_neighbour;
+  params.min_neighbor = lc_params.min_neighbor;
   setParams(params);
   pose_.setParams(pose_params);
   graph_.setParams(graph_params);
@@ -245,7 +246,7 @@ void slam::SlamBase::readParameters()
   right_info_sub_ .subscribe(nh_, right_info_topic, 1);
 
   if (params_.save_clouds)
-    cloud_sub_    .subscribe(nh_, cloud_topic,      1);
+    cloud_sub_.subscribe(nh_, cloud_topic, 1);
 }
 
 /** \brief Initializes the stereo slam node

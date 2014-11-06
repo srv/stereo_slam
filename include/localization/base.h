@@ -51,14 +51,16 @@ public:
     double min_displacement;         //!> Minimum odometry displacement between poses to be saved as graph vertices.
     bool save_clouds;                //!> Save the pointclouds
     string clouds_dir;               //!> Directory where pointclouds will be saved
-    int min_neighbour;               //!> Jump this number of neighbours for closer loop closing candidates.
+    int min_neighbor;                //!> Jump this number of neighbors for closer loop closing candidates.
+    bool refine_neighbors;           //!> If true, solvePNP will be applied between consecutive nodes. If false, the odometry will be applied.
 
     // Default settings
     Params () {
       min_displacement            = 0.2;
       save_clouds                 = false;
       clouds_dir                  = "";
-      min_neighbour               = 10;
+      min_neighbor                = 10;
+      refine_neighbors            = false;
     }
   };
 
