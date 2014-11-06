@@ -56,7 +56,7 @@ Parameters
 * `g2o_opt_max_iter` - Maximum number of g2o alogirthm iterations (typically between 10-50)
 
 #### Graph ####
-* `min_neighbour` - Minimum number of neighbours to considerate for loop closing.
+* `min_neighbor` - Minimum number of neighbors to considerate for loop closing.
 
 #### Stereo vision ####
 * `desc_type` - Can be SIFT or SURF (SIFT by default).
