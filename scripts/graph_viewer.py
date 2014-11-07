@@ -188,17 +188,24 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(
           description='Plot 3D graphics of odometry data files in real time.',
           formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-  parser.add_argument('ground_truth_file',
-          help='file with ground truth')
-  parser.add_argument('visual_odometry_file',
-          help='file with visual odometry')
-  parser.add_argument('graph_vertices_file',
-          help='file the vertices of stereo slam')
-  parser.add_argument('graph_edges_file',
-          help='file the edges of stereo slam')
+  parser.add_argument('-d','--d',
+          help='directory with the files: gt.txt (optional), odom.txt, graph_vertices.txt, graph_edges.txt',
+          default="")
+  parser.add_argument('-gt','--gt',
+          help='file with ground truth',
+          default="")
+  parser.add_argument('-o','--o',
+          help='file with visual odometry',
+          default="")
+  parser.add_argument('-v','--v',
+          help='file with the vertices of stereo slam',
+          default="")
+  parser.add_argument('-e','--e',
+          help='file with the edges of stereo slam',
+          default="")
   parser.add_argument('-dim','--dim', type=int,
-            help='defines the plot dimensions: 2 for xy and 3 for xyz',
-            default=3)
+          help='defines the plot dimensions: 2 for xy and 3 for xyz',
+          default=3)
   args = parser.parse_args()
   plot_dim = args.dim
 
@@ -211,11 +218,26 @@ if __name__ == "__main__":
   print "GRAPH VIEWER MOUSE INPUTS:"
   print " - Right button: activates/deactivates the visualization of graph edges."
 
-  # Save blocking file into global
-  blocking_file = os.path.dirname(args.graph_vertices_file) + "/.lock.txt"
+  # Set parameters
+  global_dir            = args.d
+  ground_truth_file     = args.gt
+  visual_odometry_file  = args.o
+  graph_vertices_file   = args.v
+  graph_edges_file      = args.e
 
-  # Save graph edges file into global
-  graph_edges_file = args.graph_edges_file
+  # Default parameters
+  if (global_dir != ""):
+    if (global_dir[:-1] != "/"):
+      global_dir += "/"
+    visual_odometry_file = global_dir + "odom.txt"
+    graph_vertices_file = global_dir + "graph_vertices.txt"
+    graph_edges_file = global_dir + "graph_edges.txt"
+    ground_truth_file = global_dir + "gt.txt"
+  if not os.path.exists(ground_truth_file):
+    ground_truth_file = "none"
+
+  # Save blocking file into global
+  blocking_file = os.path.dirname(graph_vertices_file) + "/.lock.txt"
 
   # Init figure
   fig = pylab.figure(1)
@@ -234,10 +256,10 @@ if __name__ == "__main__":
 
   # Start timer for real time plot
   timer = fig.canvas.new_timer(2500)
-  real_time_plot(args.ground_truth_file, args.visual_odometry_file, args.graph_vertices_file)
+  real_time_plot(ground_truth_file, visual_odometry_file, graph_vertices_file)
   timer.add_callback( real_time_plot,
-                      args.ground_truth_file,
-                      args.visual_odometry_file,
-                      args.graph_vertices_file)
+                      ground_truth_file,
+                      visual_odometry_file,
+                      graph_vertices_file)
   timer.start()
   pylab.show()

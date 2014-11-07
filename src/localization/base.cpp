@@ -2,7 +2,8 @@
 #include "opencv2/core/core.hpp"
 #include <boost/filesystem.hpp>
 
-namespace fs=boost::filesystem;
+using namespace boost;
+namespace fs=filesystem;
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
   * @return
@@ -86,7 +87,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     lc_.setCameraModel(stereo_camera_model, camera_matrix);
 
     // Save the first node
-    int cur_id = graph_.addVertice(current_odom, current_odom, timestamp);
+    int cur_id = graph_.addVertex(current_odom, current_odom, timestamp);
     lc_.setNode(l_img, r_img);
 
     ROS_INFO_STREAM("[StereoSlam:] Node " << cur_id << " inserted.");
@@ -95,7 +96,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     if (params_.save_clouds && pcl_cloud_.size() > 0)
     {
       // The file name will be the node id
-      string filename = boost::lexical_cast<string>(cur_id);
+      string filename = lexical_cast<string>(cur_id);
       pcl::io::savePCDFileBinary(params_.clouds_dir + filename + ".pcd", pcl_cloud_);
     }
 
@@ -108,26 +109,36 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Correct the current odometry with the graph information
   tf::Transform last_graph_pose, last_graph_odom;
   graph_.getLastPoses(current_odom, last_graph_pose, last_graph_odom);
-  tf::Transform corrected_odom = pose_.correctOdom(current_odom, last_graph_pose, last_graph_odom);
+  tf::Transform corrected_odom = pose_.correctPose(current_odom, last_graph_pose, last_graph_odom);
 
    // Check if difference between poses is larger than minimum displacement
   double pose_diff = Tools::poseDiff(last_graph_odom, current_odom);
-  if (pose_diff <= params_.min_displacement)
-  {
-    pose_.publish(*odom_msg, corrected_odom);
-    return;
-  }
+  if (pose_diff <= params_.min_displacement) return;
 
-  // Insert this new node into the graph
-  int cur_id = graph_.addVertice(current_odom, corrected_odom, timestamp);
+  // Insert this new node into libhaloc
   lc_.setNode(l_img, r_img);
+
+  // Decide if the position of this node will be computed by SolvePNP or odometry
+  tf::Transform corrected_pose = corrected_odom;
+  if (params_.refine_neighbors)
+  {
+    tf::Transform vertex_disp;
+    int last_id = graph_.getLastVertexId();
+    bool valid = lc_.getLoopClosure(lexical_cast<string>(last_id), lexical_cast<string>(last_id+1), vertex_disp);
+    if (valid)
+    {
+      ROS_INFO("[StereoSlam:] Pose refined.");
+      corrected_pose = last_graph_pose * vertex_disp;
+    }
+  }
+  int cur_id = graph_.addVertex(current_odom, corrected_pose, timestamp);
   ROS_INFO_STREAM("[StereoSlam:] Node " << cur_id << " inserted.");
 
   // Save the pointcloud for this new node
   if (params_.save_clouds && pcl_cloud_.size() > 0)
   {
     // The file name will be the node id
-    string filename = boost::lexical_cast<string>(cur_id);
+    string filename = lexical_cast<string>(cur_id);
     pcl::io::savePCDFileBinary(params_.clouds_dir + filename + ".pcd", pcl_cloud_);
   }
 
@@ -138,12 +149,12 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   for (uint i=0; i<neighbors.size(); i++)
   {
     tf::Transform edge;
-    string lc_id = boost::lexical_cast<string>(neighbors[i]);
-    bool valid_lc = lc_.getLoopClosure(boost::lexical_cast<string>(cur_id), lc_id, edge);
+    string lc_id = lexical_cast<string>(neighbors[i]);
+    bool valid_lc = lc_.getLoopClosure(lexical_cast<string>(cur_id), lc_id, edge, true);
     if (valid_lc)
     {
       ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id);
-      graph_.addEdge(boost::lexical_cast<int>(lc_id), cur_id, edge);
+      graph_.addEdge(lexical_cast<int>(lc_id), cur_id, edge);
       any_loop_closure = true;
     }
   }
@@ -162,13 +173,12 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Update the graph if any loop closing
   if (any_loop_closure) graph_.update();
 
-  // Publish the corrected pose
+  // Publish the slam pose
   graph_.getLastPoses(current_odom, last_graph_pose, last_graph_odom);
-  corrected_odom = pose_.correctOdom(current_odom, last_graph_pose, last_graph_odom);
-  pose_.publish(*odom_msg, corrected_odom);
+  pose_.publish(*odom_msg, last_graph_pose);
 
   // Save graph to file
-  graph_.saveGraphToFile();
+  graph_.saveToFile();
 
   return;
 }
@@ -271,7 +281,7 @@ void slam::SlamBase::init()
                                     left_info_sub_,
                                     right_info_sub_,
                                     cloud_sub_) );
-    exact_sync_cloud_->registerCallback(boost::bind(
+    exact_sync_cloud_->registerCallback(bind(
         &slam::SlamBase::msgsCallback,
         this, _1, _2, _3, _4, _5, _6));
   }
@@ -283,7 +293,7 @@ void slam::SlamBase::init()
                                     right_sub_,
                                     left_info_sub_,
                                     right_info_sub_) );
-    exact_sync_no_cloud_->registerCallback(boost::bind(
+    exact_sync_no_cloud_->registerCallback(bind(
         &slam::SlamBase::msgsCallback,
         this, _1, _2, _3, _4, _5));
   }

@@ -45,8 +45,8 @@ Parameters
 * `left_info_topic` - Left info camera topic (type sensor_msgs::CameraInfo).
 * `right_info_topic` - Right info camera topic (type sensor_msgs::CameraInfo).
 * `min_displacement` - Min displacement between graph vertices (in meters).
-* `min_matches` - Minimun number of descriptor matches to consider a matching as possible loop closure. If you don't have loop closings, try to decrese this parameter (minimum value = 8).
-* `min_inliers` - Minimum number of inliers between loop closing candidates. If you don't have loop closings, try to decrese this parameter (minimum value = 7).
+* `min_matches` - Minimun number of descriptor matches to consider a matching as possible loop closure. If you don't have loop closings, try to decrease this parameter (minimum value = 8).
+* `min_inliers` - Minimum number of inliers between loop closing candidates. If you don't have loop closings, try to decrease this parameter (minimum value = 7).
 
 
 ### Other parameters (do not touch by default) ###

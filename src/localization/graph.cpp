@@ -42,6 +42,14 @@ bool slam::Graph::init()
     }
 }
 
+/** \brief Get last vertex id
+  * @return
+  */
+int slam::Graph::getLastVertexId()
+{
+  return graph_optimizer_.vertices().size() - 1;
+}
+
 /** \brief Get last poses of the graph
   * @return
   * \param Current odometry pose used in the case of graph is empty.
@@ -125,16 +133,16 @@ void slam::Graph::findClosestNodes(int discart_first_n, int best_n, vector<int> 
   }
 }
 
-/** \brief Add new vertice into the graph
+/** \brief Add new vertex into the graph
   * @return
   * \param Last corrected odometry pose.
   * \param Current read odometry.
   * \param Timestamp for the current odometry.
   */
-int slam::Graph::addVertice(tf::Transform pose)
+int slam::Graph::addVertex(tf::Transform pose)
 {
   // Convert pose for graph
-  Eigen::Isometry3d vertice_pose = Tools::tfToIsometry(pose);
+  Eigen::Isometry3d vertex_pose = Tools::tfToIsometry(pose);
 
   // Set node id equal to graph size
   int id = graph_optimizer_.vertices().size();
@@ -142,7 +150,7 @@ int slam::Graph::addVertice(tf::Transform pose)
   // Build the vertex
   slam::Vertex* cur_vertex = new slam::Vertex();
   cur_vertex->setId(id);
-  cur_vertex->setEstimate(vertice_pose);
+  cur_vertex->setEstimate(vertex_pose);
   if (id == 0)
   {
     // First time, no edges.
@@ -171,13 +179,13 @@ int slam::Graph::addVertice(tf::Transform pose)
   return id;
 }
 
-/** \brief Add new vertice into the graph
+/** \brief Add new vertex into the graph
   * @return
   * \param Last estimated pose.
-  * \param last corrected pose.
+  * \param Last corrected pose.
   * \param Timestamp for the current odometry.
   */
-int slam::Graph::addVertice(tf::Transform pose,
+int slam::Graph::addVertex(tf::Transform pose,
                             tf::Transform pose_corrected,
                             double timestamp)
 {
@@ -185,13 +193,13 @@ int slam::Graph::addVertice(tf::Transform pose,
   odom_history_.push_back(make_pair(pose, timestamp));
 
   // Add the node
-  return addVertice(pose_corrected);
+  return addVertex(pose_corrected);
 }
 
 /** \brief Add new edge to the graph
   * @return
-  * \param Id vertice 1.
-  * \param Id vertice 2.
+  * \param Id vertex 1.
+  * \param Id vertex 2.
   * \param Edge transform that joins both vertices.
   */
 void slam::Graph::addEdge(int i, int j, tf::Transform edge)
@@ -211,14 +219,14 @@ void slam::Graph::addEdge(int i, int j, tf::Transform edge)
   graph_optimizer_.addEdge(e);
 }
 
-/** \brief Updates vertice estimate
+/** \brief Updates vertex estimate
   * @return
-  * \param Id vertice.
-  * \param New estimate
+  * \param Id vertex.
+  * \param New estimate.
   */
-void slam::Graph::setVerticeEstimate(int vertice_id, tf::Transform pose)
+void slam::Graph::setVertexEstimate(int vertex_id, tf::Transform pose)
 {
-  dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[vertice_id])->setEstimate(Tools::tfToIsometry(pose));
+  dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[vertex_id])->setEstimate(Tools::tfToIsometry(pose));
 }
 
 /** \brief Update the graph
@@ -233,7 +241,7 @@ void slam::Graph::update()
 /** \brief Save the optimized graph into a file with the same format than odometry_msgs.
   * @return
   */
-bool slam::Graph::saveGraphToFile()
+bool slam::Graph::saveToFile()
 {
   string block_file, vertices_file, edges_file;
   vertices_file = params_.save_dir + "graph_vertices.txt";
