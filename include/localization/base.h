@@ -20,6 +20,7 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <libhaloc/lc.h>
+#include "stereo_slam/GetPointCloud.h"
 #include "pose.h"
 #include "graph.h"
 #include "tools.h"
@@ -76,6 +77,10 @@ public:
    * @return current parameters
    */
   inline Params params() const { return params_; }
+
+  // Get pointcloud service callback
+  bool getPointCloud(stereo_slam::GetPointCloud::Request  &req,
+                     stereo_slam::GetPointCloud::Response &res);
 
 protected:
 

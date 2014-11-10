@@ -16,6 +16,10 @@ find_package(catkin REQUIRED COMPONENTS
 	pcl_ros
     cmake_modules)
 
+## Declare ROS messages and services
+add_service_files(FILES GetPointCloud.srv)
+generate_messages(DEPENDENCIES std_msgs sensor_msgs)
+
 ####################################################
 # Dependencies:
 find_package(PkgConfig)

@@ -183,6 +183,39 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   return;
 }
 
+/** \brief Returns a requested pointcloud via service
+  * @return true if pointcloud has been send, false otherwise.
+  * \param service request
+  * \param service response
+  */
+bool slam::SlamBase::getPointCloud(stereo_slam::GetPointCloud::Request  &req,
+                                   stereo_slam::GetPointCloud::Response &res)
+{
+  ROS_INFO_STREAM("[StereoSlam:] Pointcloud with id=" <<  req.id << " has been requested. Sending...");
+
+  // Cloud path
+  string cloud_path = params_.clouds_dir + req.id + ".pcd";
+
+  // Check if cloud exists
+  if (!fs::exists(cloud_path))
+  {
+    ROS_WARN("[StereoSlam:] The requested pointcloud is not available. Check the parameter 'save_clouds'.");
+    return false;
+  }
+
+  // Open the pointcloud
+  PointCloud::Ptr cloud(new PointCloud);
+  if (pcl::io::loadPCDFile<PointRGB> (cloud_path, *cloud) == -1)
+  {
+    ROS_WARN_STREAM("[StereoSlam:] Couldn't read the file: " << cloud_path);
+    return false;
+  }
+
+  // Return the pointcloud
+  pcl::toROSMsg(*cloud, res.cloud);
+  return true;
+}
+
 
 /** \brief Reads the stereo slam node parameters
   */
@@ -258,6 +291,7 @@ void slam::SlamBase::readParameters()
   if (params_.save_clouds)
     cloud_sub_.subscribe(nh_, cloud_topic, 1);
 }
+
 
 /** \brief Initializes the stereo slam node
   */
