@@ -1,5 +1,12 @@
+#include <string>
+#include <fstream>
+#include <streambuf>
+#include <boost/filesystem.hpp>
 #include "localization/graph.h"
 #include "localization/vertex.h"
+
+using namespace boost;
+namespace fs=filesystem;
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
   * @return
@@ -248,7 +255,10 @@ bool slam::Graph::saveToFile()
   edges_file = params_.save_dir + "graph_edges.txt";
   block_file = params_.save_dir + ".graph.lock";
 
-  // Create a blocking element
+  // Wait until lock file has been released
+  while(fs::exists(block_file)){}
+
+  // Create a locking element
   fstream f_block(block_file.c_str(), ios::out | ios::trunc);
 
   // Open to append
@@ -330,5 +340,46 @@ bool slam::Graph::saveToFile()
   }
 
   return true;
+}
+
+
+/** \brief Reads the graph vertices file and return one string with all the contents
+  * @return
+  */
+string slam::Graph::readFile()
+{
+  string block_file, vertices_file, output;
+  vertices_file = params_.save_dir + "graph_vertices.txt";
+  block_file = params_.save_dir + ".graph.lock";
+
+  // Check if file exists
+  if (!fs::exists(vertices_file))
+  {
+    ROS_WARN("[StereoSlam:] The graph vertices file does not exists.");
+    return output;
+  }
+
+  // Wait until lock file has been released
+  while(fs::exists(block_file)){}
+
+  // Create a locking element
+  fstream f_block(block_file.c_str(), ios::out | ios::trunc);
+
+  // Read the graph vertices
+  ifstream vertices(vertices_file.c_str());
+  string file((istreambuf_iterator<char>(vertices)),
+               istreambuf_iterator<char>());
+  output = file;
+
+  // Un-block
+  f_block.close();
+  int ret_code = remove(block_file.c_str());
+  if (ret_code != 0)
+  {
+    ROS_ERROR("[StereoSlam:] Error deleting the blocking file.");
+  }
+
+  return output;
+
 }
 

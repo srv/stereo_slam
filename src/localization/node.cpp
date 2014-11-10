@@ -44,9 +44,12 @@ int main(int argc, char **argv)
   ros::NodeHandle nh_private("~");
   slam::SlamBase slam_node(nh,nh_private);
 
-  // FIXME: Advertise get_point_cloud service here because it is not working on init();
-  ros::ServiceServer service = nh_private.advertiseService("get_point_cloud",
+  // FIXME: Advertising services here because not working on init();
+  ros::ServiceServer pointcloudSrv  = nh_private.advertiseService("get_point_cloud",
                                                            &slam::SlamBase::getPointCloud,
+                                                           &slam_node);
+  ros::ServiceServer graphSrv       = nh_private.advertiseService("get_graph",
+                                                           &slam::SlamBase::getGraph,
                                                            &slam_node);
 
   // Do our own spin loop

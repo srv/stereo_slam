@@ -97,6 +97,9 @@ public:
   // Save the graph to file
   bool saveToFile();
 
+  // Return the graph vertices into a single string
+  string readFile();
+
 protected:
 
   bool init();

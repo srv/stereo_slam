@@ -216,6 +216,21 @@ bool slam::SlamBase::getPointCloud(stereo_slam::GetPointCloud::Request  &req,
   return true;
 }
 
+/** \brief Returns the graph as string.
+  * @return true if graph has been send, false otherwise.
+  * \param service request
+  * \param service response
+  */
+bool slam::SlamBase::getGraph(stereo_slam::GetGraph::Request  &req,
+                              stereo_slam::GetGraph::Response &res)
+{
+  ROS_INFO_STREAM("[StereoSlam:] Graph has been requested. Sending...");
+
+  // Read the graph file
+  res.graph = graph_.readFile();
+  return true;
+}
+
 
 /** \brief Reads the stereo slam node parameters
   */

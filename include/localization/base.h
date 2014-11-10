@@ -21,6 +21,7 @@
 #include <pcl/filters/passthrough.h>
 #include <libhaloc/lc.h>
 #include "stereo_slam/GetPointCloud.h"
+#include "stereo_slam/GetGraph.h"
 #include "pose.h"
 #include "graph.h"
 #include "tools.h"
@@ -78,9 +79,11 @@ public:
    */
   inline Params params() const { return params_; }
 
-  // Get pointcloud service callback
-  bool getPointCloud(stereo_slam::GetPointCloud::Request  &req,
-                     stereo_slam::GetPointCloud::Response &res);
+  // Service callbacks
+  bool getPointCloud( stereo_slam::GetPointCloud::Request &req,
+                      stereo_slam::GetPointCloud::Response &res);
+  bool getGraph(      stereo_slam::GetGraph::Request  &req,
+                      stereo_slam::GetGraph::Response &res);
 
 protected:
 
