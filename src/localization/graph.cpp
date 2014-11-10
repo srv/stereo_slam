@@ -21,32 +21,41 @@ slam::Graph::Graph()
   */
 bool slam::Graph::init()
 {
+  // Delete all the files (if any)
+  string block_file, vertices_file, edges_file;
+  vertices_file = params_.save_dir + "graph_vertices.txt";
+  edges_file = params_.save_dir + "graph_edges.txt";
+  block_file = params_.save_dir + ".graph.lock";
+  fs::remove(vertices_file);
+  fs::remove(edges_file);
+  fs::remove(block_file);
+
   // Initialize the g2o graph optimizer
-    if (params_.g2o_algorithm == 0)
-    {
-      // Slam linear solver with gauss-newton
-      SlamLinearSolver* linear_solver_ptr = new SlamLinearSolver();
-      linear_solver_ptr->setBlockOrdering(false);
-      SlamBlockSolver* block_solver_ptr = new SlamBlockSolver(linear_solver_ptr);
-      g2o::OptimizationAlgorithmGaussNewton* solver_gauss_ptr =
-        new g2o::OptimizationAlgorithmGaussNewton(block_solver_ptr);
-      graph_optimizer_.setAlgorithm(solver_gauss_ptr);
-    }
-    else if (params_.g2o_algorithm == 1)
-    {
-      // Linear solver with Levenberg
-      g2o::BlockSolverX::LinearSolverType * linear_solver_ptr;
-      linear_solver_ptr = new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>();
-      g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(linear_solver_ptr);
-      g2o::OptimizationAlgorithmLevenberg * solver =
-        new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
-      graph_optimizer_.setAlgorithm(solver);
-    }
-    else
-    {
-      ROS_ERROR("[StereoSlam:] g2o_algorithm parameter must be 0 or 1.");
-      return false;
-    }
+  if (params_.g2o_algorithm == 0)
+  {
+    // Slam linear solver with gauss-newton
+    SlamLinearSolver* linear_solver_ptr = new SlamLinearSolver();
+    linear_solver_ptr->setBlockOrdering(false);
+    SlamBlockSolver* block_solver_ptr = new SlamBlockSolver(linear_solver_ptr);
+    g2o::OptimizationAlgorithmGaussNewton* solver_gauss_ptr =
+      new g2o::OptimizationAlgorithmGaussNewton(block_solver_ptr);
+    graph_optimizer_.setAlgorithm(solver_gauss_ptr);
+  }
+  else if (params_.g2o_algorithm == 1)
+  {
+    // Linear solver with Levenberg
+    g2o::BlockSolverX::LinearSolverType * linear_solver_ptr;
+    linear_solver_ptr = new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>();
+    g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(linear_solver_ptr);
+    g2o::OptimizationAlgorithmLevenberg * solver =
+      new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+    graph_optimizer_.setAlgorithm(solver);
+  }
+  else
+  {
+    ROS_ERROR("[StereoSlam:] g2o_algorithm parameter must be 0 or 1.");
+    return false;
+  }
 }
 
 /** \brief Get last vertex id

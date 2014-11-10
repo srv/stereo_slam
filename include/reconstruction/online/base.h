@@ -31,14 +31,14 @@ public:
   {
     // Motion parameters
     string work_dir;              //!> Working directory.
-    string clouds_dir;            //!> Directory where stereo_slam pointclouds are saved.
-    string graph_file;            //!> stereo_slam output graph file.
+    string get_point_cloud_srv;   //!> Global name for the get pointcloud service
+    string get_graph_srv;         //!> Global name for the get graph service
 
     // Default settings
     Params () {
       work_dir                    = "";
-      clouds_dir                  = "";
-      graph_file                  = "";
+      get_point_cloud_srv         = "";
+      get_graph_srv               = "";
     }
   };
 
@@ -55,9 +55,6 @@ public:
    */
   inline Params params() const { return params_; }
 
-  // 3D reconstruction
-  void build3D();
-
 protected:
 
 	// Node handlers
@@ -66,15 +63,17 @@ protected:
 
   // Protected functions and callbacks
   void readParameters();
+  void init();
+  void graphCallback(const ros::WallTimerEvent& event);
+  void parseGraph(string graph,
+                  vector< pair<string, tf::Transform> > &graph_poses);
+  vector<string> parseString(string input, string delimiter);
 
 private:
 
-  // Read the poses from the graph file
-  bool readPoses(vector< pair<string, tf::Transform> > &cloud_poses);
-
   Params params_;                   //!> Stores parameters
-  boost::mutex m_;                  //!> Lock timer while executing
-  ros::WallTimer timer_;            //!> Timer to reconstruct the pointcloud
+  bool lock_timer_;                 //!> Lock timer while executing
+  ros::WallTimer timer_graph_;      //!> Timer to request the graph to slam node
 };
 
 } // namespace

@@ -1,4 +1,4 @@
-#include "reconstruction/base.h"
+#include "reconstruction/offline/base.h"
 #include <boost/filesystem.hpp>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/filters/voxel_grid.h>
