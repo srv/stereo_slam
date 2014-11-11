@@ -1,6 +1,7 @@
 #include "localization/base.h"
 #include "opencv2/core/core.hpp"
 #include <boost/filesystem.hpp>
+#include <pcl/filters/passthrough.h>
 
 using namespace boost;
 namespace fs=filesystem;
@@ -50,7 +51,11 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Get the cloud
   PointCloud::Ptr pcl_cloud(new PointCloud);
   pcl::fromROSMsg(*cloud_msg, *pcl_cloud);
-  pcl::copyPointCloud(*pcl_cloud, pcl_cloud_);
+
+  // Cloud filtering
+  PointCloud::Ptr cloud_filtered(new PointCloud);
+  cloud_filtered = filterCloud(pcl_cloud);
+  pcl::copyPointCloud(*cloud_filtered, pcl_cloud_);
 
   // Call the general slam callback
   msgsCallback(odom_msg, l_img_msg, r_img_msg, l_info_msg, r_info_msg);
@@ -183,6 +188,27 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   return;
 }
 
+/** \brief Filters a pointcloud
+  * @return filtered cloud
+  * \param input cloud
+  */
+PointCloud::Ptr slam::SlamBase::filterCloud(PointCloud::Ptr cloud)
+{
+  // NAN and limit filtering
+  PointCloud::Ptr cloud_filtered_ptr(new PointCloud);
+  pcl::PassThrough<PointRGB> pass;
+  pass.setFilterFieldName("x");
+  pass.setFilterLimits(params_.x_filter_min, params_.x_filter_max);
+  pass.setFilterFieldName("y");
+  pass.setFilterLimits(params_.y_filter_min, params_.y_filter_max);
+  pass.setFilterFieldName("z");
+  pass.setFilterLimits(params_.z_filter_min, params_.z_filter_max);
+  pass.setInputCloud(cloud);
+  pass.filter(*cloud_filtered_ptr);
+
+  return cloud_filtered_ptr;
+}
+
 /** \brief Returns a requested pointcloud via service
   * @return true if pointcloud has been send, false otherwise.
   * \param service request
@@ -270,20 +296,30 @@ void slam::SlamBase::readParameters()
   // Motion parameters
   nh_private_.param("save_clouds",          params.save_clouds,               false);
   nh_private_.param("refine_neighbors",     params.refine_neighbors,          false);
-  nh_private_.getParam("min_displacement",  params.min_displacement);
+  nh_private_.param("min_displacement",     params.min_displacement,          0.3);
 
   // Loop closure parameters
   nh_private_.param("desc_type",            lc_params.desc_type,              string("SIFT"));
   nh_private_.param("desc_matching_type",   lc_params.desc_matching_type,     string("CROSSCHECK"));
-  nh_private_.getParam("desc_thresh_ratio", lc_params.desc_thresh_ratio);
-  nh_private_.getParam("min_neighbor",      lc_params.min_neighbor);
-  nh_private_.getParam("n_candidates",      lc_params.n_candidates);
-  nh_private_.getParam("min_matches",       lc_params.min_matches);
-  nh_private_.getParam("min_inliers",       lc_params.min_inliers);
+  nh_private_.param("desc_thresh_ratio",    lc_params.desc_thresh_ratio,      0.8);
+  nh_private_.param("min_neighbor",         lc_params.min_neighbor,           10);
+  nh_private_.param("n_candidates",         lc_params.n_candidates,           5);
+  nh_private_.param("min_matches",          lc_params.min_matches,            100);
+  nh_private_.param("min_inliers",          lc_params.min_inliers,            50);
 
   // G2O parameters
-  nh_private_.getParam("g2o_algorithm",     graph_params.g2o_algorithm);
-  nh_private_.getParam("g2o_opt_max_iter",  graph_params.go2_opt_max_iter);
+  nh_private_.param("g2o_algorithm",        graph_params.g2o_algorithm,       0);
+  nh_private_.param("g2o_opt_max_iter",     graph_params.go2_opt_max_iter,    20);
+
+  // Cloud filtering values
+  nh_private_.param("x_filter_min",         params.x_filter_min,              -3.0);
+  nh_private_.param("x_filter_max",         params.x_filter_max,              3.0);
+  nh_private_.param("y_filter_min",         params.y_filter_min,              -3.0);
+  nh_private_.param("y_filter_max",         params.y_filter_max,              3.0);
+  nh_private_.param("z_filter_min",         params.z_filter_min,              0.2);
+  nh_private_.param("z_filter_max",         params.z_filter_max,              6.0);
+
+  // Some other graph parameters
   graph_params.save_dir = lc_params.work_dir;
   graph_params.pose_frame_id = pose_params.pose_frame_id;
   graph_params.pose_child_frame_id = pose_params.pose_child_frame_id;

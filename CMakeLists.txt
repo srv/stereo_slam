@@ -80,7 +80,9 @@ target_link_libraries(	offline_reconstruction
 						${catkin_LIBRARIES})
 add_executable(			online_reconstruction
 						src/reconstruction/online/node.cpp
-						src/reconstruction/online/base.cpp)
+						src/reconstruction/online/base.cpp
+						src/reconstruction/online/requester.cpp
+						src/reconstruction/online/viewer.cpp)
 target_link_libraries(	online_reconstruction
 						${eigen_LIBRARIES}
 						${catkin_LIBRARIES})

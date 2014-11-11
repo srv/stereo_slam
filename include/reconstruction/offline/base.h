@@ -29,7 +29,6 @@ public:
 
   struct Params
   {
-    // Motion parameters
     string work_dir;              //!> Working directory.
     string clouds_dir;            //!> Directory where stereo_slam pointclouds are saved.
     string graph_file;            //!> stereo_slam output graph file.

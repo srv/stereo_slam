@@ -55,6 +55,12 @@ public:
     string clouds_dir;               //!> Directory where pointclouds will be saved
     int min_neighbor;                //!> Jump this number of neighbors for closer loop closing candidates.
     bool refine_neighbors;           //!> If true, solvePNP will be applied between consecutive nodes. If false, the odometry will be applied.
+    double x_filter_min;             //!> Cloud limit filter
+    double x_filter_max;             //!> Cloud limit filter
+    double y_filter_min;             //!> Cloud limit filter
+    double y_filter_max;             //!> Cloud limit filter
+    double z_filter_min;             //!> Cloud limit filter
+    double z_filter_max;             //!> Cloud limit filter
 
     // Default settings
     Params () {
@@ -63,6 +69,12 @@ public:
       clouds_dir                  = "";
       min_neighbor                = 10;
       refine_neighbors            = false;
+      x_filter_min                = 3.0;
+      x_filter_max                = -3.0;
+      y_filter_min                = 3.0;
+      y_filter_max                = -3.0;
+      z_filter_min                = 0.2;
+      z_filter_max                = 6.0;
     }
   };
 
@@ -105,6 +117,7 @@ protected:
                     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
                     const sensor_msgs::CameraInfoConstPtr& r_info_msg,
                     const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
+  PointCloud::Ptr filterCloud(PointCloud::Ptr cloud);
 
 private:
 

@@ -7,14 +7,9 @@
 #define BASE_H
 
 #include <ros/ros.h>
-#include <pcl_ros/point_cloud.h>
-#include <tf/transform_broadcaster.h>
+#include "requester.h"
 
 using namespace std;
-
-typedef pcl::PointXY                      PointXY;
-typedef pcl::PointXYZRGB                  PointRGB;
-typedef pcl::PointCloud<PointRGB>         PointCloud;
 
 namespace reconstruction
 {
@@ -29,16 +24,11 @@ public:
 
   struct Params
   {
-    // Motion parameters
     string work_dir;              //!> Working directory.
-    string get_point_cloud_srv;   //!> Global name for the get pointcloud service
-    string get_graph_srv;         //!> Global name for the get graph service
 
     // Default settings
     Params () {
       work_dir                    = "";
-      get_point_cloud_srv         = "";
-      get_graph_srv               = "";
     }
   };
 
@@ -64,16 +54,11 @@ protected:
   // Protected functions and callbacks
   void readParameters();
   void init();
-  void graphCallback(const ros::WallTimerEvent& event);
-  void parseGraph(string graph,
-                  vector< pair<string, tf::Transform> > &graph_poses);
-  vector<string> parseString(string input, string delimiter);
 
 private:
 
-  Params params_;                   //!> Stores parameters
-  bool lock_timer_;                 //!> Lock timer while executing
-  ros::WallTimer timer_graph_;      //!> Timer to request the graph to slam node
+  Params params_;                         //!> Stores parameters
+  reconstruction::Requester requester_;   //!> Requester object
 };
 
 } // namespace
