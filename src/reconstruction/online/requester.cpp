@@ -106,8 +106,13 @@ void reconstruction::Requester::getPointclouds()
       continue;
     }
 
+    // TODO: handle the write error
     // Save the cloud
     pcl::io::savePCDFileBinary(cloud_path, *cloud);
+
+    // Set this node as pc_saved
+    node.pc_saved = true;
+    graph_nodes_[i] = node;
   }
 }
 
