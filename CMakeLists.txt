@@ -17,7 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
     cmake_modules)
 
 ## Declare ROS messages and services
-add_service_files(FILES GetPointCloud.srv GetGraph.srv)
+add_service_files(FILES SetPointCloud.srv SetGraph.srv)
 generate_messages(DEPENDENCIES std_msgs sensor_msgs)
 
 ####################################################
@@ -81,7 +81,7 @@ target_link_libraries(	offline_reconstruction
 add_executable(			online_reconstruction
 						src/reconstruction/online/node.cpp
 						src/reconstruction/online/base.cpp
-						src/reconstruction/online/requester.cpp
+						src/reconstruction/online/receiver.cpp
 						src/reconstruction/online/viewer.cpp)
 target_link_libraries(	online_reconstruction
 						${eigen_LIBRARIES}

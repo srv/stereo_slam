@@ -3,8 +3,10 @@
 #include <boost/filesystem.hpp>
 #include <pcl/filters/passthrough.h>
 
+
 using namespace boost;
 namespace fs=filesystem;
+
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
   * @return
@@ -21,15 +23,17 @@ slam::SlamBase::SlamBase(
   init();
 }
 
+
 /** \brief Finalize stereo slam node
   * @return
   */
 void slam::SlamBase::finalize()
 {
-  ROS_INFO("[StereoSlam:] Finalizing...");
+  ROS_INFO("[Localization:] Finalizing...");
   lc_.finalize();
-  ROS_INFO("[StereoSlam:] Done!");
+  ROS_INFO("[Localization:] Done!");
 }
+
 
 /** \brief Messages callback. This function is called when synchronized odometry and image
   * message are received.
@@ -49,17 +53,14 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 {
   // Get the cloud
-  PointCloud::Ptr pcl_cloud(new PointCloud);
+  PointCloudRGB::Ptr pcl_cloud(new PointCloudRGB);
   pcl::fromROSMsg(*cloud_msg, *pcl_cloud);
+  pcl::copyPointCloud(*pcl_cloud, pcl_cloud_);
 
-  // Cloud filtering
-  PointCloud::Ptr cloud_filtered(new PointCloud);
-  cloud_filtered = filterCloud(pcl_cloud);
-  pcl::copyPointCloud(*cloud_filtered, pcl_cloud_);
-
-  // Call the general slam callback
+  // Run the general slam callback
   msgsCallback(odom_msg, l_img_msg, r_img_msg, l_info_msg, r_info_msg);
 }
+
 
 /** \brief Messages callback. This function is called when synchronized odometry and image
   * message are received.
@@ -94,16 +95,10 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     // Save the first node
     int cur_id = graph_.addVertex(current_odom, current_odom, timestamp);
     lc_.setNode(l_img, r_img);
+    ROS_INFO_STREAM("[Localization:] Node " << cur_id << " inserted.");
 
-    ROS_INFO_STREAM("[StereoSlam:] Node " << cur_id << " inserted.");
-
-    // Save the pointcloud for this new node
-    if (params_.save_clouds && pcl_cloud_.size() > 0)
-    {
-      // The file name will be the node id
-      string filename = lexical_cast<string>(cur_id);
-      pcl::io::savePCDFileBinary(params_.clouds_dir + filename + ".pcd", pcl_cloud_);
-    }
+    // Process the cloud (if any)
+    processCloud(cur_id);
 
     // Publish and exit
     pose_.publish(*odom_msg, current_odom);
@@ -132,20 +127,15 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     bool valid = lc_.getLoopClosure(lexical_cast<string>(last_id), lexical_cast<string>(last_id+1), vertex_disp);
     if (valid)
     {
-      ROS_INFO("[StereoSlam:] Pose refined.");
+      ROS_INFO("[Localization:] Pose refined.");
       corrected_pose = last_graph_pose * vertex_disp;
     }
   }
   int cur_id = graph_.addVertex(current_odom, corrected_pose, timestamp);
-  ROS_INFO_STREAM("[StereoSlam:] Node " << cur_id << " inserted.");
+  ROS_INFO_STREAM("[Localization:] Node " << cur_id << " inserted.");
 
-  // Save the pointcloud for this new node
-  if (params_.save_clouds && pcl_cloud_.size() > 0)
-  {
-    // The file name will be the node id
-    string filename = lexical_cast<string>(cur_id);
-    pcl::io::savePCDFileBinary(params_.clouds_dir + filename + ".pcd", pcl_cloud_);
-  }
+  // Process the cloud (if any)
+  processCloud(cur_id);
 
   // Detect loop closures between nodes by distance
   bool any_loop_closure = false;
@@ -158,7 +148,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     bool valid_lc = lc_.getLoopClosure(lexical_cast<string>(cur_id), lc_id, edge, true);
     if (valid_lc)
     {
-      ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id);
+      ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id);
       graph_.addEdge(lexical_cast<int>(lc_id), cur_id, edge);
       any_loop_closure = true;
     }
@@ -170,7 +160,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   bool valid_lc = lc_.getLoopClosure(lc_id_num, edge);
   if (valid_lc)
   {
-    ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id_num);
+    ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id_num);
     graph_.addEdge(lc_id_num, cur_id, edge);
     any_loop_closure = true;
   }
@@ -182,20 +172,22 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   graph_.getLastPoses(current_odom, last_graph_pose, last_graph_odom);
   pose_.publish(*odom_msg, last_graph_pose);
 
-  // Save graph to file
+  // Save graph to file and send (if needed)
   graph_.saveToFile();
+  sendGraph();
 
   return;
 }
+
 
 /** \brief Filters a pointcloud
   * @return filtered cloud
   * \param input cloud
   */
-PointCloud::Ptr slam::SlamBase::filterCloud(PointCloud::Ptr cloud)
+PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr cloud)
 {
   // NAN and limit filtering
-  PointCloud::Ptr cloud_filtered_ptr(new PointCloud);
+  PointCloudRGB::Ptr cloud_filtered_ptr(new PointCloudRGB);
   pcl::PassThrough<PointRGB> pass;
   pass.setFilterFieldName("x");
   pass.setFilterLimits(params_.x_filter_min, params_.x_filter_max);
@@ -209,51 +201,71 @@ PointCloud::Ptr slam::SlamBase::filterCloud(PointCloud::Ptr cloud)
   return cloud_filtered_ptr;
 }
 
-/** \brief Returns a requested pointcloud via service
-  * @return true if pointcloud has been send, false otherwise.
-  * \param service request
-  * \param service response
+
+/** \brief Save and/or send the accumulated cloud depending on the value of 'save_clouds' and 'listen_reconstruction_srv'
+  * \param Cloud id
   */
-bool slam::SlamBase::getPointCloud(stereo_slam::GetPointCloud::Request  &req,
-                                   stereo_slam::GetPointCloud::Response &res)
+void slam::SlamBase::processCloud(int cloud_id)
 {
-  ROS_INFO_STREAM("[StereoSlam:] Pointcloud with id=" <<  req.id << " has been requested. Sending...");
+  // Proceed?
+  if (pcl_cloud_.size() == 0 || (!params_.save_clouds && !reconstruction_srv_on_) ) return;
 
-  // Cloud path
-  string cloud_path = params_.clouds_dir + req.id + ".pcd";
+  string id = lexical_cast<string>(cloud_id);
 
-  // Check if cloud exists
-  if (!fs::exists(cloud_path))
+  // Cloud filtering
+  PointCloudRGB::Ptr cloud_filtered(new PointCloudRGB);
+  cloud_filtered = filterCloud(pcl_cloud_.makeShared());
+
+  // Save clouds
+  if (params_.save_clouds)
+    pcl::io::savePCDFileBinary(params_.clouds_dir + id + ".pcd", pcl_cloud_);
+
+  // Send cloud
+  if (reconstruction_srv_on_)
   {
-    ROS_WARN("[StereoSlam:] The requested pointcloud is not available. Check the parameter 'save_clouds'.");
-    return false;
+    ros::ServiceClient send_cloud = nh_.serviceClient<stereo_slam::SetPointCloud>(params_.set_cloud_srv);
+    stereo_slam::SetPointCloud srv;
+    PointCloudRGB::Ptr cloud(new PointCloudRGB);
+    srv.request.id = id;
+    pcl::toROSMsg(pcl_cloud_, srv.request.cloud);
+    if (!send_cloud.call(srv))
+      ROS_WARN_STREAM("[Localization:] Failed to call service " << params_.set_cloud_srv);
   }
+}
 
-  // Open the pointcloud
-  PointCloud::Ptr cloud(new PointCloud);
-  if (pcl::io::loadPCDFile<PointRGB> (cloud_path, *cloud) == -1)
-  {
-    ROS_WARN_STREAM("[StereoSlam:] Couldn't read the file: " << cloud_path);
-    return false;
-  }
 
-  // Return the pointcloud
-  pcl::toROSMsg(*cloud, res.cloud);
+/** \brief Send the graph if requested
+  */
+void slam::SlamBase::sendGraph()
+{
+  // Send?
+  if (!reconstruction_srv_on_) return;
+
+  ros::ServiceClient send_graph = nh_.serviceClient<stereo_slam::SetGraph>(params_.set_graph_srv);
+  stereo_slam::SetGraph srv;
+  PointCloudRGB::Ptr cloud(new PointCloudRGB);
+  srv.request.graph = graph_.readFile();
+  if (!send_graph.call(srv))
+    ROS_WARN_STREAM("[Localization:] Failed to call service " << params_.set_graph_srv);
+}
+
+
+/** \brief Start the reconstruction services
+  */
+bool slam::SlamBase::startReconstruction(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
+{
+  reconstruction_srv_on_ = true;
+  ROS_INFO("[Localization:] Call to start_reconstruction service received!");
   return true;
 }
 
-/** \brief Returns the graph as string.
-  * @return true if graph has been send, false otherwise.
-  * \param service request
-  * \param service response
-  */
-bool slam::SlamBase::getGraph(stereo_slam::GetGraph::Request  &req,
-                              stereo_slam::GetGraph::Response &res)
-{
-  ROS_INFO_STREAM("[StereoSlam:] Graph has been requested. Sending...");
 
-  // Read the graph file
-  res.graph = graph_.readFile();
+/** \brief Stop the reconstruction services
+  */
+bool slam::SlamBase::stopReconstruction(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
+{
+  reconstruction_srv_on_ = false;
+  ROS_INFO("[Localization:] Call to stop_reconstruction service received!");
   return true;
 }
 
@@ -280,44 +292,49 @@ void slam::SlamBase::readParameters()
     fs::remove_all(params.clouds_dir);
   fs::path dir(params.clouds_dir);
   if (!fs::create_directory(dir))
-    ROS_ERROR("[StereoSlam:] ERROR -> Impossible to create the clouds directory.");
+    ROS_ERROR("[Localization:] ERROR -> Impossible to create the clouds directory.");
 
   // Topic parameters
   string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic, cloud_topic;
-  nh_private_.param("pose_frame_id",        pose_params.pose_frame_id,        string("/map"));
-  nh_private_.param("pose_child_frame_id",  pose_params.pose_child_frame_id,  string("/robot"));
-  nh_private_.param("odom_topic",           odom_topic,                       string("/odometry"));
-  nh_private_.param("left_topic",           left_topic,                       string("/left/image_rect_color"));
-  nh_private_.param("right_topic",          right_topic,                      string("/right/image_rect_color"));
-  nh_private_.param("left_info_topic",      left_info_topic,                  string("/left/camera_info"));
-  nh_private_.param("right_info_topic",     right_info_topic,                 string("/right/camera_info"));
-  nh_private_.param("cloud_topic",          cloud_topic,                      string("/points2"));
+  nh_private_.param("pose_frame_id",              pose_params.pose_frame_id,        string("/map"));
+  nh_private_.param("pose_child_frame_id",        pose_params.pose_child_frame_id,  string("/robot"));
+  nh_private_.param("odom_topic",                 odom_topic,                       string("/odometry"));
+  nh_private_.param("left_topic",                 left_topic,                       string("/left/image_rect_color"));
+  nh_private_.param("right_topic",                right_topic,                      string("/right/image_rect_color"));
+  nh_private_.param("left_info_topic",            left_info_topic,                  string("/left/camera_info"));
+  nh_private_.param("right_info_topic",           right_info_topic,                 string("/right/camera_info"));
+  nh_private_.param("cloud_topic",                cloud_topic,                      string("/points2"));
 
   // Motion parameters
-  nh_private_.param("save_clouds",          params.save_clouds,               false);
-  nh_private_.param("refine_neighbors",     params.refine_neighbors,          false);
-  nh_private_.param("min_displacement",     params.min_displacement,          0.3);
+  nh_private_.param("refine_neighbors",           params.refine_neighbors,          false);
+  nh_private_.param("min_displacement",           params.min_displacement,          0.3);
+
+  // 3D reconstruction parameters
+  nh_private_.param("save_clouds",                params.save_clouds,               false);
+  nh_private_.param("listen_reconstruction_srv",  params.listen_reconstruction_srv, false);
+  nh_private_.param("set_cloud_srv",              params.set_cloud_srv,              string("set_point_cloud"));
+  nh_private_.param("set_graph_srv",              params.set_graph_srv,              string("set_graph"));
 
   // Loop closure parameters
-  nh_private_.param("desc_type",            lc_params.desc_type,              string("SIFT"));
-  nh_private_.param("desc_matching_type",   lc_params.desc_matching_type,     string("CROSSCHECK"));
-  nh_private_.param("desc_thresh_ratio",    lc_params.desc_thresh_ratio,      0.8);
-  nh_private_.param("min_neighbor",         lc_params.min_neighbor,           10);
-  nh_private_.param("n_candidates",         lc_params.n_candidates,           5);
-  nh_private_.param("min_matches",          lc_params.min_matches,            100);
-  nh_private_.param("min_inliers",          lc_params.min_inliers,            50);
+  nh_private_.param("desc_type",                  lc_params.desc_type,              string("SIFT"));
+  nh_private_.param("desc_matching_type",         lc_params.desc_matching_type,     string("CROSSCHECK"));
+  nh_private_.param("desc_thresh_ratio",          lc_params.desc_thresh_ratio,      0.8);
+  nh_private_.param("min_neighbor",               lc_params.min_neighbor,           10);
+  nh_private_.param("n_candidates",               lc_params.n_candidates,           5);
+  nh_private_.param("min_matches",                lc_params.min_matches,            100);
+  nh_private_.param("min_inliers",                lc_params.min_inliers,            50);
 
   // G2O parameters
-  nh_private_.param("g2o_algorithm",        graph_params.g2o_algorithm,       0);
-  nh_private_.param("g2o_opt_max_iter",     graph_params.go2_opt_max_iter,    20);
+  nh_private_.param("g2o_algorithm",              graph_params.g2o_algorithm,       0);
+  nh_private_.param("g2o_opt_max_iter",           graph_params.go2_opt_max_iter,    20);
 
   // Cloud filtering values
-  nh_private_.param("x_filter_min",         params.x_filter_min,              -3.0);
-  nh_private_.param("x_filter_max",         params.x_filter_max,              3.0);
-  nh_private_.param("y_filter_min",         params.y_filter_min,              -3.0);
-  nh_private_.param("y_filter_max",         params.y_filter_max,              3.0);
-  nh_private_.param("z_filter_min",         params.z_filter_min,              0.2);
-  nh_private_.param("z_filter_max",         params.z_filter_max,              6.0);
+  nh_private_.param("x_filter_min",               params.x_filter_min,              -3.0);
+  nh_private_.param("x_filter_max",               params.x_filter_max,              3.0);
+  nh_private_.param("y_filter_min",               params.y_filter_min,              -3.0);
+  nh_private_.param("y_filter_max",               params.y_filter_max,              3.0);
+  nh_private_.param("z_filter_min",               params.z_filter_min,              0.2);
+  nh_private_.param("z_filter_max",               params.z_filter_max,              6.0);
 
   // Some other graph parameters
   graph_params.save_dir = lc_params.work_dir;
@@ -339,7 +356,7 @@ void slam::SlamBase::readParameters()
   left_info_sub_  .subscribe(nh_, left_info_topic,  1);
   right_info_sub_ .subscribe(nh_, right_info_topic, 1);
 
-  if (params_.save_clouds)
+  if (params_.save_clouds || params_.listen_reconstruction_srv)
     cloud_sub_.subscribe(nh_, cloud_topic, 1);
 }
 
@@ -348,7 +365,9 @@ void slam::SlamBase::readParameters()
   */
 void slam::SlamBase::init()
 {
+  // Init
   first_iter_ = true;
+  reconstruction_srv_on_ = false;
 
   // Init Haloc
   lc_.init();
@@ -357,7 +376,7 @@ void slam::SlamBase::init()
   pose_.advertisePoseMsg(nh_private_);
 
   // Callback synchronization
-  if (params_.save_clouds)
+  if (params_.save_clouds || params_.listen_reconstruction_srv)
   {
     exact_sync_cloud_.reset(new ExactSyncCloud(ExactPolicyCloud(1),
                                     odom_sub_,

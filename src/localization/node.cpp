@@ -2,7 +2,7 @@
 #include <ros/ros.h>
 #include <ros/xmlrpc_manager.h>
 #include "localization/base.h"
-#include "stereo_slam/GetPointCloud.h"
+#include "stereo_slam/SetPointCloud.h"
 
 // Signal-safe flag for whether shutdown is requested
 sig_atomic_t volatile g_request_shutdown = 0;
@@ -45,12 +45,12 @@ int main(int argc, char **argv)
   slam::SlamBase slam_node(nh,nh_private);
 
   // FIXME: Advertising services here because not working on init();
-  ros::ServiceServer pointcloudSrv  = nh_private.advertiseService("get_point_cloud",
-                                                           &slam::SlamBase::getPointCloud,
-                                                           &slam_node);
-  ros::ServiceServer graphSrv       = nh_private.advertiseService("get_graph",
-                                                           &slam::SlamBase::getGraph,
-                                                           &slam_node);
+  ros::ServiceServer start_reconstruction_srv = nh_private.advertiseService("start_reconstruction",
+                                                &slam::SlamBase::startReconstruction,
+                                                &slam_node);
+  ros::ServiceServer stop_reconstruction_srv  = nh_private.advertiseService("stop_reconstruction",
+                                                &slam::SlamBase::stopReconstruction,
+                                                &slam_node);
 
   // Do our own spin loop
   while (!g_request_shutdown)

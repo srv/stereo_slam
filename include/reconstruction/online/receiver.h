@@ -1,46 +1,47 @@
 /**
  * @file
- * @brief Requester of localization information (graph, pointclouds, etc.)
+ * @brief Receiver of localization information (graph, pointclouds, etc.)
  */
 
-#ifndef REQUESTER_H
-#define REQUESTER_H
+#ifndef RECEIVER_H
+#define RECEIVER_H
 
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
 #include <tf/transform_broadcaster.h>
+#include "stereo_slam/SetGraph.h"
+#include "stereo_slam/SetPointCloud.h"
 
 using namespace std;
 
-typedef pcl::PointXY                      PointXY;
 typedef pcl::PointXYZRGB                  PointRGB;
-typedef pcl::PointCloud<PointRGB>         PointCloud;
+typedef pcl::PointCloud<PointRGB>         PointCloudRGB;
 
 namespace reconstruction
 {
 
-class Requester
+class Receiver
 {
 
 public:
 
 	// Constructor
-  Requester();
+  Receiver();
 
   // Structure of parameters
   struct Params
   {
     string work_dir;              //!> Working directory.
-    string get_point_cloud_srv;   //!> Global name for the get pointcloud service
-    string get_graph_srv;         //!> Global name for the get graph service
+    string start_srv;             //!> Global name for the start reconstruction service
+    string stop_srv;              //!> Global name for the stop reconstruction service
     ros::NodeHandle nh;           //!> Public ros node handle
     ros::NodeHandle nh_private;   //!> Private ros node handle
 
     // Default settings
     Params () {
       work_dir                    = "";
-      get_point_cloud_srv         = "";
-      get_graph_srv               = "";
+      start_srv                   = "";
+      stop_srv                    = "";
     }
   };
 
@@ -50,18 +51,19 @@ public:
     // Motion parameters
     string id;                    //!> Node id (equal to pointcloud)
     tf::Transform pose;           //!> Node pose
-    bool pc_saved;                //!> True if pointcloud has been received
+    bool has_saved;               //!> True if pointcloud has been received
 
     // Default settings
     Node () {
       id                          = "";
-      pc_saved                    = false;
+      has_saved                   = false;
     }
-    Node (string id, tf::Transform pose, bool pc_saved) {
-      id                          = id;
-      pose                        = pose;
-      pc_saved                    = pc_saved;
-    }
+    Node (string id,
+          tf::Transform pose,
+          bool has_saved) :
+          id(id),
+          pose(pose),
+          has_saved(has_saved) {}
   };
 
   /**
@@ -83,24 +85,31 @@ public:
   // Stop the request timer
   void stop();
 
+  // Get the pose of some specific node
+  bool getNodePose(string id, tf::Transform &pose);
+
+  // Service callbacks
+  bool recieveGraph(stereo_slam::SetGraph::Request &req,
+                    stereo_slam::SetGraph::Response &res);
+  bool recieveCloud(stereo_slam::SetPointCloud::Request &req,
+                    stereo_slam::SetPointCloud::Response &res);
+
 protected:
 
   // Protected functions and callbacks
   int isNode(string id);
-  void getThingsCallback(const ros::WallTimerEvent& event);
-  void getGraph();
-  void getPointclouds();
+  void insertNode(Node n);
+  void updateNode(int pose, Node n);
   void parseGraph(string graph);
   vector<string> parseString(string input, string delimiter);
 
 private:
 
   Params params_;                   //!> Stores parameters
-  bool lock_timer_;                 //!> Lock timer while executing
-  ros::WallTimer timer_graph_;      //!> Timer to request the graph to slam node
   vector<Node> graph_nodes_;        //!> List of graph nodes
+  bool lock_graph_nodes_;           //!> Lock the graph nodes list while it is accessed
 };
 
 } // namespace
 
-#endif // REQUESTER_H
+#endif // RECEIVER_H

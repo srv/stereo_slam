@@ -53,7 +53,7 @@ bool slam::Graph::init()
   }
   else
   {
-    ROS_ERROR("[StereoSlam:] g2o_algorithm parameter must be 0 or 1.");
+    ROS_ERROR("[Localization:] g2o_algorithm parameter must be 0 or 1.");
     return false;
   }
 }
@@ -251,7 +251,7 @@ void slam::Graph::update()
 {
     graph_optimizer_.initializeOptimization();
     graph_optimizer_.optimize(params_.go2_opt_max_iter);
-    ROS_INFO_STREAM("[StereoSlam:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
+    ROS_INFO_STREAM("[Localization:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
 }
 
 /** \brief Save the optimized graph into a file with the same format than odometry_msgs.
@@ -344,7 +344,7 @@ bool slam::Graph::saveToFile()
   int ret_code = remove(block_file.c_str());
   if (ret_code != 0)
   {
-    ROS_ERROR("[StereoSlam:] Error deleting the blocking file.");
+    ROS_ERROR("[Localization:] Error deleting the blocking file.");
     return false;
   }
 
@@ -364,7 +364,7 @@ string slam::Graph::readFile()
   // Check if file exists
   if (!fs::exists(vertices_file))
   {
-    ROS_WARN("[StereoSlam:] The graph vertices file does not exists.");
+    ROS_WARN("[Localization:] The graph vertices file does not exists.");
     return output;
   }
 
@@ -385,7 +385,7 @@ string slam::Graph::readFile()
   int ret_code = remove(block_file.c_str());
   if (ret_code != 0)
   {
-    ROS_ERROR("[StereoSlam:] Error deleting the blocking file.");
+    ROS_ERROR("[Localization:] Error deleting the blocking file.");
   }
 
   return output;

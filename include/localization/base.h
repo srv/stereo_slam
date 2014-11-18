@@ -20,8 +20,9 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <libhaloc/lc.h>
-#include "stereo_slam/GetPointCloud.h"
-#include "stereo_slam/GetGraph.h"
+#include "stereo_slam/SetPointCloud.h"
+#include "stereo_slam/SetGraph.h"
+#include <std_srvs/Empty.h>
 #include "pose.h"
 #include "graph.h"
 #include "tools.h"
@@ -31,7 +32,7 @@ using namespace cv;
 using namespace tools;
 
 typedef pcl::PointXYZRGB                  PointRGB;
-typedef pcl::PointCloud<PointRGB>         PointCloud;
+typedef pcl::PointCloud<PointRGB>         PointCloudRGB;
 
 namespace slam
 {
@@ -50,17 +51,20 @@ public:
   struct Params
   {
     // Motion parameters
-    double min_displacement;         //!> Minimum odometry displacement between poses to be saved as graph vertices.
-    bool save_clouds;                //!> Save the pointclouds
-    string clouds_dir;               //!> Directory where pointclouds will be saved
-    int min_neighbor;                //!> Jump this number of neighbors for closer loop closing candidates.
-    bool refine_neighbors;           //!> If true, solvePNP will be applied between consecutive nodes. If false, the odometry will be applied.
-    double x_filter_min;             //!> Cloud limit filter
-    double x_filter_max;             //!> Cloud limit filter
-    double y_filter_min;             //!> Cloud limit filter
-    double y_filter_max;             //!> Cloud limit filter
-    double z_filter_min;             //!> Cloud limit filter
-    double z_filter_max;             //!> Cloud limit filter
+    double min_displacement;          //!> Minimum odometry displacement between poses to be saved as graph vertices.
+    bool save_clouds;                 //!> Save the pointclouds
+    string clouds_dir;                //!> Directory where pointclouds will be saved
+    int min_neighbor;                 //!> Jump this number of neighbors for closer loop closing candidates.
+    bool refine_neighbors;            //!> If true, solvePNP will be applied between consecutive nodes. If false, the odometry will be applied.
+    double x_filter_min;              //!> Cloud limit filter
+    double x_filter_max;              //!> Cloud limit filter
+    double y_filter_min;              //!> Cloud limit filter
+    double y_filter_max;              //!> Cloud limit filter
+    double z_filter_min;              //!> Cloud limit filter
+    double z_filter_max;              //!> Cloud limit filter
+    bool listen_reconstruction_srv;   //!> Listen for reconstruction services
+    string set_cloud_srv;             //!> Name of the service to send the cloud
+    string set_graph_srv;             //!> Name of the service to send the graph
 
     // Default settings
     Params () {
@@ -75,6 +79,9 @@ public:
       y_filter_max                = -3.0;
       z_filter_min                = 0.2;
       z_filter_max                = 6.0;
+      listen_reconstruction_srv   = false;
+      set_cloud_srv               = "set_point_cloud";
+      set_graph_srv               = "set_graph";
     }
   };
 
@@ -91,11 +98,10 @@ public:
    */
   inline Params params() const { return params_; }
 
-  // Service callbacks
-  bool getPointCloud( stereo_slam::GetPointCloud::Request &req,
-                      stereo_slam::GetPointCloud::Response &res);
-  bool getGraph(      stereo_slam::GetGraph::Request  &req,
-                      stereo_slam::GetGraph::Response &res);
+  // Services
+  bool startReconstruction(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
+  bool stopReconstruction(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
+
 
 protected:
 
@@ -117,7 +123,9 @@ protected:
                     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
                     const sensor_msgs::CameraInfoConstPtr& r_info_msg,
                     const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
-  PointCloud::Ptr filterCloud(PointCloud::Ptr cloud);
+  PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr cloud);
+  void processCloud(int cloud_id);
+  void sendGraph();
 
 private:
 
@@ -151,7 +159,8 @@ private:
   slam::Pose pose_;                 //!> Pose object
   slam::Graph graph_;               //!> Graph object
   bool first_iter_;                 //!> Indicates first iteration
-  PointCloud pcl_cloud_;            //!> Current pointcloud to be saved
+  PointCloudRGB pcl_cloud_;         //!> Current pointcloud to be saved
+  bool reconstruction_srv_on_;      //!> True to enable the reconstruction services
 };
 
 } // namespace

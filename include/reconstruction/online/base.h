@@ -7,7 +7,8 @@
 #define BASE_H
 
 #include <ros/ros.h>
-#include "requester.h"
+#include "receiver.h"
+//#include "viewer.h"
 
 using namespace std;
 
@@ -45,6 +46,13 @@ public:
    */
   inline Params params() const { return params_; }
 
+  // Start and stop the node
+  void start();
+  void stop();
+
+  // Access specifiers
+  reconstruction::Receiver getReceiver();
+
 protected:
 
 	// Node handlers
@@ -53,12 +61,12 @@ protected:
 
   // Protected functions and callbacks
   void readParameters();
-  void init();
 
 private:
 
   Params params_;                         //!> Stores parameters
-  reconstruction::Requester requester_;   //!> Requester object
+  reconstruction::Receiver receiver_;     //!> Receiver object
+  //reconstruction::Viewer    viewer_;      //!> Viewer object
 };
 
 } // namespace

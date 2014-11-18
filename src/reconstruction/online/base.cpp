@@ -14,9 +14,6 @@ reconstruction::ReconstructionBase::ReconstructionBase(
 {
   // Read the node parameters
   readParameters();
-
-  // Initialize the node
-  init();
 }
 
 
@@ -38,26 +35,57 @@ void reconstruction::ReconstructionBase::readParameters()
     fs::remove_all(params.work_dir);
   fs::path dir(params.work_dir);
   if (!fs::create_directory(dir))
-    ROS_ERROR("[StereoSlam:] ERROR -> Impossible to create the reconstruction directory.");
+    ROS_ERROR("[Reconstruction:] ERROR -> Impossible to create the reconstruction directory.");
 
   // Set class parameters
   setParams(params);
 
-  // Requester parameters
-  reconstruction::Requester::Params requester_params;
-  nh_private_.param("get_point_cloud_srv", requester_params.get_point_cloud_srv, string(""));
-  nh_private_.param("get_graph_srv", requester_params.get_graph_srv, string(""));
-  requester_params.work_dir = params.work_dir;
-  requester_params.nh_private = nh_private_;
-  requester_params.nh = nh_;
-  requester_.setParams(requester_params);
+  // Receiver parameters
+  reconstruction::Receiver::Params receiver_params;
+  nh_private_.param("start_srv", receiver_params.start_srv,         string(""));
+  nh_private_.param("stop_srv", receiver_params.stop_srv,           string(""));
+  receiver_params.work_dir = params.work_dir;
+  receiver_params.nh_private = nh_private_;
+  receiver_params.nh = nh_;
+  receiver_.setParams(receiver_params);
+
+  // Viewer parameters
+  //reconstruction::Viewer::Params viewer_params;
+  //nh_private_.param("min_pose_change",     viewer_params.min_pose_change,          0.005);
+  //viewer_params.work_dir = params.work_dir;
+  //viewer_params.nh_private = nh_private_;
+  //viewer_params.nh = nh_;
+  //viewer_.setParams(viewer_params);
 }
 
 
 /** \brief Initialize the node
   */
-void reconstruction::ReconstructionBase::init()
+void reconstruction::ReconstructionBase::start()
 {
-  // Start the requester
-  requester_.start();
+  ROS_INFO_STREAM("[Reconstruction:] Starting reconstruction...");
+
+  // Start the receiver
+  receiver_.start();
+
+  // Set the receiver for the viewer
+  //viewer_.setReceiver(receiver_);
+  //viewer_.start();
+}
+
+/** \brief Finalizes the node
+  */
+void reconstruction::ReconstructionBase::stop()
+{
+  ROS_INFO_STREAM("[Reconstruction:] Finalizing reconstruction...");
+  receiver_.stop();
+  //viewer_.stop();
+}
+
+/** \brief Get the receiver
+  * @return the receiver of this class
+  */
+reconstruction::Receiver reconstruction::ReconstructionBase::getReceiver()
+{
+  return receiver_;
 }
