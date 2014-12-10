@@ -70,6 +70,7 @@ target_link_libraries(	localization
 						${G2O_LIBRARIES}
 						cholmod
 						${catkin_LIBRARIES})
+add_dependencies(		localization stereo_slam_gencpp)
 
 # Reconstruction nodes
 add_executable(			offline_reconstruction
@@ -86,3 +87,4 @@ add_executable(			online_reconstruction
 target_link_libraries(	online_reconstruction
 						${eigen_LIBRARIES}
 						${catkin_LIBRARIES})
+add_dependencies(		online_reconstruction stereo_slam_gencpp)

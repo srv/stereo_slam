@@ -14,9 +14,9 @@ int main(int argc, char **argv)
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
   ReconstructionBase reconstruction(nh,nh_private);
-  reconstruction::Receiver receiver = reconstruction.getReceiver();
 
   // FIXME: Advertising services here because not working on inside the class
+  reconstruction::Receiver receiver = reconstruction.getReceiver();
   ros::ServiceServer recieve_graph_srv = nh_private.advertiseService("recieve_graph",
                                                 &reconstruction::Receiver::recieveGraph,
                                                 &receiver);

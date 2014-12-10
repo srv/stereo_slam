@@ -8,7 +8,6 @@
 
 #include <ros/ros.h>
 #include "receiver.h"
-//#include "viewer.h"
 
 using namespace std;
 
@@ -66,7 +65,6 @@ private:
 
   Params params_;                         //!> Stores parameters
   reconstruction::Receiver receiver_;     //!> Receiver object
-  //reconstruction::Viewer    viewer_;      //!> Viewer object
 };
 
 } // namespace

@@ -12,7 +12,6 @@
 #include <pcl/visualization/pcl_visualizer.h>
 #include <boost/thread.hpp>
 #include "../../localization/tools.h"
-#include "receiver.h"
 
 using namespace std;
 
@@ -36,14 +35,10 @@ public:
   struct Params
   {
     string work_dir;              //!> Working directory.
-    double min_pose_change;       //!> Minimum pose change to update a cloud
-    ros::NodeHandle nh;           //!> Public ros node handle
-    ros::NodeHandle nh_private;   //!> Private ros node handle
 
     // Default settings
     Params () {
       work_dir                    = "";
-      min_pose_change             = 0.005;
     }
   };
 
@@ -94,26 +89,18 @@ public:
   // Stop the viewer
   void stop();
 
-  // Access specifiers
-  void setReceiver(reconstruction::Receiver receiver);
+  // Update the clouds
+  void update();
 
 protected:
 
   // Protected functions and callbacks
-  void buildCallback(const ros::WallTimerEvent& event);
-  void updateCloudPoses();
-  void getNewClouds();
-  void insertCloud();
-  void updateCloud(string id);
   void computeGeometry(string id, PointXY &centroid, double &radius);
   void updateVisualization();
 
 private:
 
   Params params_;                         //!> Stores parameters
-  bool lock_timer_;                       //!> Lock timer while executing
-  ros::WallTimer timer_update_;           //!> Timer to update the viewer
-  reconstruction::Receiver receiver_;     //!> Receiver object
   vector<Cloud> clouds_;                  //!> List of pointclouds
   boost::thread visualization_thread_;    //!> Visualization thread
   boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer_; //!> The viewer

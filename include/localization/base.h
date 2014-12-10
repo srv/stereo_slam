@@ -125,6 +125,9 @@ protected:
                     const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
   PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr cloud);
   void processCloud(int cloud_id);
+  bool getOdom2CameraTf(nav_msgs::Odometry odom_msg,
+                        sensor_msgs::Image img_msg,
+                        tf::StampedTransform &transform);
   void sendGraph();
 
 private:

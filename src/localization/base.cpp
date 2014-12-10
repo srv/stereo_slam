@@ -83,6 +83,12 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   double timestamp = odom_msg->header.stamp.toSec();
   tf::Transform current_odom = Tools::odomTotf(*odom_msg);
 
+  // Convert odometry to camera frame
+  tf::StampedTransform odom2camera;
+  if (!getOdom2CameraTf(*odom_msg, *l_img_msg, odom2camera))
+    return;
+  current_odom = current_odom * odom2camera;
+
   // Initialization
   if (first_iter_)
   {
@@ -101,7 +107,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     processCloud(cur_id);
 
     // Publish and exit
-    pose_.publish(*odom_msg, current_odom);
+    pose_.publish(*odom_msg, current_odom * odom2camera.inverse());
     first_iter_ = false;
     return;
   }
@@ -170,7 +176,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
 
   // Publish the slam pose
   graph_.getLastPoses(current_odom, last_graph_pose, last_graph_odom);
-  pose_.publish(*odom_msg, last_graph_pose);
+  pose_.publish(*odom_msg, last_graph_pose * odom2camera.inverse());
 
   // Save graph to file and send (if needed)
   graph_.saveToFile();
@@ -231,6 +237,39 @@ void slam::SlamBase::processCloud(int cloud_id)
     if (!send_cloud.call(srv))
       ROS_WARN_STREAM("[Localization:] Failed to call service " << params_.set_cloud_srv);
   }
+}
+
+/** \brief Get the transform between odometry frame and camera frame
+  * @return true if valid transform, false otherwise
+  * \param Odometry msg
+  * \param Image msg
+  * \param Output transform
+  */
+bool slam::SlamBase::getOdom2CameraTf(nav_msgs::Odometry odom_msg,
+                                      sensor_msgs::Image img_msg,
+                                      tf::StampedTransform &transform)
+{
+  // Wait for transform between odometry frame and camera frame
+  tf::TransformListener tf_listener;
+  try
+  {
+    tf_listener.waitForTransform(odom_msg.child_frame_id,
+                                 img_msg.header.frame_id,
+                                 odom_msg.header.stamp,
+                                 ros::Duration(2.0));
+  }
+  catch (tf::TransformException ex){
+    ROS_ERROR("%s", ex.what());
+    ros::Duration(1.0).sleep();
+    return false;
+  }
+
+  // Extract the transform
+  tf_listener.lookupTransform(odom_msg.child_frame_id,
+                              img_msg.header.frame_id,
+                              odom_msg.header.stamp,
+                              transform);
+  return true;
 }
 
 

@@ -2,7 +2,6 @@
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/classification.hpp>
-#include <pcl/kdtree/kdtree_flann.h>
 #include <pcl_ros/transforms.h>
 #include <std_srvs/Empty.h>
 #include <unistd.h>
@@ -73,7 +72,7 @@ void reconstruction::Receiver::insertNode(Node n)
   * \param node index to be updated
   * \param the node to be updated
   */
-void reconstruction::Receiver::updateNode(int pos, Node n)
+void reconstruction::Receiver::updateNode(int idx, Node n)
 {
   // Wait until unlock
   while (lock_graph_nodes_) {}
@@ -81,8 +80,8 @@ void reconstruction::Receiver::updateNode(int pos, Node n)
   // Lock
   lock_graph_nodes_ = true;
 
-  // Insert
-  graph_nodes_[pos] = n;
+  // Update
+  graph_nodes_[idx] = n;
 
   // Unlock
   lock_graph_nodes_ = false;
@@ -90,15 +89,14 @@ void reconstruction::Receiver::updateNode(int pos, Node n)
 
 
 /** \brief Retrieve the pose of a node
-  * @return true if node exists, false otherwise
-  * \param node index
+  * @return the node idx if node exists, -1 otherwise
+  * \param node identifier
   * \param pose of the node
   */
-bool reconstruction::Receiver::getNodePose(string id, tf::Transform &pose)
+int reconstruction::Receiver::getNode(string id, Node &node)
 {
   // Init
-  bool exists = false;
-  pose.setIdentity();
+  int idx = -1;
 
   // Search the node
   for (uint i=0; i<graph_nodes_.size(); i++)
@@ -111,13 +109,12 @@ bool reconstruction::Receiver::getNodePose(string id, tf::Transform &pose)
 
     if (n.id == id && n.has_saved)
     {
-      pose = n.pose;
-      exists = true;
+      node = n;
+      idx = i;
       break;
     }
   }
-
-  return exists;
+  return idx;
 }
 
 
@@ -152,6 +149,15 @@ bool reconstruction::Receiver::recieveCloud(stereo_slam::SetPointCloud::Request 
   // Save the cloud
   string cloud_path = params_.work_dir + req.id + ".pcd";
   pcl::io::savePCDFileBinary(cloud_path, *cloud);
+
+  // Mark this cloud as saved
+  Node n;
+  int idx = getNode(req.id,n);
+  if (idx >= 0)
+  {
+    n.has_saved = true;
+    updateNode(idx, n);
+  }
 
   // Exit
   res.res = "";
@@ -190,8 +196,14 @@ void reconstruction::Receiver::parseGraph(string graph)
     tf::Quaternion q(qx, qy, qz, qw);
     tf::Transform pose(q, t);
 
+    // Check if the cloud is saved
+    bool cloud_exists = false;
+    string cloud_path = params_.work_dir + id + ".pcd";
+    if (fs::exists(cloud_path))
+      cloud_exists = true;
+
     // Create the node
-    Node node(id, pose, false);
+    Node node(id, pose, cloud_exists);
 
     // Insert or update
     int idx = isNode(id);
@@ -231,12 +243,19 @@ void reconstruction::Receiver::start()
     ROS_WARN_STREAM("[Reconstruction:] Service " << params_.start_srv << " no yet advertised.");
     usleep(1e9);
   }
-
 }
+
 
 /** \brief Stops the receiver timer
   */
 void reconstruction::Receiver::stop()
 {
-
+  // Stop receiving things
+  ros::ServiceClient stop = params_.nh.serviceClient<std_srvs::Empty>(params_.stop_srv);
+  std_srvs::Empty empty;
+  while (!stop.call(empty))
+  {
+    ROS_WARN_STREAM("[Reconstruction:] Service " << params_.stop_srv << " no yet advertised.");
+    usleep(1e9);
+  }
 }

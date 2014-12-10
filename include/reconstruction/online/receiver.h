@@ -85,9 +85,6 @@ public:
   // Stop the request timer
   void stop();
 
-  // Get the pose of some specific node
-  bool getNodePose(string id, tf::Transform &pose);
-
   // Service callbacks
   bool recieveGraph(stereo_slam::SetGraph::Request &req,
                     stereo_slam::SetGraph::Response &res);
@@ -98,8 +95,9 @@ protected:
 
   // Protected functions and callbacks
   int isNode(string id);
+  int getNode(string id, Node &node);
   void insertNode(Node n);
-  void updateNode(int pose, Node n);
+  void updateNode(int idx, Node n);
   void parseGraph(string graph);
   vector<string> parseString(string input, string delimiter);
 
