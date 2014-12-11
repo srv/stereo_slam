@@ -157,13 +157,14 @@ private:
   typedef message_filters::Synchronizer<ExactPolicyCloud> ExactSyncCloud;
   boost::shared_ptr<ExactSyncCloud> exact_sync_cloud_;
 
-  Params params_;                   //!> Stores parameters
-  haloc::LoopClosure lc_;           //!> Loop closure object
-  slam::Pose pose_;                 //!> Pose object
-  slam::Graph graph_;               //!> Graph object
-  bool first_iter_;                 //!> Indicates first iteration
-  PointCloudRGB pcl_cloud_;         //!> Current pointcloud to be saved
-  bool reconstruction_srv_on_;      //!> True to enable the reconstruction services
+  Params params_;                     //!> Stores parameters
+  haloc::LoopClosure lc_;             //!> Loop closure object
+  slam::Pose pose_;                   //!> Pose object
+  slam::Graph graph_;                 //!> Graph object
+  bool first_iter_;                   //!> Indicates first iteration
+  PointCloudRGB pcl_cloud_;           //!> Current pointcloud to be saved
+  bool reconstruction_srv_on_;        //!> True to enable the reconstruction services
+  tf::TransformListener tf_listener_; //!> Transform listener
 };
 
 } // namespace

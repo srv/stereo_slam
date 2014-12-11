@@ -5,8 +5,6 @@
 #include <pcl_ros/transforms.h>
 #include <std_srvs/Empty.h>
 #include <unistd.h>
-#include "stereo_slam/GetPointCloud.h"
-#include "stereo_slam/GetGraph.h"
 
 
 namespace fs=boost::filesystem;

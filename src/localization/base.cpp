@@ -249,26 +249,22 @@ bool slam::SlamBase::getOdom2CameraTf(nav_msgs::Odometry odom_msg,
                                       sensor_msgs::Image img_msg,
                                       tf::StampedTransform &transform)
 {
-  // Wait for transform between odometry frame and camera frame
-  tf::TransformListener tf_listener;
+  // Init the transform
+  transform.setIdentity();
+
   try
   {
-    tf_listener.waitForTransform(odom_msg.child_frame_id,
+    // Extract the transform
+    tf_listener_.lookupTransform(odom_msg.child_frame_id,
                                  img_msg.header.frame_id,
-                                 odom_msg.header.stamp,
-                                 ros::Duration(2.0));
+                                 ros::Time(0),
+                                 transform);
   }
-  catch (tf::TransformException ex){
-    ROS_ERROR("%s", ex.what());
-    ros::Duration(1.0).sleep();
+  catch (tf::TransformException ex)
+  {
+    ROS_WARN("%s", ex.what());
     return false;
   }
-
-  // Extract the transform
-  tf_listener.lookupTransform(odom_msg.child_frame_id,
-                              img_msg.header.frame_id,
-                              odom_msg.header.stamp,
-                              transform);
   return true;
 }
 
