@@ -119,7 +119,13 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
 
    // Check if difference between poses is larger than minimum displacement
   double pose_diff = Tools::poseDiff(last_graph_odom, current_odom);
-  if (pose_diff <= params_.min_displacement) return;
+  if (pose_diff <= params_.min_displacement)
+  {
+    // Publish and exit
+    ROS_INFO_STREAM("KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKkk");
+    pose_.publish(*odom_msg, corrected_odom * odom2camera.inverse());
+    return;
+  }
 
   // Insert this new node into libhaloc
   lc_.setNode(l_img, r_img);
@@ -385,14 +391,14 @@ void slam::SlamBase::readParameters()
 
   // Topics subscriptions
   image_transport::ImageTransport it(nh_);
-  odom_sub_       .subscribe(nh_, odom_topic,       1);
-  left_sub_       .subscribe(it,  left_topic,       1);
-  right_sub_      .subscribe(it,  right_topic,      1);
-  left_info_sub_  .subscribe(nh_, left_info_topic,  1);
-  right_info_sub_ .subscribe(nh_, right_info_topic, 1);
+  odom_sub_       .subscribe(nh_, odom_topic,       20);
+  left_sub_       .subscribe(it,  left_topic,       3);
+  right_sub_      .subscribe(it,  right_topic,      3);
+  left_info_sub_  .subscribe(nh_, left_info_topic,  3);
+  right_info_sub_ .subscribe(nh_, right_info_topic, 3);
 
   if (params_.save_clouds || params_.listen_reconstruction_srv)
-    cloud_sub_.subscribe(nh_, cloud_topic, 1);
+    cloud_sub_.subscribe(nh_, cloud_topic, 3);
 }
 
 
@@ -413,26 +419,26 @@ void slam::SlamBase::init()
   // Callback synchronization
   if (params_.save_clouds || params_.listen_reconstruction_srv)
   {
-    exact_sync_cloud_.reset(new ExactSyncCloud(ExactPolicyCloud(1),
+    sync_cloud_.reset(new SyncCloud(PolicyCloud(1),
                                     odom_sub_,
                                     left_sub_,
                                     right_sub_,
                                     left_info_sub_,
                                     right_info_sub_,
                                     cloud_sub_) );
-    exact_sync_cloud_->registerCallback(bind(
+    sync_cloud_->registerCallback(bind(
         &slam::SlamBase::msgsCallback,
         this, _1, _2, _3, _4, _5, _6));
   }
   else
   {
-    exact_sync_no_cloud_.reset(new ExactSyncNoCloud(ExactPolicyNoCloud(1),
+    sync_no_cloud_.reset(new SyncNoCloud(PolicyNoCloud(1),
                                     odom_sub_,
                                     left_sub_,
                                     right_sub_,
                                     left_info_sub_,
                                     right_info_sub_) );
-    exact_sync_no_cloud_->registerCallback(bind(
+    sync_no_cloud_->registerCallback(bind(
         &slam::SlamBase::msgsCallback,
         this, _1, _2, _3, _4, _5));
   }

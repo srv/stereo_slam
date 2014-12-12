@@ -12,7 +12,7 @@
 #include <sensor_msgs/Image.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
-#include <message_filters/sync_policies/exact_time.h>
+#include <message_filters/sync_policies/approximate_time.h>
 #include <image_transport/subscriber_filter.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
@@ -139,23 +139,23 @@ private:
   message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
 
   // Topic sync properties (no pointcloud)
-  typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry,
-                                                    sensor_msgs::Image,
-                                                    sensor_msgs::Image,
-                                                    sensor_msgs::CameraInfo,
-                                                    sensor_msgs::CameraInfo> ExactPolicyNoCloud;
-  typedef message_filters::Synchronizer<ExactPolicyNoCloud> ExactSyncNoCloud;
-  boost::shared_ptr<ExactSyncNoCloud> exact_sync_no_cloud_;
+  typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,
+                                                          sensor_msgs::Image,
+                                                          sensor_msgs::Image,
+                                                          sensor_msgs::CameraInfo,
+                                                          sensor_msgs::CameraInfo> PolicyNoCloud;
+  typedef message_filters::Synchronizer<PolicyNoCloud> SyncNoCloud;
+  boost::shared_ptr<SyncNoCloud> sync_no_cloud_;
 
   // Topic sync properties (with pointcloud)
-  typedef message_filters::sync_policies::ExactTime<nav_msgs::Odometry,
-                                                    sensor_msgs::Image,
-                                                    sensor_msgs::Image,
-                                                    sensor_msgs::CameraInfo,
-                                                    sensor_msgs::CameraInfo,
-                                                    sensor_msgs::PointCloud2> ExactPolicyCloud;
-  typedef message_filters::Synchronizer<ExactPolicyCloud> ExactSyncCloud;
-  boost::shared_ptr<ExactSyncCloud> exact_sync_cloud_;
+  typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,
+                                                          sensor_msgs::Image,
+                                                          sensor_msgs::Image,
+                                                          sensor_msgs::CameraInfo,
+                                                          sensor_msgs::CameraInfo,
+                                                          sensor_msgs::PointCloud2> PolicyCloud;
+  typedef message_filters::Synchronizer<PolicyCloud> SyncCloud;
+  boost::shared_ptr<SyncCloud> sync_cloud_;
 
   Params params_;                     //!> Stores parameters
   haloc::LoopClosure lc_;             //!> Loop closure object

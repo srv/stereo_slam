@@ -12,7 +12,7 @@ slam::Pose::Pose(){}
 void slam::Pose::advertisePoseMsg(ros::NodeHandle nh)
 {
   // Advertise the pose publication
-  pose_pub_ = nh.advertise<nav_msgs::Odometry>("slam", 1);
+  pose_pub_ = nh.advertise<nav_msgs::Odometry>("odometry", 1);
 }
 
 /** \brief Correct the pose with the information of the graph.
