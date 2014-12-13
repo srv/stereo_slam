@@ -122,7 +122,6 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   if (pose_diff <= params_.min_displacement)
   {
     // Publish and exit
-    ROS_INFO_STREAM("KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKkk");
     pose_.publish(*odom_msg, corrected_odom * odom2camera.inverse());
     return;
   }
@@ -391,7 +390,7 @@ void slam::SlamBase::readParameters()
 
   // Topics subscriptions
   image_transport::ImageTransport it(nh_);
-  odom_sub_       .subscribe(nh_, odom_topic,       20);
+  odom_sub_       .subscribe(nh_, odom_topic,       25);
   left_sub_       .subscribe(it,  left_topic,       3);
   right_sub_      .subscribe(it,  right_topic,      3);
   left_info_sub_  .subscribe(nh_, left_info_topic,  3);
@@ -419,7 +418,7 @@ void slam::SlamBase::init()
   // Callback synchronization
   if (params_.save_clouds || params_.listen_reconstruction_srv)
   {
-    sync_cloud_.reset(new SyncCloud(PolicyCloud(1),
+    sync_cloud_.reset(new SyncCloud(PolicyCloud(3),
                                     odom_sub_,
                                     left_sub_,
                                     right_sub_,
@@ -432,7 +431,7 @@ void slam::SlamBase::init()
   }
   else
   {
-    sync_no_cloud_.reset(new SyncNoCloud(PolicyNoCloud(1),
+    sync_no_cloud_.reset(new SyncNoCloud(PolicyNoCloud(3),
                                     odom_sub_,
                                     left_sub_,
                                     right_sub_,
