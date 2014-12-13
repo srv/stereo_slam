@@ -184,7 +184,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   pose_.publish(*odom_msg, last_graph_pose * odom2camera.inverse());
 
   // Save graph to file and send (if needed)
-  graph_.saveToFile();
+  graph_.saveToFile(odom2camera.inverse());
   sendGraph();
 
   return;

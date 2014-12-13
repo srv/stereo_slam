@@ -95,7 +95,7 @@ public:
   void update();
 
   // Save the graph to file
-  bool saveToFile();
+  bool saveToFile(tf::Transform camera2odom);
 
   // Return the graph vertices into a single string
   string readFile();

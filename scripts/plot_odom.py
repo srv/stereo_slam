@@ -63,6 +63,10 @@ def real_time_plot(files):
   """ Function to plot the data saved into the files in real time """
   global ax, ax_list
 
+  # Defines
+  graph_vertices_file = 'graph_vertices.txt'
+  graph_edges_file = 'graph_edges.txt'
+
   # Define colors
   colors = ['g','r','b','k','c','m','y']
 
@@ -96,6 +100,26 @@ def real_time_plot(files):
       # Update color
       if i_color >= len(colors):
         i_color = 0;
+
+  # Plot the graph vertices and edges
+  if (os.path.exists(graph_vertices_file) and check_file_len(graph_vertices_file)):
+    data = pylab.loadtxt(graph_vertices_file, delimiter=',', usecols=(5,6,7))
+    if (len(data.shape) == 1):
+      data = np.array([data])
+    ax_tmp = ax.plot(data[:,0], data[:,1], data[:,2], colors[i_color], label='Stereo slam', marker='o')
+    ax_list.append(ax_tmp)
+
+  if (os.path.exists(graph_edges_file) and check_file_len(graph_edges_file)):
+    data = pylab.loadtxt(graph_edges_file, delimiter=',', usecols=(2,3,4,9,10,11))
+    if (len(data.shape) == 1):
+      data = np.array([data])
+    for i in range(len(data)):
+      vect = []
+      vect.append([data[i,0], data[i,1], data[i,2]])
+      vect.append([data[i,3], data[i,4], data[i,5]])
+      vect =  np.array(vect)
+      ax_tmp = ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[i_color], linestyle='--')
+      ax_list.append(ax_tmp)
 
   # Update the plot
   pyplot.draw()

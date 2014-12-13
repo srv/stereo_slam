@@ -257,7 +257,7 @@ void slam::Graph::update()
 /** \brief Save the optimized graph into a file with the same format than odometry_msgs.
   * @return
   */
-bool slam::Graph::saveToFile()
+bool slam::Graph::saveToFile(tf::Transform camera2odom)
 {
   string block_file, vertices_file, edges_file;
   vertices_file = params_.save_dir + "graph_vertices.txt";
@@ -281,7 +281,7 @@ bool slam::Graph::saveToFile()
     double timestamp = odom_history_.at(i).second;
 
     slam::Vertex* v = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[i]);
-    tf::Transform pose = Tools::getVertexPose(v);
+    tf::Transform pose = Tools::getVertexPose(v)*camera2odom;
     f_vertices << fixed << setprecision(9) <<
           timestamp  << "," <<
           i << "," <<
@@ -312,8 +312,8 @@ bool slam::Graph::saveToFile()
       {
         slam::Vertex* v_0 = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[e->vertices()[0]->id()]);
         slam::Vertex* v_1 = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[e->vertices()[1]->id()]);
-        tf::Transform pose_0 = Tools::getVertexPose(v_0);
-        tf::Transform pose_1 = Tools::getVertexPose(v_1);
+        tf::Transform pose_0 = Tools::getVertexPose(v_0)*camera2odom;
+        tf::Transform pose_1 = Tools::getVertexPose(v_1)*camera2odom;
 
         f_edges <<
               e->vertices()[0]->id() << "," <<
