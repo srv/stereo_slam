@@ -52,7 +52,11 @@ def odometry_callback(odom_msg, filepath):
            str(odom_msg.header.frame_id) + ',' +
            str(odom_msg.pose.pose.position.x) + ',' +
            str(odom_msg.pose.pose.position.y) + ',' +
-           str(odom_msg.pose.pose.position.z) + '\n')
+           str(odom_msg.pose.pose.position.z) + ',' +
+           str(odom_msg.pose.pose.orientation.x) + ',' +
+           str(odom_msg.pose.pose.orientation.y) + ',' +
+           str(odom_msg.pose.pose.orientation.z) + ',' +
+           str(odom_msg.pose.pose.orientation.w) + '\n')
 
   # Append the data to the file
   with open(filepath, "a") as odomfile:
@@ -69,6 +73,7 @@ def real_time_plot(files):
 
   # Define colors
   colors = ['g','r','b','k','c','m','y']
+  linewidth = 2.0
 
   # Remove all previous axes
   for axes in ax_list:
@@ -82,7 +87,11 @@ def real_time_plot(files):
     if (filename != "" and os.path.exists(filename) and check_file_len(filename)):
 
       # Get the file contents
-      data = pylab.loadtxt(filename, delimiter=',', comments='%', usecols=(5,6,7))
+      try:
+        data = pylab.loadtxt(filename, delimiter=',', comments='%', usecols=(5,6,7))
+      except Exception, e:
+        rospy.loginfo("Impossible to read the file %s", filename)
+        return
 
       # Check dimension
       if (len(data.shape) == 1):
@@ -91,9 +100,14 @@ def real_time_plot(files):
       # Get legend
       base_name = os.path.basename(filename)
       base_name = os.path.splitext(base_name)
+      base_name = base_name[0]
+      if (base_name == "sparus_pat_to_ros_odom"):
+        base_name = "Ground Truth"
+      if (base_name == "pose_ekf_slam_odometry"):
+        base_name = "EKF Odometry"
 
       # Plot
-      ax_tmp = ax.plot(data[:,0], data[:,1], data[:,2], colors[i_color], label=base_name[0])
+      ax_tmp = ax.plot(data[:,0], data[:,1], data[:,2], colors[i_color], linewidth=linewidth, label=base_name)
       ax_list.append(ax_tmp)
       i_color = i_color + 1
 
@@ -103,14 +117,26 @@ def real_time_plot(files):
 
   # Plot the graph vertices and edges
   if (os.path.exists(graph_vertices_file) and check_file_len(graph_vertices_file)):
-    data = pylab.loadtxt(graph_vertices_file, delimiter=',', usecols=(5,6,7))
+
+    try:
+      data = pylab.loadtxt(graph_vertices_file, delimiter=',', usecols=(5,6,7))
+    except Exception, e:
+      rospy.loginfo("Impossible to read the file %s", graph_vertices_file)
+      return
+
     if (len(data.shape) == 1):
       data = np.array([data])
-    ax_tmp = ax.plot(data[:,0], data[:,1], data[:,2], colors[i_color], label='Stereo slam', marker='o')
+    ax_tmp = ax.plot(data[:,0], data[:,1], data[:,2], colors[i_color], linewidth=linewidth, label='Stereo Slam', marker='o')
     ax_list.append(ax_tmp)
 
   if (os.path.exists(graph_edges_file) and check_file_len(graph_edges_file)):
-    data = pylab.loadtxt(graph_edges_file, delimiter=',', usecols=(2,3,4,9,10,11))
+
+    try:
+      data = pylab.loadtxt(graph_edges_file, delimiter=',', usecols=(2,3,4,9,10,11))
+    except Exception, e:
+      rospy.loginfo("Impossible to read the file %s", graph_edges_file)
+      return
+
     if (len(data.shape) == 1):
       data = np.array([data])
     for i in range(len(data)):
@@ -118,7 +144,7 @@ def real_time_plot(files):
       vect.append([data[i,0], data[i,1], data[i,2]])
       vect.append([data[i,3], data[i,4], data[i,5]])
       vect =  np.array(vect)
-      ax_tmp = ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[i_color], linestyle='--')
+      ax_tmp = ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[i_color], linewidth=linewidth-1, linestyle='--')
       ax_list.append(ax_tmp)
 
   # Update the plot
@@ -134,10 +160,10 @@ def plot_odom(list_to_plot):
   """ Main node """
   global ax
 
-  # Some hardcode parameters
+  # Setup the font for the graphics
   font = {'family' : 'Sans',
           'weight' : 'normal',
-          'size'   : 14}
+          'size'   : 16}
   pylab.rc('font', **font)
 
   # Init figure

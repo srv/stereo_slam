@@ -169,17 +169,29 @@ if __name__ == "__main__":
   colors = ['g','r','b']
   angles = [-6, 6, -4, 4, -12, 12]
 
+  # Setup the font for the graphics
+  font = {'family' : 'Sans',
+          'weight' : 'normal',
+          'size'   : 35}
+  pylab.rc('font', **font)
+  linewidth = 3.0
+
   # Log
   print "Adjusting curves, please wait..."
 
-  # Init figure
-  fig = pylab.figure(1)
-  ax = Axes3D(fig)
-  ax.grid(True)
-  ax.set_title("Graph Viewer")
-  ax.set_xlabel("X")
-  ax.set_ylabel("Y")
-  ax.set_zlabel("Z")
+  # Init figures
+  fig0 = pylab.figure()
+  ax0 = Axes3D(fig0)
+  ax0.grid(True)
+  ax0.set_xlabel("x (m)")
+  ax0.set_ylabel("y (m)")
+  ax0.set_zlabel("z (m)")
+
+  fig1 = pylab.figure()
+  ax1 = fig1.gca()
+  ax1.grid(True)
+  ax1.set_xlabel("x (m)")
+  ax1.set_ylabel("y (m)")
 
   # Load ground truth (gt) data.
   # Check the file type
@@ -188,28 +200,18 @@ if __name__ == "__main__":
   f.close()
   size = lines[1].split(",")
 
-  if (len(size) >= 12):
-    gt = pylab.loadtxt(args.ground_truth_file, delimiter=',', skiprows=1, usecols=(0,5,6,7,8,9,10,11))
+  if (len(size) == 8 or len(size) >= 12):
+    gt = pylab.loadtxt(args.ground_truth_file, delimiter=',', comments='%', usecols=(0,5,6,7,8,9,10,11))
     gt[:,0] = gt[:,0] / 1000000000
   else:
-    gt = pylab.loadtxt(args.ground_truth_file, delimiter=',', usecols=(0,1,2,3,4,5,6,7))
+    gt = pylab.loadtxt(args.ground_truth_file, delimiter=',', comments='%', usecols=(0,1,2,3,4,5,6,7))
 
   # Load the visual odometry
-  odom = pylab.loadtxt(args.visual_odometry_file, delimiter=',', skiprows=1, usecols=(0,5,6,7,8,9,10,11))
+  odom = pylab.loadtxt(args.visual_odometry_file, delimiter=',', comments='%', usecols=(0,5,6,7,8,9,10,11))
   odom[:,0] = odom[:,0] / 1000000000
 
   # Load the graph vertices
-  vertices = pylab.loadtxt(args.graph_vertices_file, delimiter=',', skiprows=0, usecols=(0,5,6,7,8,9,10,11))
-  ax.plot(vertices[:,1], vertices[:,2], vertices[:,3], colors[2], label='Stereo slam', marker='o')
-
-  # Load the graph edges
-  edges = pylab.loadtxt(args.graph_edges_file, delimiter=',', skiprows=0, usecols=(2,3,4,9,10,11))
-  for i in range(len(edges)):
-    vect = []
-    vect.append([edges[i,0], edges[i,1], edges[i,2]])
-    vect.append([edges[i,3], edges[i,4], edges[i,5]])
-    vect =  np.array(vect)
-    ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[2], linestyle='--')
+  vertices = pylab.loadtxt(args.graph_vertices_file, delimiter=',', usecols=(0,5,6,7,8,9,10,11))
 
   # Get the gt indeces for all graph vertices
   gt_rebased = rebase(vertices, gt)
@@ -245,6 +247,7 @@ if __name__ == "__main__":
 
   # Compute the errors
   print "Computing errors, please wait..."
+  gt_dist = trajectory_distances(gt_rb_corrected)
   odom_dist = trajectory_distances(odom_rb_corrected)
   vertices_dist = trajectory_distances(vertices)
   odom_errors = calc_errors(gt_rb_corrected, odom_rb_corrected)
@@ -261,21 +264,46 @@ if __name__ == "__main__":
   header = [  "Input", "Data Points", "Traj. Distance (m)", "Trans. MAE (m)"]
   toRSTtable([header] + rows)
 
-  # Plot graph
-  ax.plot(gt_corrected[:,1], gt_corrected[:,2], gt_corrected[:,3], colors[0], label='Ground Truth')
-  ax.plot(odom_corrected[:,1], odom_corrected[:,2], odom_corrected[:,3], colors[1], label='Visual Odometry')
-  ax.legend()
+  print "Ground truth distance: ", gt_dist[-1], "m"
+
+  # Plot graph (3D)
+  ax0.plot(gt_corrected[:,1], gt_corrected[:,2], gt_corrected[:,3], colors[0], linewidth=linewidth, label='Ground Truth')
+  ax0.plot(odom_corrected[:,1], odom_corrected[:,2], odom_corrected[:,3], colors[1], linewidth=linewidth, label='EKF Odometry')
+  ax0.plot(vertices[:,1], vertices[:,2], vertices[:,3], colors[2], linewidth=linewidth, label='Stereo slam', marker='o')
+
+  # Plot graph (2D)
+  ax1.plot(gt_corrected[:,1], gt_corrected[:,2], colors[0], linewidth=linewidth, label='Ground Truth')
+  ax1.plot(odom_corrected[:,1], odom_corrected[:,2], colors[1], linewidth=linewidth, label='EKF Odometry')
+  ax1.plot(vertices[:,1], vertices[:,2], colors[2], linewidth=linewidth, label='Stereo slam', marker='o')
+  ax1.tick_params(axis='both', which='major', labelsize=40);
+
+  # Plot the graph edges
+  f = open(args.graph_edges_file)
+  lines = f.readlines()
+  f.close()
+  if (len(lines) > 0):
+    edges = pylab.loadtxt(args.graph_edges_file, delimiter=',', usecols=(2,3,4,9,10,11))
+    for i in range(len(edges)):
+      vect = []
+      vect.append([edges[i,0], edges[i,1], edges[i,2]])
+      vect.append([edges[i,3], edges[i,4], edges[i,5]])
+      vect =  np.array(vect)
+      ax0.plot(vect[:,0], vect[:,1], vect[:,2], colors[2], linewidth=linewidth-1, linestyle='--')
+      ax1.plot(vect[:,0], vect[:,1], colors[2], linewidth=linewidth-1, linestyle='--')
+
+  ax0.legend()
+  ax1.legend()
 
   # Plot errors
-  fig1 = pylab.figure()
-  ax2 = fig1.gca()
-  ax2.plot(odom_dist, odom_errors, label='Odometry', marker='o')
-  ax2.plot(vertices_dist, vertices_errors, label='SLAM', marker='o')
+  fig2 = pylab.figure()
+  ax2 = fig2.gca()
+  ax2.plot(odom_dist, odom_errors, colors[1], linewidth=linewidth, label='EKF Odometry')
+  ax2.plot(vertices_dist, vertices_errors, colors[2], linewidth=linewidth, label='Stereo slam')
   ax2.grid(True)
-  ax2.set_title("Error: Odometry vs SLAM")
   ax2.set_xlabel("Distance (m)")
   ax2.set_ylabel("Error (m)")
   ax2.legend(loc=2)
+  ax2.tick_params(axis='both', which='major', labelsize=40);
 
   pyplot.draw()
   pylab.show()
