@@ -101,10 +101,6 @@ def real_time_plot(files):
       base_name = os.path.basename(filename)
       base_name = os.path.splitext(base_name)
       base_name = base_name[0]
-      if (base_name == "sparus_pat_to_ros_odom"):
-        base_name = "Ground Truth"
-      if (base_name == "pose_ekf_slam_odometry"):
-        base_name = "EKF Odometry"
 
       # Plot
       ax_tmp = ax.plot(data[:,0], data[:,1], data[:,2], colors[i_color], linewidth=linewidth, label=base_name)

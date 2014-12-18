@@ -127,7 +127,16 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   }
 
   // Insert this new node into libhaloc
-  lc_.setNode(l_img, r_img);
+  int id_tmp = lc_.setNode(l_img, r_img);
+
+  // Check if node has been inserted
+  if (id_tmp < 0)
+  {
+    // Publish and exit
+    ROS_DEBUG("[Localization:] Impossible to save the node due to its poor quality.");
+    pose_.publish(*odom_msg, corrected_odom * odom2camera.inverse());
+    return;
+  }
 
   // Decide if the position of this node will be computed by SolvePNP or odometry
   tf::Transform corrected_pose = corrected_odom;
