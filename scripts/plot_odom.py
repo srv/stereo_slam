@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import roslib; roslib.load_manifest('pose_ekf_slam')
+import roslib; roslib.load_manifest('cola2_ekf')
 import rospy
 import pylab
 import math

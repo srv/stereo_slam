@@ -77,6 +77,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::CameraInfoConstPtr& l_info_msg,
                                   const sensor_msgs::CameraInfoConstPtr& r_info_msg)
 {
+
   // Get the messages
   Mat l_img, r_img;
   Tools::imgMsgToMat(*l_img_msg, *r_img_msg, l_img, r_img);
@@ -116,6 +117,14 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   tf::Transform last_graph_pose, last_graph_odom;
   graph_.getLastPoses(current_odom, last_graph_pose, last_graph_odom);
   tf::Transform corrected_odom = pose_.correctPose(current_odom, last_graph_pose, last_graph_odom);
+
+  // Check is slam is on or off
+  if (params_.listen_runtime_srvs && !start_srv_on_)
+  {
+    // Slam is off, publish and exit
+    pose_.publish(*odom_msg, corrected_odom * odom2camera.inverse());
+    return;
+  }
 
    // Check if difference between poses is larger than minimum displacement
   double pose_diff = Tools::poseDiff(last_graph_odom, current_odom);
@@ -222,7 +231,7 @@ PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr cloud)
 }
 
 
-/** \brief Save and/or send the accumulated cloud depending on the value of 'save_clouds' and 'listen_reconstruction_srv'
+/** \brief Save and/or send the accumulated cloud depending on the value of 'save_clouds' and 'listen_reconstruction_srvs'
   * \param Cloud id
   */
 void slam::SlamBase::processCloud(int cloud_id)
@@ -299,6 +308,25 @@ void slam::SlamBase::sendGraph()
 }
 
 
+/** \brief Start the slam
+  */
+bool slam::SlamBase::start(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
+{
+  start_srv_on_ = true;
+  ROS_INFO("[Localization:] Call to start_slam service received!");
+  return true;
+}
+
+/** \brief Stop the slam
+  */
+bool slam::SlamBase::stop(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
+{
+  start_srv_on_ = false;
+  ROS_INFO("[Localization:] Call to stop_slam service received!");
+  return true;
+}
+
+
 /** \brief Start the reconstruction services
   */
 bool slam::SlamBase::startReconstruction(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
@@ -360,9 +388,10 @@ void slam::SlamBase::readParameters()
 
   // 3D reconstruction parameters
   nh_private_.param("save_clouds",                params.save_clouds,               false);
-  nh_private_.param("listen_reconstruction_srv",  params.listen_reconstruction_srv, false);
-  nh_private_.param("set_cloud_srv",              params.set_cloud_srv,              string("set_point_cloud"));
-  nh_private_.param("set_graph_srv",              params.set_graph_srv,              string("set_graph"));
+  nh_private_.param("listen_runtime_srvs",        params.listen_runtime_srvs,       false);
+  nh_private_.param("listen_reconstruction_srvs", params.listen_reconstruction_srvs,false);
+  nh_private_.param("set_cloud_srv",              params.set_cloud_srv,             string("set_point_cloud"));
+  nh_private_.param("set_graph_srv",              params.set_graph_srv,             string("set_graph"));
 
   // Loop closure parameters
   nh_private_.param("desc_type",                  lc_params.desc_type,              string("SIFT"));
@@ -405,7 +434,7 @@ void slam::SlamBase::readParameters()
   left_info_sub_  .subscribe(nh_, left_info_topic,  3);
   right_info_sub_ .subscribe(nh_, right_info_topic, 3);
 
-  if (params_.save_clouds || params_.listen_reconstruction_srv)
+  if (params_.save_clouds || params_.listen_reconstruction_srvs)
     cloud_sub_.subscribe(nh_, cloud_topic, 3);
 }
 
@@ -416,6 +445,7 @@ void slam::SlamBase::init()
 {
   // Init
   first_iter_ = true;
+  start_srv_on_ = false;
   reconstruction_srv_on_ = false;
 
   // Init Haloc
@@ -424,8 +454,12 @@ void slam::SlamBase::init()
   // Advertise the pose message
   pose_.advertisePoseMsg(nh_private_);
 
+  // Advertise service
+  start_service_ = nh_private_.advertiseService("start", &SlamBase::start, this);
+  stop_service_ = nh_private_.advertiseService("stop", &SlamBase::stop, this);
+
   // Callback synchronization
-  if (params_.save_clouds || params_.listen_reconstruction_srv)
+  if (params_.save_clouds || params_.listen_reconstruction_srvs)
   {
     sync_cloud_.reset(new SyncCloud(PolicyCloud(3),
                                     odom_sub_,

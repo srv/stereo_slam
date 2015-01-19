@@ -62,7 +62,8 @@ public:
     double y_filter_max;              //!> Cloud limit filter
     double z_filter_min;              //!> Cloud limit filter
     double z_filter_max;              //!> Cloud limit filter
-    bool listen_reconstruction_srv;   //!> Listen for reconstruction services
+    bool listen_runtime_srvs;         //!> Listen for runtime services (start, stop...)
+    bool listen_reconstruction_srvs;  //!> Listen for reconstruction services
     string set_cloud_srv;             //!> Name of the service to send the cloud
     string set_graph_srv;             //!> Name of the service to send the graph
 
@@ -79,7 +80,8 @@ public:
       y_filter_max                = -3.0;
       z_filter_min                = 0.2;
       z_filter_max                = 6.0;
-      listen_reconstruction_srv   = false;
+      listen_runtime_srvs         = false;
+      listen_reconstruction_srvs  = false;
       set_cloud_srv               = "set_point_cloud";
       set_graph_srv               = "set_graph";
     }
@@ -129,6 +131,8 @@ protected:
                         sensor_msgs::Image img_msg,
                         tf::StampedTransform &transform);
   void sendGraph();
+  bool start(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
+  bool stop(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
 
 private:
 
@@ -157,12 +161,17 @@ private:
   typedef message_filters::Synchronizer<PolicyCloud> SyncCloud;
   boost::shared_ptr<SyncCloud> sync_cloud_;
 
+  // Services
+  ros::ServiceServer start_service_;
+  ros::ServiceServer stop_service_;
+
   Params params_;                     //!> Stores parameters
   haloc::LoopClosure lc_;             //!> Loop closure object
   slam::Pose pose_;                   //!> Pose object
   slam::Graph graph_;                 //!> Graph object
   bool first_iter_;                   //!> Indicates first iteration
   PointCloudRGB pcl_cloud_;           //!> Current pointcloud to be saved
+  bool start_srv_on_;                 //!> True to enable the slam when start service is called
   bool reconstruction_srv_on_;        //!> True to enable the reconstruction services
   tf::TransformListener tf_listener_; //!> Transform listener
 };
