@@ -20,6 +20,7 @@ slam::SlamBase::SlamBase(
   readParameters();
 
   // Initialize the stereo slam
+  start_srv_advertised_ = false;
   init();
 }
 
@@ -101,8 +102,10 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
 
     // Save the first node
     int cur_id = graph_.addVertex(current_odom, current_odom, timestamp);
-    lc_.setNode(l_img, r_img);
-    ROS_INFO_STREAM("[Localization:] Node " << cur_id << " inserted.");
+    int id_tmp = lc_.setNode(l_img, r_img);
+
+    if (id_tmp >= 0)
+      ROS_INFO_STREAM("[Localization:] Node " << cur_id << " inserted.");  
 
     // Process the cloud (if any)
     processCloud(cur_id);
@@ -323,6 +326,11 @@ bool slam::SlamBase::stop(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
 {
   start_srv_on_ = false;
   ROS_INFO("[Localization:] Call to stop_slam service received!");
+
+  // Reset slam
+  lc_.finalize();
+  init();
+
   return true;
 }
 
@@ -454,9 +462,13 @@ void slam::SlamBase::init()
   // Advertise the pose message
   pose_.advertisePoseMsg(nh_private_);
 
-  // Advertise service
-  start_service_ = nh_private_.advertiseService("start", &SlamBase::start, this);
-  stop_service_ = nh_private_.advertiseService("stop", &SlamBase::stop, this);
+  // Advertise runtime service
+  if (params_.listen_runtime_srvs && !start_srv_advertised_)
+  {
+    start_service_ = nh_private_.advertiseService("start", &SlamBase::start, this);
+    stop_service_ = nh_private_.advertiseService("stop", &SlamBase::stop, this);
+    start_srv_advertised_ = true;
+  }
 
   // Callback synchronization
   if (params_.save_clouds || params_.listen_reconstruction_srvs)

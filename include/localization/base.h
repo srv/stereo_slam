@@ -172,6 +172,7 @@ private:
   bool first_iter_;                   //!> Indicates first iteration
   PointCloudRGB pcl_cloud_;           //!> Current pointcloud to be saved
   bool start_srv_on_;                 //!> True to enable the slam when start service is called
+  bool start_srv_advertised_;         //!> True when services are already advertised
   bool reconstruction_srv_on_;        //!> True to enable the reconstruction services
   tf::TransformListener tf_listener_; //!> Transform listener
 };
