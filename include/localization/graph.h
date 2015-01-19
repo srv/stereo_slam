@@ -66,6 +66,9 @@ public:
    */
   inline Params params() const { return params_; }
 
+  // Get the last vertex id
+  int getLastVertexId();
+
   // Get the last pose of the graph (corrected graph pose and original odometry)
   void getLastPoses(tf::Transform current_odom,
                     tf::Transform &last_graph_pose,
@@ -76,14 +79,14 @@ public:
                         int best_n,
                         vector<int> &neighbors);
 
-  // Add a vertice to the graph
-  int addVertice(tf::Transform pose_corrected);
-  int addVertice(tf::Transform pose,
-                 tf::Transform pose_corrected,
-                 double timestamp);
+  // Add a vertex to the graph
+  int addVertex(tf::Transform pose_corrected);
+  int addVertex(tf::Transform pose,
+                tf::Transform pose_corrected,
+                double timestamp);
 
-  // Sets the vertice estimate
-  void setVerticeEstimate(int vertice_id, tf::Transform pose);
+  // Sets the vertex estimate
+  void setVertexEstimate(int vertex_id, tf::Transform pose);
 
   // Add an edge to the graph
   void addEdge(int i, int j, tf::Transform edge);
@@ -92,7 +95,10 @@ public:
   void update();
 
   // Save the graph to file
-  bool saveGraphToFile();
+  bool saveToFile(tf::Transform camera2odom);
+
+  // Return the graph vertices into a single string
+  string readFile();
 
 protected:
 

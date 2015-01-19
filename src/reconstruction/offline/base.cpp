@@ -1,4 +1,4 @@
-#include "reconstruction/base.h"
+#include "reconstruction/offline/base.h"
 #include <boost/filesystem.hpp>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/filters/voxel_grid.h>
@@ -42,14 +42,14 @@ void reconstruction::ReconstructionBase::build3D()
   for (uint i=0; i<cloud_poses.size(); i++)
   {
     string file_idx = cloud_poses[i].first;
-    ROS_INFO_STREAM("[StereoSlam:] Processing cloud " << file_idx.substr(0,file_idx.length()-4) << "/" << cloud_poses.size()-1);
+    ROS_INFO_STREAM("[Reconstruction:] Processing cloud " << file_idx.substr(0,file_idx.length()-4) << "/" << cloud_poses.size()-1);
 
     // Read the current pointcloud.
     string cloud_filename = params_.clouds_dir + cloud_poses[i].first;
     PointCloud::Ptr cloud(new PointCloud);
     if (pcl::io::loadPCDFile<PointRGB> (cloud_filename, *cloud) == -1)
     {
-      ROS_WARN_STREAM("[StereoSlam:] Couldn't read the file: " << cloud_poses[i].first);
+      ROS_WARN_STREAM("[Reconstruction:] Couldn't read the file: " << cloud_poses[i].first);
       continue;
     }
 
@@ -96,7 +96,7 @@ void reconstruction::ReconstructionBase::build3D()
       }
     }
 
-    ROS_INFO_STREAM("[StereoSlam:] Original size: " << total << ". Finally added: " << added);
+    ROS_INFO_STREAM("[Reconstruction:] Original size: " << total << ". Finally added: " << added);
 
     // Filter the accumulated cloud
     grid.setInputCloud(acc);
@@ -105,9 +105,9 @@ void reconstruction::ReconstructionBase::build3D()
   }
 
   // Save accumulated cloud
-  ROS_INFO("[StereoSlam:] Saving pointcloud...");
+  ROS_INFO("[Reconstruction:] Saving pointcloud...");
   pcl::io::savePCDFile(params_.work_dir + "reconstruction.pcd", *acc);
-  ROS_INFO("[StereoSlam:] Accumulated cloud saved.");
+  ROS_INFO("[Reconstruction:] Accumulated cloud saved.");
 }
 
 /** \brief Reads the reconstruction node parameters

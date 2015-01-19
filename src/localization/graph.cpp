@@ -1,5 +1,12 @@
+#include <string>
+#include <fstream>
+#include <streambuf>
+#include <boost/filesystem.hpp>
 #include "localization/graph.h"
 #include "localization/vertex.h"
+
+using namespace boost;
+namespace fs=filesystem;
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
   * @return
@@ -14,32 +21,49 @@ slam::Graph::Graph()
   */
 bool slam::Graph::init()
 {
+  // Delete all the files (if any)
+  string block_file, vertices_file, edges_file;
+  vertices_file = params_.save_dir + "graph_vertices.txt";
+  edges_file = params_.save_dir + "graph_edges.txt";
+  block_file = params_.save_dir + ".graph.lock";
+  fs::remove(vertices_file);
+  fs::remove(edges_file);
+  fs::remove(block_file);
+
   // Initialize the g2o graph optimizer
-    if (params_.g2o_algorithm == 0)
-    {
-      // Slam linear solver with gauss-newton
-      SlamLinearSolver* linear_solver_ptr = new SlamLinearSolver();
-      linear_solver_ptr->setBlockOrdering(false);
-      SlamBlockSolver* block_solver_ptr = new SlamBlockSolver(linear_solver_ptr);
-      g2o::OptimizationAlgorithmGaussNewton* solver_gauss_ptr =
-        new g2o::OptimizationAlgorithmGaussNewton(block_solver_ptr);
-      graph_optimizer_.setAlgorithm(solver_gauss_ptr);
-    }
-    else if (params_.g2o_algorithm == 1)
-    {
-      // Linear solver with Levenberg
-      g2o::BlockSolverX::LinearSolverType * linear_solver_ptr;
-      linear_solver_ptr = new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>();
-      g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(linear_solver_ptr);
-      g2o::OptimizationAlgorithmLevenberg * solver =
-        new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
-      graph_optimizer_.setAlgorithm(solver);
-    }
-    else
-    {
-      ROS_ERROR("[StereoSlam:] g2o_algorithm parameter must be 0 or 1.");
-      return false;
-    }
+  if (params_.g2o_algorithm == 0)
+  {
+    // Slam linear solver with gauss-newton
+    SlamLinearSolver* linear_solver_ptr = new SlamLinearSolver();
+    linear_solver_ptr->setBlockOrdering(false);
+    SlamBlockSolver* block_solver_ptr = new SlamBlockSolver(linear_solver_ptr);
+    g2o::OptimizationAlgorithmGaussNewton* solver_gauss_ptr =
+      new g2o::OptimizationAlgorithmGaussNewton(block_solver_ptr);
+    graph_optimizer_.setAlgorithm(solver_gauss_ptr);
+  }
+  else if (params_.g2o_algorithm == 1)
+  {
+    // Linear solver with Levenberg
+    g2o::BlockSolverX::LinearSolverType * linear_solver_ptr;
+    linear_solver_ptr = new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>();
+    g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(linear_solver_ptr);
+    g2o::OptimizationAlgorithmLevenberg * solver =
+      new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+    graph_optimizer_.setAlgorithm(solver);
+  }
+  else
+  {
+    ROS_ERROR("[Localization:] g2o_algorithm parameter must be 0 or 1.");
+    return false;
+  }
+}
+
+/** \brief Get last vertex id
+  * @return
+  */
+int slam::Graph::getLastVertexId()
+{
+  return graph_optimizer_.vertices().size() - 1;
 }
 
 /** \brief Get last poses of the graph
@@ -125,16 +149,16 @@ void slam::Graph::findClosestNodes(int discart_first_n, int best_n, vector<int> 
   }
 }
 
-/** \brief Add new vertice into the graph
+/** \brief Add new vertex into the graph
   * @return
   * \param Last corrected odometry pose.
   * \param Current read odometry.
   * \param Timestamp for the current odometry.
   */
-int slam::Graph::addVertice(tf::Transform pose)
+int slam::Graph::addVertex(tf::Transform pose)
 {
   // Convert pose for graph
-  Eigen::Isometry3d vertice_pose = Tools::tfToIsometry(pose);
+  Eigen::Isometry3d vertex_pose = Tools::tfToIsometry(pose);
 
   // Set node id equal to graph size
   int id = graph_optimizer_.vertices().size();
@@ -142,7 +166,7 @@ int slam::Graph::addVertice(tf::Transform pose)
   // Build the vertex
   slam::Vertex* cur_vertex = new slam::Vertex();
   cur_vertex->setId(id);
-  cur_vertex->setEstimate(vertice_pose);
+  cur_vertex->setEstimate(vertex_pose);
   if (id == 0)
   {
     // First time, no edges.
@@ -171,13 +195,13 @@ int slam::Graph::addVertice(tf::Transform pose)
   return id;
 }
 
-/** \brief Add new vertice into the graph
+/** \brief Add new vertex into the graph
   * @return
   * \param Last estimated pose.
-  * \param last corrected pose.
+  * \param Last corrected pose.
   * \param Timestamp for the current odometry.
   */
-int slam::Graph::addVertice(tf::Transform pose,
+int slam::Graph::addVertex(tf::Transform pose,
                             tf::Transform pose_corrected,
                             double timestamp)
 {
@@ -185,13 +209,13 @@ int slam::Graph::addVertice(tf::Transform pose,
   odom_history_.push_back(make_pair(pose, timestamp));
 
   // Add the node
-  return addVertice(pose_corrected);
+  return addVertex(pose_corrected);
 }
 
 /** \brief Add new edge to the graph
   * @return
-  * \param Id vertice 1.
-  * \param Id vertice 2.
+  * \param Id vertex 1.
+  * \param Id vertex 2.
   * \param Edge transform that joins both vertices.
   */
 void slam::Graph::addEdge(int i, int j, tf::Transform edge)
@@ -211,14 +235,14 @@ void slam::Graph::addEdge(int i, int j, tf::Transform edge)
   graph_optimizer_.addEdge(e);
 }
 
-/** \brief Updates vertice estimate
+/** \brief Updates vertex estimate
   * @return
-  * \param Id vertice.
-  * \param New estimate
+  * \param Id vertex.
+  * \param New estimate.
   */
-void slam::Graph::setVerticeEstimate(int vertice_id, tf::Transform pose)
+void slam::Graph::setVertexEstimate(int vertex_id, tf::Transform pose)
 {
-  dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[vertice_id])->setEstimate(Tools::tfToIsometry(pose));
+  dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[vertex_id])->setEstimate(Tools::tfToIsometry(pose));
 }
 
 /** \brief Update the graph
@@ -227,20 +251,23 @@ void slam::Graph::update()
 {
     graph_optimizer_.initializeOptimization();
     graph_optimizer_.optimize(params_.go2_opt_max_iter);
-    ROS_INFO_STREAM("[StereoSlam:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
+    ROS_INFO_STREAM("[Localization:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
 }
 
 /** \brief Save the optimized graph into a file with the same format than odometry_msgs.
   * @return
   */
-bool slam::Graph::saveGraphToFile()
+bool slam::Graph::saveToFile(tf::Transform camera2odom)
 {
   string block_file, vertices_file, edges_file;
   vertices_file = params_.save_dir + "graph_vertices.txt";
   edges_file = params_.save_dir + "graph_edges.txt";
   block_file = params_.save_dir + ".graph.lock";
 
-  // Create a blocking element
+  // Wait until lock file has been released
+  while(fs::exists(block_file)){}
+
+  // Create a locking element
   fstream f_block(block_file.c_str(), ios::out | ios::trunc);
 
   // Open to append
@@ -254,7 +281,7 @@ bool slam::Graph::saveGraphToFile()
     double timestamp = odom_history_.at(i).second;
 
     slam::Vertex* v = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[i]);
-    tf::Transform pose = Tools::getVertexPose(v);
+    tf::Transform pose = Tools::getVertexPose(v)*camera2odom;
     f_vertices << fixed << setprecision(9) <<
           timestamp  << "," <<
           i << "," <<
@@ -285,8 +312,8 @@ bool slam::Graph::saveGraphToFile()
       {
         slam::Vertex* v_0 = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[e->vertices()[0]->id()]);
         slam::Vertex* v_1 = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[e->vertices()[1]->id()]);
-        tf::Transform pose_0 = Tools::getVertexPose(v_0);
-        tf::Transform pose_1 = Tools::getVertexPose(v_1);
+        tf::Transform pose_0 = Tools::getVertexPose(v_0)*camera2odom;
+        tf::Transform pose_1 = Tools::getVertexPose(v_1)*camera2odom;
 
         f_edges <<
               e->vertices()[0]->id() << "," <<
@@ -317,10 +344,51 @@ bool slam::Graph::saveGraphToFile()
   int ret_code = remove(block_file.c_str());
   if (ret_code != 0)
   {
-    ROS_ERROR("[StereoSlam:] Error deleting the blocking file.");
+    ROS_ERROR("[Localization:] Error deleting the blocking file.");
     return false;
   }
 
   return true;
+}
+
+
+/** \brief Reads the graph vertices file and return one string with all the contents
+  * @return
+  */
+string slam::Graph::readFile()
+{
+  string block_file, vertices_file, output;
+  vertices_file = params_.save_dir + "graph_vertices.txt";
+  block_file = params_.save_dir + ".graph.lock";
+
+  // Check if file exists
+  if (!fs::exists(vertices_file))
+  {
+    ROS_WARN("[Localization:] The graph vertices file does not exists.");
+    return output;
+  }
+
+  // Wait until lock file has been released
+  while(fs::exists(block_file)){}
+
+  // Create a locking element
+  fstream f_block(block_file.c_str(), ios::out | ios::trunc);
+
+  // Read the graph vertices
+  ifstream vertices(vertices_file.c_str());
+  string file((istreambuf_iterator<char>(vertices)),
+               istreambuf_iterator<char>());
+  output = file;
+
+  // Un-block
+  f_block.close();
+  int ret_code = remove(block_file.c_str());
+  if (ret_code != 0)
+  {
+    ROS_ERROR("[Localization:] Error deleting the blocking file.");
+  }
+
+  return output;
+
 }
 

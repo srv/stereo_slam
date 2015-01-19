@@ -1,8 +1,12 @@
 #include "localization/base.h"
 #include "opencv2/core/core.hpp"
 #include <boost/filesystem.hpp>
+#include <pcl/filters/passthrough.h>
 
-namespace fs=boost::filesystem;
+
+using namespace boost;
+namespace fs=filesystem;
+
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
   * @return
@@ -19,15 +23,17 @@ slam::SlamBase::SlamBase(
   init();
 }
 
+
 /** \brief Finalize stereo slam node
   * @return
   */
 void slam::SlamBase::finalize()
 {
-  ROS_INFO("[StereoSlam:] Finalizing...");
+  ROS_INFO("[Localization:] Finalizing...");
   lc_.finalize();
-  ROS_INFO("[StereoSlam:] Done!");
+  ROS_INFO("[Localization:] Done!");
 }
+
 
 /** \brief Messages callback. This function is called when synchronized odometry and image
   * message are received.
@@ -47,13 +53,14 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 {
   // Get the cloud
-  PointCloud::Ptr pcl_cloud(new PointCloud);
+  PointCloudRGB::Ptr pcl_cloud(new PointCloudRGB);
   pcl::fromROSMsg(*cloud_msg, *pcl_cloud);
   pcl::copyPointCloud(*pcl_cloud, pcl_cloud_);
 
-  // Call the general slam callback
+  // Run the general slam callback
   msgsCallback(odom_msg, l_img_msg, r_img_msg, l_info_msg, r_info_msg);
 }
+
 
 /** \brief Messages callback. This function is called when synchronized odometry and image
   * message are received.
@@ -70,11 +77,18 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::CameraInfoConstPtr& l_info_msg,
                                   const sensor_msgs::CameraInfoConstPtr& r_info_msg)
 {
+
   // Get the messages
   Mat l_img, r_img;
   Tools::imgMsgToMat(*l_img_msg, *r_img_msg, l_img, r_img);
   double timestamp = odom_msg->header.stamp.toSec();
   tf::Transform current_odom = Tools::odomTotf(*odom_msg);
+
+  // Convert odometry to camera frame
+  tf::StampedTransform odom2camera;
+  if (!getOdom2CameraTf(*odom_msg, *l_img_msg, odom2camera))
+    return;
+  current_odom = current_odom * odom2camera;
 
   // Initialization
   if (first_iter_)
@@ -86,21 +100,15 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     lc_.setCameraModel(stereo_camera_model, camera_matrix);
 
     // Save the first node
-    int cur_id = graph_.addVertice(current_odom, current_odom, timestamp);
+    int cur_id = graph_.addVertex(current_odom, current_odom, timestamp);
     lc_.setNode(l_img, r_img);
+    ROS_INFO_STREAM("[Localization:] Node " << cur_id << " inserted.");
 
-    ROS_INFO_STREAM("[StereoSlam:] Node " << cur_id << " inserted.");
-
-    // Save the pointcloud for this new node
-    if (params_.save_clouds && pcl_cloud_.size() > 0)
-    {
-      // The file name will be the node id
-      string filename = boost::lexical_cast<string>(cur_id);
-      pcl::io::savePCDFileBinary(params_.clouds_dir + filename + ".pcd", pcl_cloud_);
-    }
+    // Process the cloud (if any)
+    processCloud(cur_id);
 
     // Publish and exit
-    pose_.publish(*odom_msg, current_odom);
+    pose_.publish(*odom_msg, current_odom * odom2camera.inverse());
     first_iter_ = false;
     return;
   }
@@ -108,28 +116,55 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Correct the current odometry with the graph information
   tf::Transform last_graph_pose, last_graph_odom;
   graph_.getLastPoses(current_odom, last_graph_pose, last_graph_odom);
-  tf::Transform corrected_odom = pose_.correctOdom(current_odom, last_graph_pose, last_graph_odom);
+  tf::Transform corrected_odom = pose_.correctPose(current_odom, last_graph_pose, last_graph_odom);
+
+  // Check is slam is on or off
+  if (params_.listen_runtime_srvs && !start_srv_on_)
+  {
+    // Slam is off, publish and exit
+    pose_.publish(*odom_msg, corrected_odom * odom2camera.inverse());
+    return;
+  }
 
    // Check if difference between poses is larger than minimum displacement
   double pose_diff = Tools::poseDiff(last_graph_odom, current_odom);
   if (pose_diff <= params_.min_displacement)
   {
-    pose_.publish(*odom_msg, corrected_odom);
+    // Publish and exit
+    pose_.publish(*odom_msg, corrected_odom * odom2camera.inverse());
     return;
   }
 
-  // Insert this new node into the graph
-  int cur_id = graph_.addVertice(current_odom, corrected_odom, timestamp);
-  lc_.setNode(l_img, r_img);
-  ROS_INFO_STREAM("[StereoSlam:] Node " << cur_id << " inserted.");
+  // Insert this new node into libhaloc
+  int id_tmp = lc_.setNode(l_img, r_img);
 
-  // Save the pointcloud for this new node
-  if (params_.save_clouds && pcl_cloud_.size() > 0)
+  // Check if node has been inserted
+  if (id_tmp < 0)
   {
-    // The file name will be the node id
-    string filename = boost::lexical_cast<string>(cur_id);
-    pcl::io::savePCDFileBinary(params_.clouds_dir + filename + ".pcd", pcl_cloud_);
+    // Publish and exit
+    ROS_DEBUG("[Localization:] Impossible to save the node due to its poor quality.");
+    pose_.publish(*odom_msg, corrected_odom * odom2camera.inverse());
+    return;
   }
+
+  // Decide if the position of this node will be computed by SolvePNP or odometry
+  tf::Transform corrected_pose = corrected_odom;
+  if (params_.refine_neighbors)
+  {
+    tf::Transform vertex_disp;
+    int last_id = graph_.getLastVertexId();
+    bool valid = lc_.getLoopClosure(lexical_cast<string>(last_id), lexical_cast<string>(last_id+1), vertex_disp);
+    if (valid)
+    {
+      ROS_INFO("[Localization:] Pose refined.");
+      corrected_pose = last_graph_pose * vertex_disp;
+    }
+  }
+  int cur_id = graph_.addVertex(current_odom, corrected_pose, timestamp);
+  ROS_INFO_STREAM("[Localization:] Node " << cur_id << " inserted.");
+
+  // Process the cloud (if any)
+  processCloud(cur_id);
 
   // Detect loop closures between nodes by distance
   bool any_loop_closure = false;
@@ -138,12 +173,12 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   for (uint i=0; i<neighbors.size(); i++)
   {
     tf::Transform edge;
-    string lc_id = boost::lexical_cast<string>(neighbors[i]);
-    bool valid_lc = lc_.getLoopClosure(boost::lexical_cast<string>(cur_id), lc_id, edge);
+    string lc_id = lexical_cast<string>(neighbors[i]);
+    bool valid_lc = lc_.getLoopClosure(lexical_cast<string>(cur_id), lc_id, edge, true);
     if (valid_lc)
     {
-      ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id);
-      graph_.addEdge(boost::lexical_cast<int>(lc_id), cur_id, edge);
+      ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id);
+      graph_.addEdge(lexical_cast<int>(lc_id), cur_id, edge);
       any_loop_closure = true;
     }
   }
@@ -154,7 +189,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   bool valid_lc = lc_.getLoopClosure(lc_id_num, edge);
   if (valid_lc)
   {
-    ROS_INFO_STREAM("[StereoSlam:] Node with id " << cur_id << " closes loop with " << lc_id_num);
+    ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id_num);
     graph_.addEdge(lc_id_num, cur_id, edge);
     any_loop_closure = true;
   }
@@ -162,15 +197,153 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Update the graph if any loop closing
   if (any_loop_closure) graph_.update();
 
-  // Publish the corrected pose
+  // Publish the slam pose
   graph_.getLastPoses(current_odom, last_graph_pose, last_graph_odom);
-  corrected_odom = pose_.correctOdom(current_odom, last_graph_pose, last_graph_odom);
-  pose_.publish(*odom_msg, corrected_odom);
+  pose_.publish(*odom_msg, last_graph_pose * odom2camera.inverse());
 
-  // Save graph to file
-  graph_.saveGraphToFile();
+  // Save graph to file and send (if needed)
+  graph_.saveToFile(odom2camera.inverse());
+  sendGraph();
 
   return;
+}
+
+
+/** \brief Filters a pointcloud
+  * @return filtered cloud
+  * \param input cloud
+  */
+PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr cloud)
+{
+  // NAN and limit filtering
+  PointCloudRGB::Ptr cloud_filtered_ptr(new PointCloudRGB);
+  pcl::PassThrough<PointRGB> pass;
+  pass.setFilterFieldName("x");
+  pass.setFilterLimits(params_.x_filter_min, params_.x_filter_max);
+  pass.setFilterFieldName("y");
+  pass.setFilterLimits(params_.y_filter_min, params_.y_filter_max);
+  pass.setFilterFieldName("z");
+  pass.setFilterLimits(params_.z_filter_min, params_.z_filter_max);
+  pass.setInputCloud(cloud);
+  pass.filter(*cloud_filtered_ptr);
+
+  return cloud_filtered_ptr;
+}
+
+
+/** \brief Save and/or send the accumulated cloud depending on the value of 'save_clouds' and 'listen_reconstruction_srvs'
+  * \param Cloud id
+  */
+void slam::SlamBase::processCloud(int cloud_id)
+{
+  // Proceed?
+  if (pcl_cloud_.size() == 0 || (!params_.save_clouds && !reconstruction_srv_on_) ) return;
+
+  string id = lexical_cast<string>(cloud_id);
+
+  // Cloud filtering
+  PointCloudRGB::Ptr cloud_filtered(new PointCloudRGB);
+  cloud_filtered = filterCloud(pcl_cloud_.makeShared());
+
+  // Save clouds
+  if (params_.save_clouds)
+    pcl::io::savePCDFileBinary(params_.clouds_dir + id + ".pcd", pcl_cloud_);
+
+  // Send cloud
+  if (reconstruction_srv_on_)
+  {
+    ros::ServiceClient send_cloud = nh_.serviceClient<stereo_slam::SetPointCloud>(params_.set_cloud_srv);
+    stereo_slam::SetPointCloud srv;
+    PointCloudRGB::Ptr cloud(new PointCloudRGB);
+    srv.request.id = id;
+    pcl::toROSMsg(pcl_cloud_, srv.request.cloud);
+    if (!send_cloud.call(srv))
+      ROS_WARN_STREAM("[Localization:] Failed to call service " << params_.set_cloud_srv);
+  }
+}
+
+/** \brief Get the transform between odometry frame and camera frame
+  * @return true if valid transform, false otherwise
+  * \param Odometry msg
+  * \param Image msg
+  * \param Output transform
+  */
+bool slam::SlamBase::getOdom2CameraTf(nav_msgs::Odometry odom_msg,
+                                      sensor_msgs::Image img_msg,
+                                      tf::StampedTransform &transform)
+{
+  // Init the transform
+  transform.setIdentity();
+
+  try
+  {
+    // Extract the transform
+    tf_listener_.lookupTransform(odom_msg.child_frame_id,
+                                 img_msg.header.frame_id,
+                                 ros::Time(0),
+                                 transform);
+  }
+  catch (tf::TransformException ex)
+  {
+    ROS_WARN("%s", ex.what());
+    return false;
+  }
+  return true;
+}
+
+
+/** \brief Send the graph if requested
+  */
+void slam::SlamBase::sendGraph()
+{
+  // Send?
+  if (!reconstruction_srv_on_) return;
+
+  ros::ServiceClient send_graph = nh_.serviceClient<stereo_slam::SetGraph>(params_.set_graph_srv);
+  stereo_slam::SetGraph srv;
+  PointCloudRGB::Ptr cloud(new PointCloudRGB);
+  srv.request.graph = graph_.readFile();
+  if (!send_graph.call(srv))
+    ROS_WARN_STREAM("[Localization:] Failed to call service " << params_.set_graph_srv);
+}
+
+
+/** \brief Start the slam
+  */
+bool slam::SlamBase::start(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
+{
+  start_srv_on_ = true;
+  ROS_INFO("[Localization:] Call to start_slam service received!");
+  return true;
+}
+
+/** \brief Stop the slam
+  */
+bool slam::SlamBase::stop(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
+{
+  start_srv_on_ = false;
+  ROS_INFO("[Localization:] Call to stop_slam service received!");
+  return true;
+}
+
+
+/** \brief Start the reconstruction services
+  */
+bool slam::SlamBase::startReconstruction(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
+{
+  reconstruction_srv_on_ = true;
+  ROS_INFO("[Localization:] Call to start_reconstruction service received!");
+  return true;
+}
+
+
+/** \brief Stop the reconstruction services
+  */
+bool slam::SlamBase::stopReconstruction(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
+{
+  reconstruction_srv_on_ = false;
+  ROS_INFO("[Localization:] Call to stop_reconstruction service received!");
+  return true;
 }
 
 
@@ -196,36 +369,52 @@ void slam::SlamBase::readParameters()
     fs::remove_all(params.clouds_dir);
   fs::path dir(params.clouds_dir);
   if (!fs::create_directory(dir))
-    ROS_ERROR("[StereoSlam:] ERROR -> Impossible to create the clouds directory.");
+    ROS_ERROR("[Localization:] ERROR -> Impossible to create the clouds directory.");
 
   // Topic parameters
   string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic, cloud_topic;
-  nh_private_.param("pose_frame_id",        pose_params.pose_frame_id,        string("/map"));
-  nh_private_.param("pose_child_frame_id",  pose_params.pose_child_frame_id,  string("/robot"));
-  nh_private_.param("odom_topic",           odom_topic,                       string("/odometry"));
-  nh_private_.param("left_topic",           left_topic,                       string("/left/image_rect_color"));
-  nh_private_.param("right_topic",          right_topic,                      string("/right/image_rect_color"));
-  nh_private_.param("left_info_topic",      left_info_topic,                  string("/left/camera_info"));
-  nh_private_.param("right_info_topic",     right_info_topic,                 string("/right/camera_info"));
-  nh_private_.param("cloud_topic",          cloud_topic,                      string("/points2"));
+  nh_private_.param("pose_frame_id",              pose_params.pose_frame_id,        string("/map"));
+  nh_private_.param("pose_child_frame_id",        pose_params.pose_child_frame_id,  string("/robot"));
+  nh_private_.param("odom_topic",                 odom_topic,                       string("/odometry"));
+  nh_private_.param("left_topic",                 left_topic,                       string("/left/image_rect_color"));
+  nh_private_.param("right_topic",                right_topic,                      string("/right/image_rect_color"));
+  nh_private_.param("left_info_topic",            left_info_topic,                  string("/left/camera_info"));
+  nh_private_.param("right_info_topic",           right_info_topic,                 string("/right/camera_info"));
+  nh_private_.param("cloud_topic",                cloud_topic,                      string("/points2"));
 
   // Motion parameters
-  nh_private_.param("save_clouds",          params.save_clouds,               false);
-  nh_private_.param("refine_neighbors",     params.refine_neighbors,          false);
-  nh_private_.getParam("min_displacement",  params.min_displacement);
+  nh_private_.param("refine_neighbors",           params.refine_neighbors,          false);
+  nh_private_.param("min_displacement",           params.min_displacement,          0.3);
+
+  // 3D reconstruction parameters
+  nh_private_.param("save_clouds",                params.save_clouds,               false);
+  nh_private_.param("listen_runtime_srvs",        params.listen_runtime_srvs,       false);
+  nh_private_.param("listen_reconstruction_srvs", params.listen_reconstruction_srvs,false);
+  nh_private_.param("set_cloud_srv",              params.set_cloud_srv,             string("set_point_cloud"));
+  nh_private_.param("set_graph_srv",              params.set_graph_srv,             string("set_graph"));
 
   // Loop closure parameters
-  nh_private_.param("desc_type",            lc_params.desc_type,              string("SIFT"));
-  nh_private_.param("desc_matching_type",   lc_params.desc_matching_type,     string("CROSSCHECK"));
-  nh_private_.getParam("desc_thresh_ratio", lc_params.desc_thresh_ratio);
-  nh_private_.getParam("min_neighbor",      lc_params.min_neighbor);
-  nh_private_.getParam("n_candidates",      lc_params.n_candidates);
-  nh_private_.getParam("min_matches",       lc_params.min_matches);
-  nh_private_.getParam("min_inliers",       lc_params.min_inliers);
+  nh_private_.param("desc_type",                  lc_params.desc_type,              string("SIFT"));
+  nh_private_.param("desc_matching_type",         lc_params.desc_matching_type,     string("CROSSCHECK"));
+  nh_private_.param("desc_thresh_ratio",          lc_params.desc_thresh_ratio,      0.8);
+  nh_private_.param("min_neighbor",               lc_params.min_neighbor,           10);
+  nh_private_.param("n_candidates",               lc_params.n_candidates,           5);
+  nh_private_.param("min_matches",                lc_params.min_matches,            100);
+  nh_private_.param("min_inliers",                lc_params.min_inliers,            50);
 
   // G2O parameters
-  nh_private_.getParam("g2o_algorithm",     graph_params.g2o_algorithm);
-  nh_private_.getParam("g2o_opt_max_iter",  graph_params.go2_opt_max_iter);
+  nh_private_.param("g2o_algorithm",              graph_params.g2o_algorithm,       0);
+  nh_private_.param("g2o_opt_max_iter",           graph_params.go2_opt_max_iter,    20);
+
+  // Cloud filtering values
+  nh_private_.param("x_filter_min",               params.x_filter_min,              -3.0);
+  nh_private_.param("x_filter_max",               params.x_filter_max,              3.0);
+  nh_private_.param("y_filter_min",               params.y_filter_min,              -3.0);
+  nh_private_.param("y_filter_max",               params.y_filter_max,              3.0);
+  nh_private_.param("z_filter_min",               params.z_filter_min,              0.2);
+  nh_private_.param("z_filter_max",               params.z_filter_max,              6.0);
+
+  // Some other graph parameters
   graph_params.save_dir = lc_params.work_dir;
   graph_params.pose_frame_id = pose_params.pose_frame_id;
   graph_params.pose_child_frame_id = pose_params.pose_child_frame_id;
@@ -239,21 +428,25 @@ void slam::SlamBase::readParameters()
 
   // Topics subscriptions
   image_transport::ImageTransport it(nh_);
-  odom_sub_       .subscribe(nh_, odom_topic,       1);
-  left_sub_       .subscribe(it,  left_topic,       1);
-  right_sub_      .subscribe(it,  right_topic,      1);
-  left_info_sub_  .subscribe(nh_, left_info_topic,  1);
-  right_info_sub_ .subscribe(nh_, right_info_topic, 1);
+  odom_sub_       .subscribe(nh_, odom_topic,       25);
+  left_sub_       .subscribe(it,  left_topic,       3);
+  right_sub_      .subscribe(it,  right_topic,      3);
+  left_info_sub_  .subscribe(nh_, left_info_topic,  3);
+  right_info_sub_ .subscribe(nh_, right_info_topic, 3);
 
-  if (params_.save_clouds)
-    cloud_sub_.subscribe(nh_, cloud_topic, 1);
+  if (params_.save_clouds || params_.listen_reconstruction_srvs)
+    cloud_sub_.subscribe(nh_, cloud_topic, 3);
 }
+
 
 /** \brief Initializes the stereo slam node
   */
 void slam::SlamBase::init()
 {
+  // Init
   first_iter_ = true;
+  start_srv_on_ = false;
+  reconstruction_srv_on_ = false;
 
   // Init Haloc
   lc_.init();
@@ -261,29 +454,33 @@ void slam::SlamBase::init()
   // Advertise the pose message
   pose_.advertisePoseMsg(nh_private_);
 
+  // Advertise service
+  start_service_ = nh_private_.advertiseService("start", &SlamBase::start, this);
+  stop_service_ = nh_private_.advertiseService("stop", &SlamBase::stop, this);
+
   // Callback synchronization
-  if (params_.save_clouds)
+  if (params_.save_clouds || params_.listen_reconstruction_srvs)
   {
-    exact_sync_cloud_.reset(new ExactSyncCloud(ExactPolicyCloud(1),
+    sync_cloud_.reset(new SyncCloud(PolicyCloud(3),
                                     odom_sub_,
                                     left_sub_,
                                     right_sub_,
                                     left_info_sub_,
                                     right_info_sub_,
                                     cloud_sub_) );
-    exact_sync_cloud_->registerCallback(boost::bind(
+    sync_cloud_->registerCallback(bind(
         &slam::SlamBase::msgsCallback,
         this, _1, _2, _3, _4, _5, _6));
   }
   else
   {
-    exact_sync_no_cloud_.reset(new ExactSyncNoCloud(ExactPolicyNoCloud(1),
+    sync_no_cloud_.reset(new SyncNoCloud(PolicyNoCloud(3),
                                     odom_sub_,
                                     left_sub_,
                                     right_sub_,
                                     left_info_sub_,
                                     right_info_sub_) );
-    exact_sync_no_cloud_->registerCallback(boost::bind(
+    sync_no_cloud_->registerCallback(bind(
         &slam::SlamBase::msgsCallback,
         this, _1, _2, _3, _4, _5));
   }

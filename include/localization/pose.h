@@ -52,10 +52,13 @@ public:
   void advertisePoseMsg(ros::NodeHandle nh);
 
   // Correct odometry
-  tf::Transform correctOdom(tf::Transform current_odom, tf::Transform last_graph_pose, tf::Transform last_graph_odom);
+  tf::Transform correctPose(tf::Transform pose,
+                            tf::Transform last_graph_pose,
+                            tf::Transform last_graph_odom);
 
   // Publish pose
-  void publish(nav_msgs::Odometry odom_msg, tf::Transform pose);
+  void publish(nav_msgs::Odometry odom_msg,
+               tf::Transform pose);
 
 private:
 

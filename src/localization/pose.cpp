@@ -12,21 +12,21 @@ slam::Pose::Pose(){}
 void slam::Pose::advertisePoseMsg(ros::NodeHandle nh)
 {
   // Advertise the pose publication
-  pose_pub_ = nh.advertise<nav_msgs::Odometry>("slam", 1);
+  pose_pub_ = nh.advertise<nav_msgs::Odometry>("odometry", 1);
 }
 
-/** \brief Correct the current odometry with the information of the graph.
-  * @return The corrected odometry.
-  * \param Current odometry.
+/** \brief Correct the pose with the information of the graph.
+  * @return The corrected pose.
+  * \param Current pose.
   * \param Last graph pose.
-  * \param The corresponding original odometry for the last graph pose.
+  * \param The corresponding original pose for the last graph pose.
   */
-tf::Transform slam::Pose::correctOdom( tf::Transform current_odom,
-                                              tf::Transform last_graph_pose,
-                                              tf::Transform last_graph_odom)
+tf::Transform slam::Pose::correctPose(tf::Transform pose,
+                                      tf::Transform last_graph_pose,
+                                      tf::Transform last_graph_odom)
 {
   // Odometry difference
-  tf::Transform odom_diff = last_graph_odom.inverse() * current_odom;
+  tf::Transform odom_diff = last_graph_odom.inverse() * pose;
 
   // Compute the corrected pose
   return last_graph_pose * odom_diff;

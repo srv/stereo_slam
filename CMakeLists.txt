@@ -16,6 +16,10 @@ find_package(catkin REQUIRED COMPONENTS
 	pcl_ros
     cmake_modules)
 
+## Declare ROS messages and services
+add_service_files(FILES SetPointCloud.srv SetGraph.srv)
+generate_messages(DEPENDENCIES std_msgs sensor_msgs)
+
 ####################################################
 # Dependencies:
 find_package(PkgConfig)
@@ -66,11 +70,21 @@ target_link_libraries(	localization
 						${G2O_LIBRARIES}
 						cholmod
 						${catkin_LIBRARIES})
+add_dependencies(		localization stereo_slam_gencpp)
 
-# Reconstruction node
-add_executable(			reconstruction
-						src/reconstruction/node.cpp
-						src/reconstruction/base.cpp)
-target_link_libraries(	reconstruction
+# Reconstruction nodes
+add_executable(			offline_reconstruction
+						src/reconstruction/offline/node.cpp
+						src/reconstruction/offline/base.cpp)
+target_link_libraries(	offline_reconstruction
 						${eigen_LIBRARIES}
 						${catkin_LIBRARIES})
+add_executable(			online_reconstruction
+						src/reconstruction/online/node.cpp
+						src/reconstruction/online/base.cpp
+						src/reconstruction/online/receiver.cpp
+						src/reconstruction/online/viewer.cpp)
+target_link_libraries(	online_reconstruction
+						${eigen_LIBRARIES}
+						${catkin_LIBRARIES})
+add_dependencies(		online_reconstruction stereo_slam_gencpp)
