@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
 	geometry_msgs
 	image_transport
 	message_filters
+	message_generation
 	cv_bridge
 	image_geometry
 	std_srvs
@@ -17,8 +18,8 @@ find_package(catkin REQUIRED COMPONENTS
     cmake_modules)
 
 ## Declare ROS messages and services
-add_service_files(FILES SetPointCloud.srv SetGraph.srv)
-generate_messages(DEPENDENCIES std_msgs sensor_msgs)
+add_message_files(FILES SlamInfo.msg)
+generate_messages(DEPENDENCIES std_msgs)
 
 ####################################################
 # Dependencies:
@@ -45,7 +46,7 @@ find_package(SuiteSparse REQUIRED)
 # using -DG2O_INCLUDE_DIRS.
 find_package(G2O REQUIRED)
 
-catkin_package()
+catkin_package(CATKIN_DEPENDS message_runtime)
 
 include_directories(	include
 						${catkin_INCLUDE_DIRS}
@@ -71,20 +72,3 @@ target_link_libraries(	localization
 						cholmod
 						${catkin_LIBRARIES})
 add_dependencies(		localization stereo_slam_gencpp)
-
-# Reconstruction nodes
-add_executable(			offline_reconstruction
-						src/reconstruction/offline/node.cpp
-						src/reconstruction/offline/base.cpp)
-target_link_libraries(	offline_reconstruction
-						${eigen_LIBRARIES}
-						${catkin_LIBRARIES})
-add_executable(			online_reconstruction
-						src/reconstruction/online/node.cpp
-						src/reconstruction/online/base.cpp
-						src/reconstruction/online/receiver.cpp
-						src/reconstruction/online/viewer.cpp)
-target_link_libraries(	online_reconstruction
-						${eigen_LIBRARIES}
-						${catkin_LIBRARIES})
-add_dependencies(		online_reconstruction stereo_slam_gencpp)

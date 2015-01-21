@@ -20,9 +20,8 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <libhaloc/lc.h>
-#include "stereo_slam/SetPointCloud.h"
-#include "stereo_slam/SetGraph.h"
 #include <std_srvs/Empty.h>
+#include "stereo_slam/SlamInfo.h"
 #include "pose.h"
 #include "graph.h"
 #include "tools.h"
@@ -63,7 +62,6 @@ public:
     double z_filter_min;              //!> Cloud limit filter
     double z_filter_max;              //!> Cloud limit filter
     bool listen_runtime_srvs;         //!> Listen for runtime services (start, stop...)
-    bool listen_reconstruction_srvs;  //!> Listen for reconstruction services
     string set_cloud_srv;             //!> Name of the service to send the cloud
     string set_graph_srv;             //!> Name of the service to send the graph
 
@@ -81,7 +79,6 @@ public:
       z_filter_min                = 0.2;
       z_filter_max                = 6.0;
       listen_runtime_srvs         = false;
-      listen_reconstruction_srvs  = false;
       set_cloud_srv               = "set_point_cloud";
       set_graph_srv               = "set_graph";
     }
@@ -100,20 +97,20 @@ public:
    */
   inline Params params() const { return params_; }
 
-  // Services
-  bool startReconstruction(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
-  bool stopReconstruction(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
+  // Publish the information message
+  void publish(nav_msgs::Odometry odom_msg, tf::Transform odom);
 
 
 protected:
 
-	// Node handlers
-	ros::NodeHandle nh_;
+  // Node handlers
+  ros::NodeHandle nh_;
   ros::NodeHandle nh_private_;
 
   // Protected functions and callbacks
   void init();
   void readParameters();
+  void createCloudsDir(string clouds_dir);
   void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                     const sensor_msgs::ImageConstPtr& l_img_msg,
                     const sensor_msgs::ImageConstPtr& r_img_msg,
@@ -130,7 +127,6 @@ protected:
   bool getOdom2CameraTf(nav_msgs::Odometry odom_msg,
                         sensor_msgs::Image img_msg,
                         tf::StampedTransform &transform);
-  void sendGraph();
   bool start(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
   bool stop(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
 
@@ -165,6 +161,9 @@ private:
   ros::ServiceServer start_service_;
   ros::ServiceServer stop_service_;
 
+  // Messages
+  ros::Publisher info_pub_;
+
   Params params_;                     //!> Stores parameters
   haloc::LoopClosure lc_;             //!> Loop closure object
   slam::Pose pose_;                   //!> Pose object
@@ -173,7 +172,6 @@ private:
   PointCloudRGB pcl_cloud_;           //!> Current pointcloud to be saved
   bool start_srv_on_;                 //!> True to enable the slam when start service is called
   bool start_srv_advertised_;         //!> True when services are already advertised
-  bool reconstruction_srv_on_;        //!> True to enable the reconstruction services
   tf::TransformListener tf_listener_; //!> Transform listener
 };
 

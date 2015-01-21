@@ -389,6 +389,31 @@ string slam::Graph::readFile()
   }
 
   return output;
-
 }
 
+
+/** \brief Get the number of vertices of the graph
+  * @return
+  */
+int slam::Graph::numNodes()
+{
+  return (int)graph_optimizer_.vertices().size();
+}
+
+
+/** \brief Get the number of edges of the graph
+  * @return
+  */
+int slam::Graph::numLoopClosures()
+{
+  int num_vertices = (int)graph_optimizer_.vertices().size();
+  int num_edges = (int)graph_optimizer_.edges().size();
+  if (num_edges > 0)
+  {
+    return num_edges - (num_vertices-1);
+  }
+  else
+  {
+    return 0;
+  }
+}
