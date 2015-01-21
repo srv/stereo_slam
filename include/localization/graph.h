@@ -100,6 +100,12 @@ public:
   // Return the graph vertices into a single string
   string readFile();
 
+  // Return the number of vertices of the graph
+  int numNodes();
+
+  // Return the number of loop closures of the graph
+  int numLoopClosures();
+
 protected:
 
   bool init();

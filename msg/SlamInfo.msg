@@ -1,0 +1,2 @@
+int32 num_nodes
+int32 num_loop_closures
