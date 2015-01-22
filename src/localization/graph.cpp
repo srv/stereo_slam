@@ -16,6 +16,7 @@ slam::Graph::Graph()
   init();
 }
 
+
 /** \brief Init the graph
   * @return
   */
@@ -58,6 +59,18 @@ bool slam::Graph::init()
   }
 }
 
+
+/** \brief Advertises the node message
+  * @return
+  * \param Node handle where node will be advertised.
+  */
+void slam::Graph::advertiseNodeMsg(ros::NodeHandle nh)
+{
+  // Advertise the pose publication
+  node_pub_ = nh.advertise<stereo_slam::Node>("node", 1);
+}
+
+
 /** \brief Get last vertex id
   * @return
   */
@@ -65,6 +78,7 @@ int slam::Graph::getLastVertexId()
 {
   return graph_optimizer_.vertices().size() - 1;
 }
+
 
 /** \brief Get last poses of the graph
   * @return
@@ -95,6 +109,7 @@ void slam::Graph::getLastPoses(tf::Transform current_odom,
 
   return;
 }
+
 
 /** \brief Get the best neighbors by distance
   * @return
@@ -149,8 +164,9 @@ void slam::Graph::findClosestNodes(int discart_first_n, int best_n, vector<int> 
   }
 }
 
+
 /** \brief Add new vertex into the graph
-  * @return
+  * @return the vertex id
   * \param Last corrected odometry pose.
   * \param Current read odometry.
   * \param Timestamp for the current odometry.
@@ -195,15 +211,16 @@ int slam::Graph::addVertex(tf::Transform pose)
   return id;
 }
 
+
 /** \brief Add new vertex into the graph
-  * @return
+  * @return the vertex id
   * \param Last estimated pose.
   * \param Last corrected pose.
   * \param Timestamp for the current odometry.
   */
 int slam::Graph::addVertex(tf::Transform pose,
-                            tf::Transform pose_corrected,
-                            double timestamp)
+                           tf::Transform pose_corrected,
+                           double timestamp)
 {
   // Save the original odometry for this new node
   odom_history_.push_back(make_pair(pose, timestamp));
@@ -211,6 +228,29 @@ int slam::Graph::addVertex(tf::Transform pose,
   // Add the node
   return addVertex(pose_corrected);
 }
+
+/** \brief Add new vertex into the graph
+  * @return the vertex id
+  * \param The odometry message for which this vertex is added
+  * \param Last estimated pose.
+  * \param Last corrected pose.
+  * \param Timestamp for the current odometry.
+  */
+int slam::Graph::addVertex(std_msgs::Header header,
+                           tf::Transform pose,
+                           tf::Transform pose_corrected,
+                           double timestamp)
+{
+  // Add the node
+  int id = addVertex(pose, pose_corrected, timestamp);
+
+  // Publish
+  publishNode(header);
+
+  // Exit
+  return id;
+}
+
 
 /** \brief Add new edge to the graph
   * @return
@@ -235,6 +275,7 @@ void slam::Graph::addEdge(int i, int j, tf::Transform edge)
   graph_optimizer_.addEdge(e);
 }
 
+
 /** \brief Updates vertex estimate
   * @return
   * \param Id vertex.
@@ -245,6 +286,7 @@ void slam::Graph::setVertexEstimate(int vertex_id, tf::Transform pose)
   dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[vertex_id])->setEstimate(Tools::tfToIsometry(pose));
 }
 
+
 /** \brief Update the graph
   */
 void slam::Graph::update()
@@ -253,6 +295,7 @@ void slam::Graph::update()
     graph_optimizer_.optimize(params_.go2_opt_max_iter);
     ROS_INFO_STREAM("[Localization:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
 }
+
 
 /** \brief Save the optimized graph into a file with the same format than odometry_msgs.
   * @return
@@ -415,5 +458,28 @@ int slam::Graph::numLoopClosures()
   else
   {
     return 0;
+  }
+}
+
+/** \brief Publish pose of the last node.
+  * @return
+  */
+void slam::Graph::publishNode(std_msgs::Header header)
+{
+  // Publish pose
+  if (node_pub_.getNumSubscribers() > 0)
+  {
+    // Get the tf of last node
+    int last_idx = graph_optimizer_.vertices().size() - 1;
+    slam::Vertex* last_vertex =  dynamic_cast<slam::Vertex*>
+          (graph_optimizer_.vertices()[last_idx]);
+    tf::Transform pose = Tools::getVertexPose(last_vertex);
+
+    // Publish
+    stereo_slam::Node node_msg;
+    node_msg.header = header;
+    node_msg.node_id = graph_optimizer_.vertices().size() - 1;
+    tf::poseTFToMsg(pose, node_msg.pose);
+    node_pub_.publish(node_msg);
   }
 }

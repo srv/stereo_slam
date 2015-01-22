@@ -36,7 +36,6 @@ tf::Transform slam::Pose::correctPose(tf::Transform pose,
   * @return
   * \param original odometry message.
   * \param Corrected odometry to be published.
-  * \param true to publish the graph pose.
   */
 void slam::Pose::publish(nav_msgs::Odometry odom_msg, tf::Transform pose)
 {

@@ -40,4 +40,5 @@
   <run_depend>libg2o</run_depend>
   <run_depend>libhaloc</run_depend>
   <run_depend>pcl_ros</run_depend>
+
 </package>

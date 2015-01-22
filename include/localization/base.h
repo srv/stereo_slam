@@ -111,19 +111,14 @@ protected:
   void init();
   void readParameters();
   void createCloudsDir(string clouds_dir);
+  void cloudCallback(const stereo_slam::Node::ConstPtr& node_msg,
+                     const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
   void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                     const sensor_msgs::ImageConstPtr& l_img_msg,
                     const sensor_msgs::ImageConstPtr& r_img_msg,
                     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
                     const sensor_msgs::CameraInfoConstPtr& r_info_msg);
-  void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
-                    const sensor_msgs::ImageConstPtr& l_img_msg,
-                    const sensor_msgs::ImageConstPtr& r_img_msg,
-                    const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-                    const sensor_msgs::CameraInfoConstPtr& r_info_msg,
-                    const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
   PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr cloud);
-  void processCloud(int cloud_id);
   bool getOdom2CameraTf(nav_msgs::Odometry odom_msg,
                         sensor_msgs::Image img_msg,
                         tf::StampedTransform &transform);
@@ -136,9 +131,16 @@ private:
   image_transport::SubscriberFilter left_sub_, right_sub_;
   message_filters::Subscriber<sensor_msgs::CameraInfo> left_info_sub_, right_info_sub_;
   message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
+  message_filters::Subscriber<stereo_slam::Node> node_sub_;
   message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
 
-  // Topic sync properties (no pointcloud)
+  // Topic sync properties (pointcloud)
+  typedef message_filters::sync_policies::ApproximateTime<stereo_slam::Node,
+                                                          sensor_msgs::PointCloud2> PolicyCloud;
+  typedef message_filters::Synchronizer<PolicyCloud> SyncCloud;
+  boost::shared_ptr<SyncCloud> sync_cloud_;
+
+  // Topic sync properties (general)
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,
                                                           sensor_msgs::Image,
                                                           sensor_msgs::Image,
@@ -146,16 +148,6 @@ private:
                                                           sensor_msgs::CameraInfo> PolicyNoCloud;
   typedef message_filters::Synchronizer<PolicyNoCloud> SyncNoCloud;
   boost::shared_ptr<SyncNoCloud> sync_no_cloud_;
-
-  // Topic sync properties (with pointcloud)
-  typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,
-                                                          sensor_msgs::Image,
-                                                          sensor_msgs::Image,
-                                                          sensor_msgs::CameraInfo,
-                                                          sensor_msgs::CameraInfo,
-                                                          sensor_msgs::PointCloud2> PolicyCloud;
-  typedef message_filters::Synchronizer<PolicyCloud> SyncCloud;
-  boost::shared_ptr<SyncCloud> sync_cloud_;
 
   // Services
   ros::ServiceServer start_service_;
@@ -169,7 +161,6 @@ private:
   slam::Pose pose_;                   //!> Pose object
   slam::Graph graph_;                 //!> Graph object
   bool first_iter_;                   //!> Indicates first iteration
-  PointCloudRGB pcl_cloud_;           //!> Current pointcloud to be saved
   bool start_srv_on_;                 //!> True to enable the slam when start service is called
   bool start_srv_advertised_;         //!> True when services are already advertised
   tf::TransformListener tf_listener_; //!> Transform listener

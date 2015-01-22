@@ -8,6 +8,7 @@
 #include <image_geometry/stereo_camera_model.h>
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/Image.h>
+#include <stereo_msgs/DisparityImage.h>
 #include <cv_bridge/cv_bridge.h>
 #include <nav_msgs/Odometry.h>
 #include "vertex.h"
@@ -25,6 +26,7 @@ class Tools
 
 public:
 
+  // Definitions
   typedef pcl::PointXYZRGB        Point;
   typedef pcl::PointCloud<Point>  PointCloud;
 
@@ -175,16 +177,21 @@ public:
                           Mat &l_img, Mat &r_img)
   {
     // Convert message to Mat
+    cv_bridge::CvImagePtr l_img_ptr, r_img_ptr;
     try
     {
-      l_img = (cv_bridge::toCvCopy(l_img_msg, enc::BGR8))->image;
-      r_img = (cv_bridge::toCvCopy(r_img_msg, enc::BGR8))->image;
+      l_img_ptr = cv_bridge::toCvCopy(l_img_msg, enc::BGR8);
+      r_img_ptr = cv_bridge::toCvCopy(r_img_msg, enc::BGR8);
     }
     catch (cv_bridge::Exception& e)
     {
       ROS_ERROR("[StereoSlam:] cv_bridge exception: %s", e.what());
       return false;
     }
+
+    // Set the images
+    l_img = l_img_ptr->image;
+    r_img = r_img_ptr->image;
     return true;
   }
 
@@ -199,6 +206,10 @@ public:
                              image_geometry::StereoCameraModel &stereo_camera_model,
                              Mat &camera_matrix)
   {
+    // Get the binning factors
+    int binning_x = l_info_msg.binning_x;
+    int binning_y = l_info_msg.binning_y;
+
     // Get the stereo camera model
     stereo_camera_model.fromCameraInfo(l_info_msg, r_info_msg);
 
@@ -207,8 +218,6 @@ public:
     camera_matrix = P.colRange(Range(0,3)).clone();
 
     // Are the images scaled?
-    int binning_x = l_info_msg.binning_x;
-    int binning_y = l_info_msg.binning_y;
     if (binning_x > 1 || binning_y > 1)
     {
       camera_matrix.at<double>(0,0) = camera_matrix.at<double>(0,0) / binning_x;

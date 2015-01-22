@@ -36,30 +36,29 @@ void slam::SlamBase::finalize()
 }
 
 
-/** \brief Messages callback. This function is called when synchronized odometry and image
+/** \brief Cloud callback. This function is called when synchronized odometry and cloud
   * message are received.
   * @return
-  * \param odom_msg ros odometry message of type nav_msgs::Odometry
-  * \param l_img left stereo image message of type sensor_msgs::Image
-  * \param r_img right stereo image message of type sensor_msgs::Image
-  * \param l_info left stereo info message of type sensor_msgs::CameraInfo
-  * \param r_info right stereo info message of type sensor_msgs::CameraInfo
+  * \param custom node message
   * \param cloud_msg ros pointcloud message of type sensor_msgs::PointCloud2
   */
-void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
-                                  const sensor_msgs::ImageConstPtr& l_img_msg,
-                                  const sensor_msgs::ImageConstPtr& r_img_msg,
-                                  const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-                                  const sensor_msgs::CameraInfoConstPtr& r_info_msg,
-                                  const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
+void slam::SlamBase::cloudCallback(const stereo_slam::Node::ConstPtr& node_msg,
+                                   const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 {
+  // Proceed?
+  if (!params_.save_clouds ) return;
+
   // Get the cloud
   PointCloudRGB::Ptr pcl_cloud(new PointCloudRGB);
   pcl::fromROSMsg(*cloud_msg, *pcl_cloud);
-  pcl::copyPointCloud(*pcl_cloud, pcl_cloud_);
 
-  // Run the general slam callback
-  msgsCallback(odom_msg, l_img_msg, r_img_msg, l_info_msg, r_info_msg);
+  // Cloud filtering
+  PointCloudRGB::Ptr cloud_filtered(new PointCloudRGB);
+  cloud_filtered = filterCloud(pcl_cloud);
+
+  // Save it!
+  string id = lexical_cast<string>(node_msg->node_id);
+  pcl::io::savePCDFileBinary(params_.clouds_dir + id + ".pcd", *pcl_cloud);
 }
 
 
@@ -78,8 +77,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::CameraInfoConstPtr& l_info_msg,
                                   const sensor_msgs::CameraInfoConstPtr& r_info_msg)
 {
-  // Get the odometry
-  double timestamp = odom_msg->header.stamp.toSec();
+  // Get the current timestamp and the odometry
+  double timestamp = l_img_msg->header.stamp.toSec();
   tf::Transform current_odom = Tools::odomTotf(*odom_msg);
 
   // Check is slam is on or off
@@ -117,12 +116,9 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
 
     if (id_tmp >= 0)
     {
-      // Insert the node into the graph
-      int cur_id = graph_.addVertex(current_odom, current_odom, timestamp);
+      // Add the vertex
+      int cur_id = graph_.addVertex(l_img_msg->header, current_odom, current_odom, timestamp);
       ROS_INFO_STREAM("[Localization:] Node " << cur_id << " inserted.");
-
-      // Process the cloud (if any)
-      processCloud(cur_id);
 
       // Publish
       publish(*odom_msg, current_odom * odom2camera.inverse());
@@ -179,11 +175,10 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
       corrected_pose = last_graph_pose * vertex_disp;
     }
   }
-  int cur_id = graph_.addVertex(current_odom, corrected_pose, timestamp);
-  ROS_INFO_STREAM("[Localization:] Node " << cur_id << " inserted.");
 
-  // Process the cloud (if any)
-  processCloud(cur_id);
+  // Add the vertex
+  int cur_id = graph_.addVertex(l_img_msg->header, current_odom, corrected_pose, timestamp);
+  ROS_INFO_STREAM("[Localization:] Node " << cur_id << " inserted.");
 
   // Detect loop closures between nodes by distance
   bool any_loop_closure = false;
@@ -249,25 +244,6 @@ PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr cloud)
 }
 
 
-/** \brief Save and/or send the accumulated cloud depending on the value of 'save_clouds'
-  * \param Cloud id
-  */
-void slam::SlamBase::processCloud(int cloud_id)
-{
-  // Proceed?
-  if (pcl_cloud_.size() == 0 || !params_.save_clouds ) return;
-
-  string id = lexical_cast<string>(cloud_id);
-
-  // Cloud filtering
-  PointCloudRGB::Ptr cloud_filtered(new PointCloudRGB);
-  cloud_filtered = filterCloud(pcl_cloud_.makeShared());
-
-  // Save clouds
-  if (params_.save_clouds)
-    pcl::io::savePCDFileBinary(params_.clouds_dir + id + ".pcd", pcl_cloud_);
-}
-
 /** \brief Get the transform between odometry frame and camera frame
   * @return true if valid transform, false otherwise
   * \param Odometry msg
@@ -306,10 +282,13 @@ void slam::SlamBase::publish(nav_msgs::Odometry odom_msg, tf::Transform odom)
   pose_.publish(odom_msg, odom);
 
   // Information message
-  stereo_slam::SlamInfo info_msg;
-  info_msg.num_nodes = graph_.numNodes();
-  info_msg.num_loop_closures = graph_.numLoopClosures();
-  info_pub_.publish(info_msg);
+  if (info_pub_.getNumSubscribers() > 0)
+  {
+    stereo_slam::SlamInfo info_msg;
+    info_msg.num_nodes = graph_.numNodes();
+    info_msg.num_loop_closures = graph_.numLoopClosures();
+    info_pub_.publish(info_msg);
+  }
 }
 
 
@@ -424,6 +403,8 @@ void slam::SlamBase::readParameters()
 
   // Topics subscriptions
   image_transport::ImageTransport it(nh_);
+
+  node_sub_       .subscribe(nh_, ros::this_node::getName() + "/node",       15);
   odom_sub_       .subscribe(nh_, odom_topic,       25);
   left_sub_       .subscribe(it,  left_topic,       3);
   right_sub_      .subscribe(it,  right_topic,      3);
@@ -431,7 +412,7 @@ void slam::SlamBase::readParameters()
   right_info_sub_ .subscribe(nh_, right_info_topic, 3);
 
   if (params_.save_clouds)
-    cloud_sub_.subscribe(nh_, cloud_topic, 3);
+    cloud_sub_.subscribe(nh_, cloud_topic, 10);
 }
 
 
@@ -446,8 +427,9 @@ void slam::SlamBase::init()
   // Init Haloc
   lc_.init();
 
-  // Advertise the pose message
+  // Advertise topics
   pose_.advertisePoseMsg(nh_private_);
+  graph_.advertiseNodeMsg(nh_private_);
 
   // Advertise the info message
   info_pub_ = nh_private_.advertise<stereo_slam::SlamInfo>("info", 1);
@@ -460,31 +442,26 @@ void slam::SlamBase::init()
     start_srv_advertised_ = true;
   }
 
-  // Callback synchronization
+  // Cloud callback
   if (params_.save_clouds)
   {
-    sync_cloud_.reset(new SyncCloud(PolicyCloud(3),
-                                    odom_sub_,
-                                    left_sub_,
-                                    right_sub_,
-                                    left_info_sub_,
-                                    right_info_sub_,
+    sync_cloud_.reset(new SyncCloud(PolicyCloud(10),
+                                    node_sub_,
                                     cloud_sub_) );
     sync_cloud_->registerCallback(bind(
-        &slam::SlamBase::msgsCallback,
-        this, _1, _2, _3, _4, _5, _6));
+        &slam::SlamBase::cloudCallback,
+        this, _1, _2));
   }
-  else
-  {
-    sync_no_cloud_.reset(new SyncNoCloud(PolicyNoCloud(3),
-                                    odom_sub_,
-                                    left_sub_,
-                                    right_sub_,
-                                    left_info_sub_,
-                                    right_info_sub_) );
-    sync_no_cloud_->registerCallback(bind(
-        &slam::SlamBase::msgsCallback,
-        this, _1, _2, _3, _4, _5));
-  }
+
+  // General callback
+  sync_no_cloud_.reset(new SyncNoCloud(PolicyNoCloud(3),
+                                  odom_sub_,
+                                  left_sub_,
+                                  right_sub_,
+                                  left_info_sub_,
+                                  right_info_sub_) );
+  sync_no_cloud_->registerCallback(bind(
+      &slam::SlamBase::msgsCallback,
+      this, _1, _2, _3, _4, _5));
 
 }

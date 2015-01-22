@@ -15,6 +15,8 @@
 #include <g2o/types/slam3d/edge_se3.h>
 #include <g2o/core/optimization_algorithm_levenberg.h>
 #include <g2o/solvers/dense/linear_solver_dense.h>
+#include <nav_msgs/Odometry.h>
+#include "stereo_slam/Node.h"
 #include "tools.h"
 
 using namespace std;
@@ -84,6 +86,10 @@ public:
   int addVertex(tf::Transform pose,
                 tf::Transform pose_corrected,
                 double timestamp);
+  int addVertex(std_msgs::Header header,
+                tf::Transform pose,
+                tf::Transform pose_corrected,
+                double timestamp);
 
   // Sets the vertex estimate
   void setVertexEstimate(int vertex_id, tf::Transform pose);
@@ -106,11 +112,20 @@ public:
   // Return the number of loop closures of the graph
   int numLoopClosures();
 
+  // Advertise the node topic
+  void advertiseNodeMsg(ros::NodeHandle nh);
+
+  // Publish the node pose
+  void publishNode(std_msgs::Header header);
+
 protected:
 
   bool init();
 
 private:
+
+  // Messages
+  ros::Publisher node_pub_;
 
 	// Pose properties
   vector< pair<tf::Transform,double> >
