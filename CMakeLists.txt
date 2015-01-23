@@ -18,8 +18,8 @@ find_package(catkin REQUIRED COMPONENTS
 	cmake_modules)
 
 ## Declare ROS messages and services
-add_message_files(FILES SlamInfo.msg Node.msg)
-generate_messages(DEPENDENCIES std_msgs geometry_msgs)
+add_message_files(FILES SlamInfo.msg)
+generate_messages(DEPENDENCIES std_msgs)
 
 ####################################################
 # Dependencies:

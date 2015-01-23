@@ -59,18 +59,6 @@ bool slam::Graph::init()
   }
 }
 
-
-/** \brief Advertises the node message
-  * @return
-  * \param Node handle where node will be advertised.
-  */
-void slam::Graph::advertiseNodeMsg(ros::NodeHandle nh)
-{
-  // Advertise the pose publication
-  node_pub_ = nh.advertise<stereo_slam::Node>("node", 1);
-}
-
-
 /** \brief Get last vertex id
   * @return
   */
@@ -229,28 +217,6 @@ int slam::Graph::addVertex(tf::Transform pose,
   return addVertex(pose_corrected);
 }
 
-/** \brief Add new vertex into the graph
-  * @return the vertex id
-  * \param The odometry message for which this vertex is added
-  * \param Last estimated pose.
-  * \param Last corrected pose.
-  * \param Timestamp for the current odometry.
-  */
-int slam::Graph::addVertex(std_msgs::Header header,
-                           tf::Transform pose,
-                           tf::Transform pose_corrected,
-                           double timestamp)
-{
-  // Add the node
-  int id = addVertex(pose, pose_corrected, timestamp);
-
-  // Publish
-  publishNode(header);
-
-  // Exit
-  return id;
-}
-
 
 /** \brief Add new edge to the graph
   * @return
@@ -395,46 +361,6 @@ bool slam::Graph::saveToFile(tf::Transform camera2odom)
 }
 
 
-/** \brief Reads the graph vertices file and return one string with all the contents
-  * @return
-  */
-string slam::Graph::readFile()
-{
-  string block_file, vertices_file, output;
-  vertices_file = params_.save_dir + "graph_vertices.txt";
-  block_file = params_.save_dir + ".graph.lock";
-
-  // Check if file exists
-  if (!fs::exists(vertices_file))
-  {
-    ROS_WARN("[Localization:] The graph vertices file does not exists.");
-    return output;
-  }
-
-  // Wait until lock file has been released
-  while(fs::exists(block_file)){}
-
-  // Create a locking element
-  fstream f_block(block_file.c_str(), ios::out | ios::trunc);
-
-  // Read the graph vertices
-  ifstream vertices(vertices_file.c_str());
-  string file((istreambuf_iterator<char>(vertices)),
-               istreambuf_iterator<char>());
-  output = file;
-
-  // Un-block
-  f_block.close();
-  int ret_code = remove(block_file.c_str());
-  if (ret_code != 0)
-  {
-    ROS_ERROR("[Localization:] Error deleting the blocking file.");
-  }
-
-  return output;
-}
-
-
 /** \brief Get the number of vertices of the graph
   * @return
   */
@@ -458,28 +384,5 @@ int slam::Graph::numLoopClosures()
   else
   {
     return 0;
-  }
-}
-
-/** \brief Publish pose of the last node.
-  * @return
-  */
-void slam::Graph::publishNode(std_msgs::Header header)
-{
-  // Publish pose
-  if (node_pub_.getNumSubscribers() > 0)
-  {
-    // Get the tf of last node
-    int last_idx = graph_optimizer_.vertices().size() - 1;
-    slam::Vertex* last_vertex =  dynamic_cast<slam::Vertex*>
-          (graph_optimizer_.vertices()[last_idx]);
-    tf::Transform pose = Tools::getVertexPose(last_vertex);
-
-    // Publish
-    stereo_slam::Node node_msg;
-    node_msg.header = header;
-    node_msg.node_id = graph_optimizer_.vertices().size() - 1;
-    tf::poseTFToMsg(pose, node_msg.pose);
-    node_pub_.publish(node_msg);
   }
 }

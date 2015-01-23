@@ -16,7 +16,6 @@
 #include <g2o/core/optimization_algorithm_levenberg.h>
 #include <g2o/solvers/dense/linear_solver_dense.h>
 #include <nav_msgs/Odometry.h>
-#include "stereo_slam/Node.h"
 #include "tools.h"
 
 using namespace std;
@@ -68,6 +67,9 @@ public:
    */
   inline Params params() const { return params_; }
 
+  // Initialize the graph
+  bool init();
+
   // Get the last vertex id
   int getLastVertexId();
 
@@ -86,10 +88,6 @@ public:
   int addVertex(tf::Transform pose,
                 tf::Transform pose_corrected,
                 double timestamp);
-  int addVertex(std_msgs::Header header,
-                tf::Transform pose,
-                tf::Transform pose_corrected,
-                double timestamp);
 
   // Sets the vertex estimate
   void setVertexEstimate(int vertex_id, tf::Transform pose);
@@ -103,29 +101,13 @@ public:
   // Save the graph to file
   bool saveToFile(tf::Transform camera2odom);
 
-  // Return the graph vertices into a single string
-  string readFile();
-
   // Return the number of vertices of the graph
   int numNodes();
 
   // Return the number of loop closures of the graph
   int numLoopClosures();
 
-  // Advertise the node topic
-  void advertiseNodeMsg(ros::NodeHandle nh);
-
-  // Publish the node pose
-  void publishNode(std_msgs::Header header);
-
-protected:
-
-  bool init();
-
 private:
-
-  // Messages
-  ros::Publisher node_pub_;
 
 	// Pose properties
   vector< pair<tf::Transform,double> >
