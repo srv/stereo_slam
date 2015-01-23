@@ -49,27 +49,27 @@ public:
 
   struct Params
   {
-    // Motion parameters
-    double min_displacement;          //!> Minimum odometry displacement between poses to be saved as graph vertices.
+    bool enable;                      //!> Enable the slam
+    double min_displacement;          //!> Minimum odometry displacement between poses to be saved as graph vertices
     bool save_clouds;                 //!> Save the pointclouds
     string clouds_dir;                //!> Directory where pointclouds will be saved
-    int min_neighbor;                 //!> Jump this number of neighbors for closer loop closing candidates.
-    bool refine_neighbors;            //!> If true, solvePNP will be applied between consecutive nodes. If false, the odometry will be applied.
+    string odom_topic;                //!> Odometry topic name
+    int min_neighbor;                 //!> Jump this number of neighbors for closer loop closing candidates
+    bool refine_neighbors;            //!> If true, solvePNP will be applied between consecutive nodes. If false, the odometry will be applied
     double x_filter_min;              //!> Cloud limit filter
     double x_filter_max;              //!> Cloud limit filter
     double y_filter_min;              //!> Cloud limit filter
     double y_filter_max;              //!> Cloud limit filter
     double z_filter_min;              //!> Cloud limit filter
     double z_filter_max;              //!> Cloud limit filter
-    bool listen_runtime_srvs;         //!> Listen for runtime services (start, stop...)
-    string set_cloud_srv;             //!> Name of the service to send the cloud
-    string set_graph_srv;             //!> Name of the service to send the graph
 
     // Default settings
     Params () {
+      enable                      = true;
       min_displacement            = 0.2;
       save_clouds                 = false;
       clouds_dir                  = "";
+      odom_topic                  = "";
       min_neighbor                = 10;
       refine_neighbors            = false;
       x_filter_min                = 3.0;
@@ -78,9 +78,6 @@ public:
       y_filter_max                = -3.0;
       z_filter_min                = 0.2;
       z_filter_max                = 6.0;
-      listen_runtime_srvs         = false;
-      set_cloud_srv               = "set_point_cloud";
-      set_graph_srv               = "set_graph";
     }
   };
 
@@ -110,42 +107,33 @@ protected:
   // Protected functions and callbacks
   void init();
   void readParameters();
-  void createCloudsDir(string clouds_dir);
-  void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
-                    const sensor_msgs::ImageConstPtr& l_img_msg,
-                    const sensor_msgs::ImageConstPtr& r_img_msg,
-                    const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-                    const sensor_msgs::CameraInfoConstPtr& r_info_msg);
+  void createCloudsDir();
+  void genericCallback(const nav_msgs::Odometry::ConstPtr& odom_msg);
   void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                     const sensor_msgs::ImageConstPtr& l_img_msg,
                     const sensor_msgs::ImageConstPtr& r_img_msg,
                     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
                     const sensor_msgs::CameraInfoConstPtr& r_info_msg,
                     const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
+  void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
+                    const sensor_msgs::ImageConstPtr& l_img_msg,
+                    const sensor_msgs::ImageConstPtr& r_img_msg,
+                    const sensor_msgs::CameraInfoConstPtr& l_info_msg,
+                    const sensor_msgs::CameraInfoConstPtr& r_info_msg);
   PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr cloud);
   void processCloud(int cloud_id);
   bool getOdom2CameraTf(nav_msgs::Odometry odom_msg,
                         sensor_msgs::Image img_msg,
                         tf::StampedTransform &transform);
-  bool start(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
-  bool stop(std_srvs::Empty::Request&, std_srvs::Empty::Response&);
 
 private:
 
-  // Topic properties
+  // Topic subscribers
+  ros::Subscriber generic_sub_;
   image_transport::SubscriberFilter left_sub_, right_sub_;
   message_filters::Subscriber<sensor_msgs::CameraInfo> left_info_sub_, right_info_sub_;
   message_filters::Subscriber<nav_msgs::Odometry> odom_sub_;
   message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub_;
-
-  // Topic sync properties (no pointcloud)
-  typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,
-                                                          sensor_msgs::Image,
-                                                          sensor_msgs::Image,
-                                                          sensor_msgs::CameraInfo,
-                                                          sensor_msgs::CameraInfo> PolicyNoCloud;
-  typedef message_filters::Synchronizer<PolicyNoCloud> SyncNoCloud;
-  boost::shared_ptr<SyncNoCloud> sync_no_cloud_;
 
   // Topic sync properties (with pointcloud)
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,
@@ -157,9 +145,14 @@ private:
   typedef message_filters::Synchronizer<PolicyCloud> SyncCloud;
   boost::shared_ptr<SyncCloud> sync_cloud_;
 
-  // Services
-  ros::ServiceServer start_service_;
-  ros::ServiceServer stop_service_;
+  // Topic sync properties (no pointcloud)
+  typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,
+                                                          sensor_msgs::Image,
+                                                          sensor_msgs::Image,
+                                                          sensor_msgs::CameraInfo,
+                                                          sensor_msgs::CameraInfo> PolicyNoCloud;
+  typedef message_filters::Synchronizer<PolicyNoCloud> SyncNoCloud;
+  boost::shared_ptr<SyncNoCloud> sync_no_cloud_;
 
   // Messages
   ros::Publisher info_pub_;
@@ -169,10 +162,10 @@ private:
   slam::Pose pose_;                   //!> Pose object
   slam::Graph graph_;                 //!> Graph object
   bool first_iter_;                   //!> Indicates first iteration
-  PointCloudRGB pcl_cloud_;           //!> Current pointcloud to be saved
-  bool start_srv_on_;                 //!> True to enable the slam when start service is called
-  bool start_srv_advertised_;         //!> True when services are already advertised
   tf::TransformListener tf_listener_; //!> Transform listener
+  PointCloudRGB pcl_cloud_;           //!> Current pointcloud to be saved
+  ros::WallTime last_pub_odom_;       //!> Last publication of a slam odometry
+  tf::StampedTransform odom2camera_;  //!> Transformation between robot odometry frame and camera frame
 };
 
 } // namespace

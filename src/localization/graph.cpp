@@ -16,6 +16,7 @@ slam::Graph::Graph()
   init();
 }
 
+
 /** \brief Init the graph
   * @return
   */
@@ -66,6 +67,7 @@ int slam::Graph::getLastVertexId()
   return graph_optimizer_.vertices().size() - 1;
 }
 
+
 /** \brief Get last poses of the graph
   * @return
   * \param Current odometry pose used in the case of graph is empty.
@@ -95,6 +97,7 @@ void slam::Graph::getLastPoses(tf::Transform current_odom,
 
   return;
 }
+
 
 /** \brief Get the best neighbors by distance
   * @return
@@ -149,8 +152,9 @@ void slam::Graph::findClosestNodes(int discart_first_n, int best_n, vector<int> 
   }
 }
 
+
 /** \brief Add new vertex into the graph
-  * @return
+  * @return the vertex id
   * \param Last corrected odometry pose.
   * \param Current read odometry.
   * \param Timestamp for the current odometry.
@@ -195,15 +199,16 @@ int slam::Graph::addVertex(tf::Transform pose)
   return id;
 }
 
+
 /** \brief Add new vertex into the graph
-  * @return
+  * @return the vertex id
   * \param Last estimated pose.
   * \param Last corrected pose.
   * \param Timestamp for the current odometry.
   */
 int slam::Graph::addVertex(tf::Transform pose,
-                            tf::Transform pose_corrected,
-                            double timestamp)
+                           tf::Transform pose_corrected,
+                           double timestamp)
 {
   // Save the original odometry for this new node
   odom_history_.push_back(make_pair(pose, timestamp));
@@ -211,6 +216,7 @@ int slam::Graph::addVertex(tf::Transform pose,
   // Add the node
   return addVertex(pose_corrected);
 }
+
 
 /** \brief Add new edge to the graph
   * @return
@@ -235,6 +241,7 @@ void slam::Graph::addEdge(int i, int j, tf::Transform edge)
   graph_optimizer_.addEdge(e);
 }
 
+
 /** \brief Updates vertex estimate
   * @return
   * \param Id vertex.
@@ -245,6 +252,7 @@ void slam::Graph::setVertexEstimate(int vertex_id, tf::Transform pose)
   dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[vertex_id])->setEstimate(Tools::tfToIsometry(pose));
 }
 
+
 /** \brief Update the graph
   */
 void slam::Graph::update()
@@ -253,6 +261,7 @@ void slam::Graph::update()
     graph_optimizer_.optimize(params_.go2_opt_max_iter);
     ROS_INFO_STREAM("[Localization:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
 }
+
 
 /** \brief Save the optimized graph into a file with the same format than odometry_msgs.
   * @return
@@ -349,46 +358,6 @@ bool slam::Graph::saveToFile(tf::Transform camera2odom)
   }
 
   return true;
-}
-
-
-/** \brief Reads the graph vertices file and return one string with all the contents
-  * @return
-  */
-string slam::Graph::readFile()
-{
-  string block_file, vertices_file, output;
-  vertices_file = params_.save_dir + "graph_vertices.txt";
-  block_file = params_.save_dir + ".graph.lock";
-
-  // Check if file exists
-  if (!fs::exists(vertices_file))
-  {
-    ROS_WARN("[Localization:] The graph vertices file does not exists.");
-    return output;
-  }
-
-  // Wait until lock file has been released
-  while(fs::exists(block_file)){}
-
-  // Create a locking element
-  fstream f_block(block_file.c_str(), ios::out | ios::trunc);
-
-  // Read the graph vertices
-  ifstream vertices(vertices_file.c_str());
-  string file((istreambuf_iterator<char>(vertices)),
-               istreambuf_iterator<char>());
-  output = file;
-
-  // Un-block
-  f_block.close();
-  int ret_code = remove(block_file.c_str());
-  if (ret_code != 0)
-  {
-    ROS_ERROR("[Localization:] Error deleting the blocking file.");
-  }
-
-  return output;
 }
 
 

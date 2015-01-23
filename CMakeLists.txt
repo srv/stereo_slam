@@ -15,7 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
 	image_geometry
 	std_srvs
 	pcl_ros
-    cmake_modules)
+	cmake_modules)
 
 ## Declare ROS messages and services
 add_message_files(FILES SlamInfo.msg)

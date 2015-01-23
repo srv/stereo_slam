@@ -15,6 +15,7 @@
 #include <g2o/types/slam3d/edge_se3.h>
 #include <g2o/core/optimization_algorithm_levenberg.h>
 #include <g2o/solvers/dense/linear_solver_dense.h>
+#include <nav_msgs/Odometry.h>
 #include "tools.h"
 
 using namespace std;
@@ -66,6 +67,9 @@ public:
    */
   inline Params params() const { return params_; }
 
+  // Initialize the graph
+  bool init();
+
   // Get the last vertex id
   int getLastVertexId();
 
@@ -97,18 +101,11 @@ public:
   // Save the graph to file
   bool saveToFile(tf::Transform camera2odom);
 
-  // Return the graph vertices into a single string
-  string readFile();
-
   // Return the number of vertices of the graph
   int numNodes();
 
   // Return the number of loop closures of the graph
   int numLoopClosures();
-
-protected:
-
-  bool init();
 
 private:
 
