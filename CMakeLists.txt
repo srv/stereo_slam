@@ -48,7 +48,7 @@ find_package(G2O REQUIRED)
 
 catkin_package(CATKIN_DEPENDS message_runtime)
 
-include_directories(	include
+include_directories(include
 						${catkin_INCLUDE_DIRS}
 						${Eigen_INCLUDE_DIRS}
 						${libhaloc_INCLUDE_DIRS}
@@ -58,7 +58,7 @@ include_directories(	include
 						${PCL_INCLUDE_DIRS})
 
 # Localization node
-add_executable(			localization
+add_executable(localization
 						src/localization/node.cpp
 						src/localization/base.cpp
 						src/localization/graph.cpp
@@ -71,4 +71,12 @@ target_link_libraries(	localization
 						${G2O_LIBRARIES}
 						cholmod
 						${catkin_LIBRARIES})
-add_dependencies(		localization stereo_slam_gencpp)
+add_dependencies(localization stereo_slam_gencpp)
+
+# Reconstruction node
+add_executable(reconstruction
+						src/reconstruction/node.cpp
+						src/reconstruction/base.cpp)
+target_link_libraries(reconstruction
+						${eigen_LIBRARIES}
+						${catkin_LIBRARIES})
