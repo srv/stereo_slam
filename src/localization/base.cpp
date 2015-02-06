@@ -2,6 +2,7 @@
 #include "opencv2/core/core.hpp"
 #include <boost/filesystem.hpp>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/filter.h>
 
 
 using namespace boost;
@@ -44,7 +45,7 @@ void slam::SlamBase::genericCallback(const nav_msgs::Odometry::ConstPtr& odom_ms
   {
     // Check if syncronized callback is working, i.e. corrected odometry is published regularly
     ros::WallDuration elapsed_time = ros::WallTime::now() - last_pub_odom_;
-    if (elapsed_time.toSec() < 0.9)
+    if (elapsed_time.toSec() < 2.0)
     {
       // It seems the msgCallback is publishing corrected odometry regularly ;)
       return;
@@ -271,9 +272,14 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   * @return filtered cloud
   * \param input cloud
   */
-PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr cloud)
+PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr in_cloud)
 {
-  // NAN and limit filtering
+  // Remove nans
+  vector<int> indicies;
+  PointCloudRGB::Ptr cloud(new PointCloudRGB);
+  pcl::removeNaNFromPointCloud(*in_cloud, *cloud, indicies);
+
+  // Limit filtering
   PointCloudRGB::Ptr cloud_filtered_ptr(new PointCloudRGB);
   pcl::PassThrough<PointRGB> pass;
   pass.setFilterFieldName("x");

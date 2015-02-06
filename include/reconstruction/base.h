@@ -6,17 +6,53 @@
 #ifndef BASE_H
 #define BASE_H
 
+#define PCL_NO_PRECOMPILE
+#include <signal.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
 #include <tf/transform_broadcaster.h>
 
 using namespace std;
 
+// Custom point type XYZ with the weight property
+struct PointXYZRGBW
+{
+  float x;
+  float y;
+  float z;
+  float rgb;
+  float w;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;   // make sure our new allocators are aligned
+
+  // Default values
+  PointXYZRGBW () {
+    x = 0.0;
+    y = 0.0;
+    z = 0.0;
+    rgb = 0.0;
+    w = 1.0;
+  }
+} EIGEN_ALIGN16;                    // enforce SSE padding for correct memory alignment
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZRGBW,
+                                   (float, x, x)
+                                   (float, y, y)
+                                   (float, z, z)
+                                   (float, rgb, rgb)
+                                   (float, w, w)
+);
+
+// Defines
 typedef pcl::PointXY                      PointXY;
 typedef pcl::PointXYZ                     PointXYZ;
 typedef pcl::PointXYZRGB                  PointRGB;
+typedef pcl::PointCloud<PointXY>          PointCloudXY;
 typedef pcl::PointCloud<PointXYZ>         PointCloudXYZ;
 typedef pcl::PointCloud<PointRGB>         PointCloudRGB;
+typedef pcl::PointCloud<PointXYZRGBW>     PointCloudXYZW;
 
 namespace reconstruction
 {
@@ -66,6 +102,9 @@ public:
 
   // 3D reconstruction
   void build3D();
+
+  // Greedy projection
+  pcl::PolygonMesh::Ptr greedyProjection(PointCloudRGB::Ptr cloud);
 
 protected:
 

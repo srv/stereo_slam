@@ -25,6 +25,7 @@
   <build_depend>libhaloc</build_depend>
   <build_depend>pcl_ros</build_depend>
   <build_depend>cmake_modules</build_depend>
+  <build_depend>tf_conversions</build_depend>
 
   <run_depend>roscpp</run_depend>
   <run_depend>nav_msgs</run_depend>
@@ -40,5 +41,6 @@
   <run_depend>libg2o</run_depend>
   <run_depend>libhaloc</run_depend>
   <run_depend>pcl_ros</run_depend>
+  <run_depend>tf_conversions</run_depend>
 
 </package>
