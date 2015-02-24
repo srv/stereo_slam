@@ -237,7 +237,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     bool valid_lc = lc_.getLoopClosure(lexical_cast<string>(cur_id), lc_id, edge, true);
     if (valid_lc)
     {
-      ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id);
+      //ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id);
+      cout << "\033[1;32m[ INFO]: [Localization:] Node with id " << cur_id << " closes loop with " << lc_id << "\033[0m\n";
       graph_.addEdge(lexical_cast<int>(lc_id), cur_id, edge);
       any_loop_closure = true;
     }
@@ -249,7 +250,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   bool valid_lc = lc_.getLoopClosure(lc_id_num, edge);
   if (valid_lc)
   {
-    ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id_num);
+    //ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id_num);
+    cout << "\033[1;32m[ INFO]: [Localization:] Node with id " << cur_id << " closes loop with " << lc_id_num << "\033[0m\n";
     graph_.addEdge(lc_id_num, cur_id, edge);
     any_loop_closure = true;
   }
