@@ -3,6 +3,7 @@
 #include <tf_conversions/tf_eigen.h>
 #include <pcl_ros/transforms.h>
 
+#include <pcl/common/common.h>
 #include <pcl/common/transforms.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/filters/voxel_grid.h>
@@ -217,17 +218,20 @@ void reconstruction::ReconstructionBase::build3D()
   // Voxel size
   float voxel_size = 0.005;
 
+  // Number of neighbors
+  int K = 1;
+
   // Maximum distance from point to voxel (plus 5% to improve the borders)
   float max_dist = sqrt( (voxel_size*voxel_size)/2 );
-
-  // Number of nearest neighbors
-  int K = 1;
 
   // Camera parameters. FIXME: extract from camera info
   float baseline = 0.12;
   float focal = 775.312;
   float dis_dev = 0.1;
   float const_unc = dis_dev / (baseline * focal);
+
+  // Total of points processed
+  int total_points = 0;
 
   // Load, convert and accumulate every pointcloud
   PointCloudXYZW::Ptr acc(new PointCloudXYZW);
@@ -244,6 +248,9 @@ void reconstruction::ReconstructionBase::build3D()
       ROS_WARN_STREAM("[Reconstruction:] Couldn't read the file: " << cloud_poses[i].first);
       continue;
     }
+
+    // Increase the total of points processed
+    total_points += in_cloud->points.size();
 
     ROS_INFO("Filtering");
 
@@ -297,22 +304,27 @@ void reconstruction::ReconstructionBase::build3D()
     transformTFToEigen(tfn0, tfn0_eigen);
     pcl::transformPointCloud(*acc, *acc, tfn0_eigen);
 
-    // Get the maximum and minimum of the accumulated and current cloud
+    // A reduced version of the accumulated cloud
     PointCloudXYZ::Ptr acc_xyz(new PointCloudXYZ);
     pcl::copyPointCloud(*acc, *acc_xyz);
-    PointXYZ min_acc, max_acc;
-    pcl::getMinMax3D(*acc_xyz, min_acc, max_acc);
+    PointCloudXYZ::Ptr acc_xyz_red(new PointCloudXYZ);
+    pcl::ApproximateVoxelGrid<PointXYZ> big_grid;
+    big_grid.setLeafSize(voxel_size*10, voxel_size*10, voxel_size); // Do not filter in Z!
+    big_grid.setDownsampleAllData(true);
+    big_grid.setInputCloud(acc_xyz);
+    big_grid.filter(*acc_xyz_red);
 
     // Convert the accumulated cloud to PointXY. So, we are supposing
-    // the robot is navigating parallel to the surface.
+    // the robot is navigating parallel to the surface and the camera line of sight is
+    // perpendicular to the surface.
     PointCloudXY::Ptr acc_xy(new PointCloudXY);
     pcl::copyPointCloud(*acc, *acc_xy);
 
-    // Search the closest neighbor in the projected accumulated cloud.
+    // To search the closest neighbor in the projected accumulated cloud.
     pcl::KdTreeFLANN<PointXY> kdtree;
     kdtree.setInputCloud(acc_xy);
 
-    // Search the closest neighbor over the line of sight of the current point in the accumulated cloud.
+    // To search the closest neighbor in a hole.
     pcl::KdTreeFLANN<PointXYZRGBW> kdtree2;
     kdtree2.setInputCloud(acc);
 
@@ -384,85 +396,25 @@ void reconstruction::ReconstructionBase::build3D()
         p.rgb = cloud->points[n].rgb;
         p.w = delta_z;
 
-        if ((sp.x < max_acc.x && sp.x > min_acc.x) ||
-            (sp.y < max_acc.y && sp.y > min_acc.y))
+
+        // Get a cross on the reduced cloud, centered at the given point
+        PointCloudXYZ::Ptr acc_cross(new PointCloudXYZ);
+        pcl::PassThrough<PointXYZ> pass;
+        pass.setFilterFieldName("x");
+        pass.setFilterLimits(p.x - voxel_size*10, p.x + voxel_size*10);
+        pass.setFilterFieldName("y");
+        pass.setFilterLimits(p.y - voxel_size*10, p.y + voxel_size*10);
+        pass.setInputCloud(acc_xyz_red);
+        pass.filter(*acc_cross);
+
+        // Get maximum and minimums
+        PointXYZ min_pt, max_pt;
+        pcl::getMinMax3D(*acc_cross, min_pt, max_pt);
+
+        if ((p.x < max_pt.x && p.x > min_pt.x) &&
+            (p.y < max_pt.y && p.y > min_pt.y))
         {
-          // Point inside
-          // TODO
-        }
-
-        // Add the point
-        acc->push_back(p);
-      }
-
-
-
-
-
-
-      /*
-      if (sp.x > max_acc.x || sp.x < min_acc.x ||
-          sp.y > max_acc.y || sp.y < min_acc.y)
-      {
-        // The point is outside the accumulated cloud
-
-        // Extract the point
-        PointXYZRGBW p;
-        p.x = cloud->points[n].x;
-        p.y = cloud->points[n].y;
-        p.z = cloud->points[n].z;
-        p.rgb = cloud->points[n].rgb;
-
-        // Check if it is close to the border
-        vector<int> point_idx_NKN_search2(K);
-        vector<float> point_NKN_squared_distance2(K);
-        if (kdtree2.radiusSearch(p, max_dist, point_idx_NKN_search2, point_NKN_squared_distance2, K) > 0)
-        {
-          // The point is close to the border, so merge it!
-          PointXYZRGBW acc_p = acc->points[ point_idx_NKN_search2[0] ];
-          p.x = (p.x + acc_p.x) / 2;
-          p.y = (p.y + acc_p.y) / 2;
-          p.z = (p.z + acc_p.z) / 2;
-        }
-
-        // Add the point
-        acc->push_back(p);
-      }
-      else
-      {
-        // The points is inside the accumulated cloud
-
-        // Search this point into the voxels of the accumulated cloud
-        vector<int> point_idx_NKN_search(K);
-        vector<float> point_NKN_squared_distance(K);
-        if (kdtree.radiusSearch(sp, max_dist, point_idx_NKN_search, point_NKN_squared_distance, K) > 0)
-        {
-          // Get the corresponding point into the accumulated
-          PointXYZRGBW acc_p = acc->points[ point_idx_NKN_search[0] ];
-
-          // Get the uncertainty for this z value
-          float delta_z = acc_p.z * acc_p.z * const_unc;
-
-          // Apply the weighted function
-          // TODO: apply to x, y and rgb?
-          acc_p.z = (acc_p.w*acc_p.z + delta_z*cloud->points[n].z) / (acc_p.w + delta_z);
-
-          // Update the weight
-          acc_p.w = acc_p.w + delta_z;
-
-          // Update the point
-          acc->points[ point_idx_NKN_search[0] ] = acc_p;
-        }
-        else
-        {
-          // The point is not outside nor in the voxels of the accumulated cloud, thus this point is inside a hole!
-
-          // Extract the point
-          PointXYZRGBW p;
-          p.x = cloud->points[n].x;
-          p.y = cloud->points[n].y;
-          p.z = cloud->points[n].z;
-          p.rgb = cloud->points[n].rgb;
+          // The point is inside a hole, apply the weighted function and update
 
           // Follow the line of sight to find other points intersecting.
           // The distance to the camera point of view (0,0,0) is:
@@ -475,14 +427,14 @@ void reconstruction::ReconstructionBase::build3D()
           float z_spacing = p.z/partitions;
 
           // Loop the line of sight
-          vector<int> dist_idx;
+          float last_dist = 9999.9;
           vector<float> dist_vec;
-          vector<PointXYZ> points_vec;
+          vector<PointXYZRGBW> points_vec;
           for (uint k=1; k<partitions; k++)
           {
             PointXYZRGBW p_los;
             p_los.z = p.z - z_spacing*k;
-            if (p_los.z < min_acc.z)
+            if (p_los.z < min_pt.z)
               break;
 
             if (p.x < 0)
@@ -498,13 +450,13 @@ void reconstruction::ReconstructionBase::build3D()
             vector<float> point_NKN_squared_distance2(K);
             if (kdtree2.nearestKSearch(p_los, K, point_idx_NKN_search2, point_NKN_squared_distance2) > 0)
             {
-              dist_idx.push_back(point_idx_NKN_search2[0]);
+              // Exit when distance increases
+              if (last_dist < point_NKN_squared_distance2[0])
+                break;
+              last_dist = point_NKN_squared_distance2[0];
+
               dist_vec.push_back(point_NKN_squared_distance2[0]);
-              PointXYZ p_tmp;
-              p_tmp.x = p_los.x;
-              p_tmp.y = p_los.y;
-              p_tmp.z = p_los.z;
-              points_vec.push_back(p_tmp);
+              points_vec.push_back(p_los);
             }
           }
 
@@ -520,14 +472,12 @@ void reconstruction::ReconstructionBase::build3D()
             p.x = points_vec[min_idx].x;
             p.y = points_vec[min_idx].y;
             p.z = points_vec[min_idx].z;
-            acc->push_back(p);
           }
-
-          acc->push_back(p);
         }
-      }
-      */
 
+        // Add the point
+        acc->push_back(p);
+      }
     }
 
     // Return the acc to its original pose
@@ -569,6 +519,7 @@ void reconstruction::ReconstructionBase::build3D()
   pcl::io::savePCDFile(params_.work_dir + "reconstruction.pcd", *acc_rgb);
   //pcl::io::saveVTKFile(params_.work_dir + "reconstruction.vtk", *triangles);
   ROS_INFO("[Reconstruction:] Accumulated clouds saved.");
+  ROS_INFO_STREAM("[Reconstruction:] Points processed: " << total_points);
 }
 
 /** \brief Reads the reconstruction node parameters
