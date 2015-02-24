@@ -190,7 +190,7 @@ if __name__ == "__main__":
           formatter_class=argparse.ArgumentDefaultsHelpFormatter)
   parser.add_argument('-d','--d',
           help='directory with the files: gt.txt (optional), odom.txt, graph_vertices.txt, graph_edges.txt',
-          default="")
+          default=".")
   parser.add_argument('-gt','--gt',
           help='file with ground truth',
           default="")
