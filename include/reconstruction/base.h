@@ -34,7 +34,7 @@ struct PointXYZRGBW
     y = 0.0;
     z = 0.0;
     rgb = 0.0;
-    w = 1.0;
+    w = 0.0;
   }
 } EIGEN_ALIGN16;                    // enforce SSE padding for correct memory alignment
 POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZRGBW,
@@ -96,9 +96,6 @@ public:
 
   // Set the parameters
   void setParameters(string work_dir);
-
-  // Translate the clouds
-  void translateClouds();
 
   // 3D reconstruction
   void build3D();

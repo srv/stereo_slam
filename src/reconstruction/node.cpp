@@ -26,9 +26,6 @@ int main(int argc, char **argv)
   // Init the node
   reconstruction.setParameters(work_dir);
 
-  // Translate the clouds using the graph information
-  //reconstruction.translateClouds();
-
   // Accumulate all the clouds
   reconstruction.build3D();
 
