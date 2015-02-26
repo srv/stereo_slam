@@ -15,6 +15,7 @@
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
 #include <tf/transform_broadcaster.h>
+#include <pcl/kdtree/kdtree_flann.h>
 
 using namespace std;
 
@@ -102,6 +103,15 @@ public:
 
   // Greedy projection
   pcl::PolygonMesh::Ptr greedyProjection(PointCloudRGB::Ptr cloud);
+
+  // Filter
+  PointCloudRGB::Ptr filter(PointCloudRGB::Ptr in_cloud, float voxel_size);
+
+  // Get contour
+  PointCloudXY::Ptr getContourXY(PointCloudXYZW::Ptr acc, float voxel_size);
+
+  // Color blending
+  float colorBlending(float color_a, float color_b, float alpha);
 
 protected:
 

@@ -5,7 +5,6 @@
 
 #include <pcl/common/common.h>
 #include <pcl/common/transforms.h>
-#include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/approximate_voxel_grid.h>
 #include <pcl/filters/statistical_outlier_removal.h>
@@ -89,6 +88,82 @@ pcl::PolygonMesh::Ptr reconstruction::ReconstructionBase::greedyProjection(Point
   return triangles;
 }
 
+PointCloudRGB::Ptr reconstruction::ReconstructionBase::filter(PointCloudRGB::Ptr in_cloud, float voxel_size)
+{
+  // Remove nans
+  vector<int> indices;
+  PointCloudRGB::Ptr cloud(new PointCloudRGB);
+  pcl::removeNaNFromPointCloud(*in_cloud, *cloud, indices);
+  indices.clear();
+
+  // Voxel grid filter (used as x-y surface extraction. Note that leaf in z is very big)
+  pcl::ApproximateVoxelGrid<PointRGB> grid;
+  grid.setLeafSize(voxel_size, voxel_size, 0.5);
+  grid.setDownsampleAllData(true);
+  grid.setInputCloud(cloud);
+  grid.filter(*cloud);
+
+  // Remove isolated points
+  pcl::RadiusOutlierRemoval<PointRGB> outrem;
+  outrem.setInputCloud(cloud);
+  outrem.setRadiusSearch(0.04);
+  outrem.setMinNeighborsInRadius(50);
+  outrem.filter(*cloud);
+  pcl::StatisticalOutlierRemoval<PointRGB> sor;
+  sor.setInputCloud(cloud);
+  sor.setMeanK(40);
+  sor.setStddevMulThresh(2.0);
+  sor.filter(*cloud);
+
+  return cloud;
+}
+
+PointCloudXY::Ptr reconstruction::ReconstructionBase::getContourXY(PointCloudXYZW::Ptr acc, float voxel_size)
+{
+  PointCloudXYZW::Ptr acc_for_contour(new PointCloudXYZW);
+  pcl::ApproximateVoxelGrid<PointXYZRGBW> grid_contour;
+  grid_contour.setLeafSize(voxel_size*10, voxel_size*10, voxel_size*10);
+  grid_contour.setDownsampleAllData(true);
+  grid_contour.setInputCloud(acc);
+  grid_contour.filter(*acc_for_contour);
+
+  PointCloudXY::Ptr acc_xy_for_contour(new PointCloudXY);
+  pcl::copyPointCloud(*acc_for_contour, *acc_xy_for_contour);
+  PointCloudXYZ::Ptr acc_xyz_for_contour(new PointCloudXYZ);
+  pcl::copyPointCloud(*acc_xy_for_contour, *acc_xyz_for_contour);
+
+  PointCloudXYZ::Ptr acc_contour_xyz(new PointCloudXYZ);
+  pcl::ConcaveHull<PointXYZ> concave;
+  concave.setAlpha(0.1);
+  concave.setInputCloud(acc_xyz_for_contour);
+  concave.reconstruct(*acc_contour_xyz);
+
+  PointCloudXY::Ptr acc_contour_xy(new PointCloudXY);
+  pcl::copyPointCloud(*acc_contour_xyz, *acc_contour_xy);
+
+  return acc_contour_xy;
+}
+
+float reconstruction::ReconstructionBase::colorBlending(float color_a, float color_b, float alpha)
+{
+  int ca_rgb = *reinterpret_cast<const int*>(&(color_a));
+  uint8_t ca_r = (ca_rgb >> 16) & 0x0000ff;
+  uint8_t ca_g = (ca_rgb >> 8) & 0x0000ff;
+  uint8_t ca_b = (ca_rgb) & 0x0000ff;
+  int cb_rgb = *reinterpret_cast<const int*>(&(color_b));
+  uint8_t cb_r = (cb_rgb >> 16) & 0x0000ff;
+  uint8_t cb_g = (cb_rgb >> 8) & 0x0000ff;
+  uint8_t cb_b = (cb_rgb) & 0x0000ff;
+
+  // Apply the blending
+  cb_r = (1-alpha)*ca_r + alpha*cb_r;
+  cb_g = (1-alpha)*ca_g + alpha*cb_g;
+  cb_b = (1-alpha)*ca_b + alpha*cb_b;
+
+  int32_t new_rgb = (cb_r << 16) | (cb_g << 8) | cb_b;
+  return *reinterpret_cast<float*>(&new_rgb);
+}
+
 /** \brief Build the 3D
   */
 void reconstruction::ReconstructionBase::build3D()
@@ -97,10 +172,15 @@ void reconstruction::ReconstructionBase::build3D()
   vector< pair<string, tf::Transform> > cloud_poses;
   if (!readPoses(cloud_poses)) return;
 
+  // Output log
+  ostringstream output_csv;
+
+  output_csv << "Pointcloud ID, Points Processed, Accumulated cloud size, Processing time"  << endl;
+
   // Voxel size
   float voxel_size = 0.005;
 
-  // Maximum distance from point to voxel (plus 5% to improve the borders)
+  // Maximum distance from point to voxel
   float max_dist = sqrt( (voxel_size*voxel_size)/2 );
 
   // Total of points processed
@@ -125,35 +205,13 @@ void reconstruction::ReconstructionBase::build3D()
     // Increase the total of points processed
     total_points += in_cloud->points.size();
 
-    ROS_INFO("Filtering");
-
-    // Remove nans
-    vector<int> indices;
+    //ROS_INFO("Filtering");
     PointCloudRGB::Ptr cloud(new PointCloudRGB);
-    pcl::removeNaNFromPointCloud(*in_cloud, *cloud, indices);
-    indices.clear();
-
-    // Voxel grid filter (used as x-y surface extraction. Note that leaf in z is very big)
-    pcl::ApproximateVoxelGrid<PointRGB> grid;
-    grid.setLeafSize(voxel_size, voxel_size, 0.5);
-    grid.setDownsampleAllData(true);
-    grid.setInputCloud(cloud);
-    grid.filter(*cloud);
-
-    // Remove isolated points
-    pcl::RadiusOutlierRemoval<PointRGB> outrem;
-    outrem.setInputCloud(cloud);
-    outrem.setRadiusSearch(0.04);
-    outrem.setMinNeighborsInRadius(50);
-    outrem.filter(*cloud);
-    pcl::StatisticalOutlierRemoval<PointRGB> sor;
-    sor.setInputCloud(cloud);
-    sor.setMeanK(40);
-    sor.setStddevMulThresh(2.0);
-    sor.filter(*cloud);
+    pcl::copyPointCloud(*in_cloud, *cloud);
+    //cloud = filter(in_cloud, voxel_size);
+    //pcl::io::savePCDFile(params_.work_dir + cloud_poses[i].first, *cloud);
 
     ROS_INFO("Merging");
-
     // First iteration
     if (acc->points.size() == 0)
     {
@@ -162,9 +220,8 @@ void reconstruction::ReconstructionBase::build3D()
       continue;
     }
 
-    // Get the current cloud limits
-    PointRGB min_pt, max_pt;
-    pcl::getMinMax3D(*cloud, min_pt, max_pt);
+    // To compute runtime
+    ros::WallTime init_time = ros::WallTime::now();
 
     // Transform the accumulated cloud to the new cloud frame
     tf::Transform tf0 = cloud_poses[0].second;
@@ -173,33 +230,27 @@ void reconstruction::ReconstructionBase::build3D()
     transformTFToEigen(tfn0, tfn0_eigen);
     pcl::transformPointCloud(*acc, *acc, tfn0_eigen);
 
+    // Get the region of interest of the accumulated cloud
+    PointRGB min_pt, max_pt;
+    pcl::getMinMax3D(*cloud, min_pt, max_pt);
+    vector<int> idx_interest;
+    pcl::PassThrough<PointXYZRGBW> pass;
+    pass.setFilterFieldName("x");
+    pass.setFilterLimits(min_pt.x, max_pt.x);
+    pass.setFilterFieldName("y");
+    pass.setFilterLimits(min_pt.y, max_pt.y);
+    pass.setInputCloud(acc);
+    pass.filter(idx_interest);
+
+    // Extract the contour of accumulated cloud
+    PointCloudXY::Ptr acc_contour_xy;
+    acc_contour_xy = getContourXY(acc, voxel_size);
+
     // Convert the accumulated cloud to PointXY. So, we are supposing
     // the robot is navigating parallel to the surface and the camera line of sight is
     // perpendicular to the surface.
     PointCloudXY::Ptr acc_xy(new PointCloudXY);
-    pcl::copyPointCloud(*acc, *acc_xy);
-
-    // Extract the contour of accumulated cloud
-    PointCloudXYZW::Ptr acc_for_contour(new PointCloudXYZW);
-    pcl::ApproximateVoxelGrid<PointXYZRGBW> grid_contour;
-    grid_contour.setLeafSize(voxel_size*10, voxel_size*10, voxel_size*10);
-    grid_contour.setDownsampleAllData(true);
-    grid_contour.setInputCloud(acc);
-    grid_contour.filter(*acc_for_contour);
-
-    PointCloudXY::Ptr acc_xy_for_contour(new PointCloudXY);
-    pcl::copyPointCloud(*acc_for_contour, *acc_xy_for_contour);
-    PointCloudXYZ::Ptr acc_xyz_for_contour(new PointCloudXYZ);
-    pcl::copyPointCloud(*acc_xy_for_contour, *acc_xyz_for_contour);
-
-    PointCloudXYZ::Ptr acc_contour_xyz(new PointCloudXYZ);
-    pcl::ConcaveHull<PointXYZ> concave;
-    concave.setAlpha(0.1);
-    concave.setInputCloud(acc_xyz_for_contour);
-    concave.reconstruct(*acc_contour_xyz);
-
-    PointCloudXY::Ptr acc_contour_xy(new PointCloudXY);
-    pcl::copyPointCloud(*acc_contour_xyz, *acc_contour_xy);
+    pcl::copyPointCloud(*acc, idx_interest, *acc_xy);
 
     // To search the closest neighbor in the projected accumulated cloud.
     pcl::KdTreeFLANN<PointXY> kdtree_neighbors;
@@ -215,11 +266,11 @@ void reconstruction::ReconstructionBase::build3D()
     pcl::KdTreeFLANN<PointXY> kdtree_cloud;
     kdtree_cloud.setInputCloud(cloud_xy);
 
-    // Set all the accumulated processed to zero
+    // Set all the accumulated points as not processed
     for (uint n=0; n<acc->points.size(); n++)
       acc->points[n].w = 0.0;
 
-    // Get the maximum distance
+    // Get the maximum distance from current cloud to the accumulated contour
     float max_contour_dist = 0.0;
     for (uint n=0; n<cloud->points.size(); n++)
     {
@@ -229,21 +280,17 @@ void reconstruction::ReconstructionBase::build3D()
       sp.y = cloud->points[n].y;
 
       int K = 1;
-      vector<int> acc_overlap_idx;
       vector<int> neighbor_idx(K);
       vector<float> neighbor_squared_dist(K);
-      int num_neighbors = kdtree_neighbors.radiusSearch(sp, 2*max_dist, neighbor_idx, neighbor_squared_dist, K);
-      if (num_neighbors > 0)
+      if (kdtree_neighbors.radiusSearch(sp, 2*max_dist, neighbor_idx, neighbor_squared_dist, K) > 0)
       {
         int N = 1;
         vector<int> contour_idx(N);
         vector<float> contour_squared_dist(N);
-        if (kdtree_contour.nearestKSearch(sp, N, contour_idx, contour_squared_dist) > 0)
-        {
-          float dist = sqrt(contour_squared_dist[0]);
-          if (dist > max_contour_dist)
-            max_contour_dist = dist;
-        }
+        kdtree_contour.nearestKSearch(sp, N, contour_idx, contour_squared_dist);
+        float dist = sqrt(contour_squared_dist[0]);
+        if (dist > max_contour_dist)
+          max_contour_dist = dist;
       }
     }
 
@@ -270,14 +317,17 @@ void reconstruction::ReconstructionBase::build3D()
       int num_neighbors = kdtree_neighbors.radiusSearch(sp, 2*max_dist, neighbor_idx, neighbor_squared_dist, K);
       if (num_neighbors > 0)
       {
-        // Filter the z and rgb parts of the point accordingly
+        // Filter the z part of the point accordingly
         for (int h=0; h<num_neighbors; h++)
         {
+          // Extract the corresponding index of the accumulated cloud
+          int idx = idx_interest[ neighbor_idx[h] ];
+
           // Get the corresponding point into the accumulated
-          PointXYZRGBW p_acc = acc->points[ neighbor_idx[h] ];
+          PointXYZRGBW p_acc = acc->points[idx];
 
           // Save the acc value;
-          acc_overlap_idx.push_back(neighbor_idx[h]);
+          acc_overlap_idx.push_back(idx);
 
           // Filter the z part
           p.z = (p.z + p_acc.z) / 2;
@@ -286,37 +336,15 @@ void reconstruction::ReconstructionBase::build3D()
         // Color blending
         // 1. Get the closest acc point
         int min_index = min_element(neighbor_squared_dist.begin(), neighbor_squared_dist.end()) - neighbor_squared_dist.begin();
-        PointXYZRGBW p_acc = acc->points[ neighbor_idx[min_index] ];
+        PointXYZRGBW p_acc = acc->points[ idx_interest[neighbor_idx[min_index]] ];
         // 2. Get the contour closest point
         int N = 1;
         vector<int> contour_idx(N);
         vector<float> contour_squared_dist(N);
-        if (kdtree_contour.nearestKSearch(sp, N, contour_idx, contour_squared_dist) > 0)
-        {
-          // 3. Extract the rgb parts of accumulated and current points
-          int acc_rgb = *reinterpret_cast<const int*>(&(p_acc.rgb));
-          uint8_t acc_r = (acc_rgb >> 16) & 0x0000ff;
-          uint8_t acc_g = (acc_rgb >> 8) & 0x0000ff;
-          uint8_t acc_b = (acc_rgb) & 0x0000ff;
-          int cloud_rgb = *reinterpret_cast<const int*>(&(p.rgb));
-          uint8_t cloud_r = (cloud_rgb >> 16) & 0x0000ff;
-          uint8_t cloud_g = (cloud_rgb >> 8) & 0x0000ff;
-          uint8_t cloud_b = (cloud_rgb) & 0x0000ff;
-
-          // Apply the blending
-          float alpha = ( max_contour_dist - sqrt(contour_squared_dist[0]) ) / max_contour_dist;
-          cloud_r = (1-alpha)*acc_r + alpha*cloud_r;
-          cloud_g = (1-alpha)*acc_g + alpha*cloud_g;
-          cloud_b = (1-alpha)*acc_b + alpha*cloud_b;
-
-          int32_t new_rgb = (cloud_r << 16) | (cloud_g << 8) | cloud_b;
-          p.rgb = *reinterpret_cast<float*>(&new_rgb);
-        }
-        else
-        {
-          // TODO!
-          ROS_WARN("[Reconstruction:] Impossible to find contour neighbors!");
-        }
+        kdtree_contour.nearestKSearch(sp, N, contour_idx, contour_squared_dist);
+        // 3. Apply the blending function
+        float alpha = ( max_contour_dist - sqrt(contour_squared_dist[0]) ) / max_contour_dist;
+        p.rgb = colorBlending(p_acc.rgb, p.rgb, alpha);
 
         // Determine if it is a point on the border or not.
         bool is_border = true;
@@ -351,7 +379,7 @@ void reconstruction::ReconstructionBase::build3D()
           p_acc.z = p.z;
           p_acc.rgb = p.rgb;
           p_acc.w = 1.0;
-          acc->points[ neighbor_idx[min_index] ] = p_acc;
+          acc->points[ idx_interest[neighbor_idx[min_index]] ] = p_acc;
         }
       }
       else
@@ -388,24 +416,8 @@ void reconstruction::ReconstructionBase::build3D()
           vector<float> contour_squared_dist(N);
           if (kdtree_contour.nearestKSearch(sp, N, contour_idx, contour_squared_dist) > 0)
           {
-
-            int acc_rgb = *reinterpret_cast<const int*>(&(p_acc.rgb));
-            uint8_t acc_r = (acc_rgb >> 16) & 0x0000ff;
-            uint8_t acc_g = (acc_rgb >> 8) & 0x0000ff;
-            uint8_t acc_b = (acc_rgb) & 0x0000ff;
-            int cloud_rgb = *reinterpret_cast<const int*>(&(p_cloud.rgb));
-            uint8_t cloud_r = (cloud_rgb >> 16) & 0x0000ff;
-            uint8_t cloud_g = (cloud_rgb >> 8) & 0x0000ff;
-            uint8_t cloud_b = (cloud_rgb) & 0x0000ff;
-
-            // Apply the blending
             float alpha = ( max_contour_dist - sqrt(contour_squared_dist[0]) ) / max_contour_dist;
-            cloud_r = (1-alpha)*acc_r + alpha*cloud_r;
-            cloud_g = (1-alpha)*acc_g + alpha*cloud_g;
-            cloud_b = (1-alpha)*acc_b + alpha*cloud_b;
-
-            int32_t new_rgb = (cloud_r << 16) | (cloud_g << 8) | cloud_b;
-            p_acc.rgb = *reinterpret_cast<float*>(&new_rgb);
+            p_acc.rgb = colorBlending(p_acc.rgb, p_cloud.rgb, alpha);
             p_acc.w = 1.0;
             acc->points[ acc_overlap_idx[h] ] = p_acc;
           }
@@ -415,6 +427,14 @@ void reconstruction::ReconstructionBase::build3D()
 
     // Return the acc to its original pose
     pcl::transformPointCloud(*acc, *acc, tfn0_eigen.inverse());
+
+    // The merging runtime
+    ros::WallDuration elapsed_time = ros::WallTime::now() - init_time;
+
+    ROS_INFO_STREAM("ELAPSED TIME: " << elapsed_time.toSec());
+
+    // Output log
+    output_csv << i << "," << total_points << "," << acc->points.size() << "," << elapsed_time.toSec() << endl;
   }
 
   ROS_INFO("Filtering output cloud");
@@ -446,6 +466,13 @@ void reconstruction::ReconstructionBase::build3D()
   pcl::PolygonMesh::Ptr triangles(new pcl::PolygonMesh());
   triangles = greedyProjection(acc_rgb);
   */
+
+  // Save the log
+  string out_file;
+  out_file = params_.work_dir + "output_log.txt";
+  fstream f_out(out_file.c_str(), ios::out | ios::trunc);
+  f_out << output_csv.str();
+  f_out.close();
 
   // Save accumulated cloud
   ROS_INFO("[Reconstruction:] Saving pointclouds...");
