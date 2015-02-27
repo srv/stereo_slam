@@ -156,9 +156,9 @@ float reconstruction::ReconstructionBase::colorBlending(float color_a, float col
   uint8_t cb_b = (cb_rgb) & 0x0000ff;
 
   // Apply the blending
-  cb_r = (1-alpha)*ca_r + alpha*cb_r;
-  cb_g = (1-alpha)*ca_g + alpha*cb_g;
-  cb_b = (1-alpha)*ca_b + alpha*cb_b;
+  cb_r = (1-alpha)*cb_r + alpha*ca_r;
+  cb_g = (1-alpha)*cb_g + alpha*ca_g;
+  cb_b = (1-alpha)*cb_b + alpha*ca_b;
 
   int32_t new_rgb = (cb_r << 16) | (cb_g << 8) | cb_b;
   return *reinterpret_cast<float*>(&new_rgb);
@@ -211,7 +211,7 @@ void reconstruction::ReconstructionBase::build3D()
     //cloud = filter(in_cloud, voxel_size);
     //pcl::io::savePCDFile(params_.work_dir + cloud_poses[i].first, *cloud);
 
-    ROS_INFO("Merging");
+    ROS_INFO("[Reconstruction:] Merging");
     // First iteration
     if (acc->points.size() == 0)
     {
@@ -233,24 +233,27 @@ void reconstruction::ReconstructionBase::build3D()
     // Get the region of interest of the accumulated cloud
     PointRGB min_pt, max_pt;
     pcl::getMinMax3D(*cloud, min_pt, max_pt);
-    vector<int> idx_interest;
+    vector<int> idx_roi;
     pcl::PassThrough<PointXYZRGBW> pass;
     pass.setFilterFieldName("x");
     pass.setFilterLimits(min_pt.x, max_pt.x);
     pass.setFilterFieldName("y");
     pass.setFilterLimits(min_pt.y, max_pt.y);
     pass.setInputCloud(acc);
-    pass.filter(idx_interest);
+    pass.filter(idx_roi);
 
-    // Extract the contour of accumulated cloud
-    PointCloudXY::Ptr acc_contour_xy;
-    acc_contour_xy = getContourXY(acc, voxel_size);
+    // Extract the interesting part of the accumulated cloud
+    PointCloudXYZW::Ptr acc_roi(new PointCloudXYZW);
+    pcl::copyPointCloud(*acc, idx_roi, *acc_roi);
+
+    // Extract the contour of the interesting part of the accumulated cloud
+    PointCloudXY::Ptr acc_contour_xy = getContourXY(acc_roi, voxel_size);
 
     // Convert the accumulated cloud to PointXY. So, we are supposing
     // the robot is navigating parallel to the surface and the camera line of sight is
     // perpendicular to the surface.
     PointCloudXY::Ptr acc_xy(new PointCloudXY);
-    pcl::copyPointCloud(*acc, idx_interest, *acc_xy);
+    pcl::copyPointCloud(*acc_roi, *acc_xy);
 
     // To search the closest neighbor in the projected accumulated cloud.
     pcl::KdTreeFLANN<PointXY> kdtree_neighbors;
@@ -321,7 +324,7 @@ void reconstruction::ReconstructionBase::build3D()
         for (int h=0; h<num_neighbors; h++)
         {
           // Extract the corresponding index of the accumulated cloud
-          int idx = idx_interest[ neighbor_idx[h] ];
+          int idx = idx_roi[ neighbor_idx[h] ];
 
           // Get the corresponding point into the accumulated
           PointXYZRGBW p_acc = acc->points[idx];
@@ -336,7 +339,7 @@ void reconstruction::ReconstructionBase::build3D()
         // Color blending
         // 1. Get the closest acc point
         int min_index = min_element(neighbor_squared_dist.begin(), neighbor_squared_dist.end()) - neighbor_squared_dist.begin();
-        PointXYZRGBW p_acc = acc->points[ idx_interest[neighbor_idx[min_index]] ];
+        PointXYZRGBW p_acc = acc->points[ idx_roi[neighbor_idx[min_index]] ];
         // 2. Get the contour closest point
         int N = 1;
         vector<int> contour_idx(N);
@@ -379,7 +382,7 @@ void reconstruction::ReconstructionBase::build3D()
           p_acc.z = p.z;
           p_acc.rgb = p.rgb;
           p_acc.w = 1.0;
-          acc->points[ idx_interest[neighbor_idx[min_index]] ] = p_acc;
+          acc->points[ idx_roi[neighbor_idx[min_index]] ] = p_acc;
         }
       }
       else
@@ -431,13 +434,13 @@ void reconstruction::ReconstructionBase::build3D()
     // The merging runtime
     ros::WallDuration elapsed_time = ros::WallTime::now() - init_time;
 
-    ROS_INFO_STREAM("ELAPSED TIME: " << elapsed_time.toSec());
+    ROS_INFO_STREAM("[Reconstruction:] Runtime: " << elapsed_time.toSec());
 
     // Output log
     output_csv << i << "," << total_points << "," << acc->points.size() << "," << elapsed_time.toSec() << endl;
   }
 
-  ROS_INFO("Filtering output cloud");
+  ROS_INFO("[Reconstruction:] Filtering output cloud");
 
   // Remove the weight field
   PointCloudRGB::Ptr acc_rgb(new PointCloudRGB);
