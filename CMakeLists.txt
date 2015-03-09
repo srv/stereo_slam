@@ -47,6 +47,9 @@ find_package(SuiteSparse REQUIRED)
 # using -DG2O_INCLUDE_DIRS.
 find_package(G2O REQUIRED)
 
+# Dependencies - MySql
+find_package(mysqlclient REQUIRED)
+
 catkin_package(CATKIN_DEPENDS message_runtime)
 
 include_directories(include
@@ -56,7 +59,10 @@ include_directories(include
 						${OpenCV_INCLUDE_DIRS}
 						${SUITESPARSE_INCLUDE_DIRS}
 						${G2O_INCLUDE_DIRS}
-						${PCL_INCLUDE_DIRS})
+						${PCL_INCLUDE_DIRS}
+						${MYSQL_INCLUDE_DIRS})
+
+add_definitions(${MYSQL_DEFINITIONS})
 
 # Localization node
 add_executable(localization
@@ -74,10 +80,16 @@ target_link_libraries(	localization
 						${catkin_LIBRARIES})
 add_dependencies(localization stereo_slam_gencpp)
 
-# Reconstruction node
-add_executable(reconstruction
-						src/reconstruction/node.cpp
-						src/reconstruction/base.cpp)
-target_link_libraries(reconstruction
+# Reconstruction nodes
+add_executable(offline_reconstruction
+						src/reconstruction/offline/node.cpp
+						src/reconstruction/offline/base.cpp)
+target_link_libraries(offline_reconstruction
 						${eigen_LIBRARIES}
+						${catkin_LIBRARIES})
+add_executable(inserter
+						src/reconstruction/online/inserter.cpp)
+target_link_libraries(inserter
+						${eigen_LIBRARIES}
+						${MYSQL_LIBRARIES}
 						${catkin_LIBRARIES})

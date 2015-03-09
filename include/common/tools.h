@@ -11,12 +11,13 @@
 #include <stereo_msgs/DisparityImage.h>
 #include <cv_bridge/cv_bridge.h>
 #include <nav_msgs/Odometry.h>
-#include "vertex.h"
+#include <boost/filesystem.hpp>
+#include "../localization/vertex.h"
 
 namespace enc = sensor_msgs::image_encodings;
+namespace fs  = boost::filesystem;
 
 using namespace std;
-using namespace cv;
 
 namespace tools
 {
@@ -174,7 +175,7 @@ public:
     */
   static bool imgMsgToMat(sensor_msgs::Image l_img_msg,
                           sensor_msgs::Image r_img_msg,
-                          Mat &l_img, Mat &r_img)
+                          cv::Mat &l_img, cv::Mat &r_img)
   {
     // Convert message to Mat
     cv_bridge::CvImagePtr l_img_ptr, r_img_ptr;
@@ -204,7 +205,7 @@ public:
   static bool getCameraModel(sensor_msgs::CameraInfo l_info_msg,
                              sensor_msgs::CameraInfo r_info_msg,
                              image_geometry::StereoCameraModel &stereo_camera_model,
-                             Mat &camera_matrix)
+                             cv::Mat &camera_matrix)
   {
     // Get the binning factors
     int binning_x = l_info_msg.binning_x;
@@ -214,8 +215,8 @@ public:
     stereo_camera_model.fromCameraInfo(l_info_msg, r_info_msg);
 
     // Get the projection/camera matrix
-    const Mat P(3,4, CV_64FC1, const_cast<double*>(l_info_msg.P.data()));
-    camera_matrix = P.colRange(Range(0,3)).clone();
+    const cv::Mat P(3,4, CV_64FC1, const_cast<double*>(l_info_msg.P.data()));
+    camera_matrix = P.colRange(cv::Range(0,3)).clone();
 
     // Are the images scaled?
     if (binning_x > 1 || binning_y > 1)
@@ -335,6 +336,65 @@ public:
       sor.setStddevMulThresh (1.0);
       sor.filter(*cloud);
       */
+  }
+
+  static void readPoses(string work_dir, vector< pair<string, tf::Transform> > &cloud_poses)
+  {
+    // Init
+    cloud_poses.clear();
+
+    string graph_file = work_dir + "graph_vertices.txt";
+    string lock_file = work_dir + ".graph.lock";
+
+    // Wait until poses file is unlocked
+    while(fs::exists(lock_file));
+
+    // Create a locking element
+    fstream f_lock(lock_file.c_str(), ios::out | ios::trunc);
+
+    // Get the pointcloud poses file
+    ifstream poses_file(graph_file.c_str());
+    string line;
+    while (getline(poses_file, line))
+    {
+      int i = 0;
+      string cloud_name, value;
+      double x, y, z, qx, qy, qz, qw;
+      istringstream ss(line);
+      while(getline(ss, value, ','))
+      {
+        if (i == 1)
+          cloud_name = value;
+        else if (i == 5)
+          x = boost::lexical_cast<double>(value);
+        else if (i == 6)
+          y = boost::lexical_cast<double>(value);
+        else if (i == 7)
+          z = boost::lexical_cast<double>(value);
+        else if (i == 8)
+          qx = boost::lexical_cast<double>(value);
+        else if (i == 9)
+          qy = boost::lexical_cast<double>(value);
+        else if (i == 10)
+          qz = boost::lexical_cast<double>(value);
+        else if (i == 11)
+          qw = boost::lexical_cast<double>(value);
+        i++;
+      }
+      // Build the pair and save
+      tf::Vector3 t(x, y, z);
+      tf::Quaternion q(qx, qy, qz, qw);
+      tf::Transform transf(q, t);
+      cloud_poses.push_back(make_pair(cloud_name, transf));
+    }
+
+    // Un-lock
+    f_lock.close();
+    int ret_code = remove(lock_file.c_str());
+    if (ret_code != 0)
+    {
+      ROS_ERROR("[Tools:] Error deleting the locking file.");
+    }
   }
 };
 

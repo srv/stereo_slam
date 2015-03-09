@@ -1,4 +1,4 @@
-#include "reconstruction/base.h"
+#include "reconstruction/offline/base.h"
 #include <boost/filesystem.hpp>
 #include <tf_conversions/tf_eigen.h>
 #include <pcl_ros/transforms.h>
@@ -170,7 +170,7 @@ void reconstruction::ReconstructionBase::build3D()
 {
   // Read the graph poses
   vector< pair<string, tf::Transform> > cloud_poses;
-  if (!readPoses(cloud_poses)) return;
+  Tools::readPoses(params_.work_dir, cloud_poses);
 
   // Output log
   ostringstream output_csv;
@@ -194,11 +194,11 @@ void reconstruction::ReconstructionBase::build3D()
     ROS_INFO_STREAM("[Reconstruction:] Processing cloud " << file_idx.substr(0,file_idx.length()-4) << "/" << cloud_poses.size()-1);
 
     // Read the current pointcloud.
-    string cloud_filename = params_.clouds_dir + cloud_poses[i].first;
+    string cloud_filename = params_.clouds_dir + cloud_poses[i].first + ".pcd";
     PointCloudRGB::Ptr in_cloud(new PointCloudRGB);
     if (pcl::io::loadPCDFile<PointRGB> (cloud_filename, *in_cloud) == -1)
     {
-      ROS_WARN_STREAM("[Reconstruction:] Couldn't read the file: " << cloud_poses[i].first);
+      ROS_WARN_STREAM("[Reconstruction:] Couldn't read the file: " << cloud_filename);
       continue;
     }
 
@@ -207,9 +207,13 @@ void reconstruction::ReconstructionBase::build3D()
 
     //ROS_INFO("Filtering");
     PointCloudRGB::Ptr cloud(new PointCloudRGB);
-    pcl::copyPointCloud(*in_cloud, *cloud);
-    //cloud = filter(in_cloud, voxel_size);
-    //pcl::io::savePCDFile(params_.work_dir + cloud_poses[i].first, *cloud);
+    //pcl::copyPointCloud(*in_cloud, *cloud);
+    cloud = filter(in_cloud, voxel_size);
+    //pcl::io::savePCDFile(params_.work_dir + cloud_poses[i].first + ".pcd", *cloud);
+
+    // Sanity check
+    if (cloud->points.size() == 0)
+      continue;
 
     ROS_INFO("[Reconstruction:] Merging");
     // First iteration
@@ -254,6 +258,10 @@ void reconstruction::ReconstructionBase::build3D()
     // perpendicular to the surface.
     PointCloudXY::Ptr acc_xy(new PointCloudXY);
     pcl::copyPointCloud(*acc_roi, *acc_xy);
+
+    // Sanity check
+    if (acc_xy->points.size() == 0)
+      continue;
 
     // To search the closest neighbor in the projected accumulated cloud.
     pcl::KdTreeFLANN<PointXY> kdtree_neighbors;
@@ -507,54 +515,4 @@ void reconstruction::ReconstructionBase::setParameters(string work_dir)
   fs::path dir(params.output_dir);
   if (!fs::create_directory(dir))
     ROS_ERROR("[Reconstruction:] ERROR -> Impossible to create the output directory.");
-}
-
-/** \brief Reads the poses file and return the vector with the cloud names and the transformations
-  * @return true if poses read correctly, false otherwise
-  * \param the vector with the cloud filenames and the transformations
-  */
-bool reconstruction::ReconstructionBase::readPoses(vector< pair<string, tf::Transform> > &cloud_poses)
-{
-  // Init
-  cloud_poses.clear();
-
-  // Wait until poses file is unblocked
-  while(fs::exists(params_.work_dir + ".graph.block"));
-
-  // Get the pointcloud poses file
-  ifstream poses_file(params_.graph_file.c_str());
-  string line;
-  while (getline(poses_file, line))
-  {
-    int i = 0;
-    string cloud_name, value;
-    double x, y, z, qx, qy, qz, qw;
-    istringstream ss(line);
-    while(getline(ss, value, ','))
-    {
-      if (i == 1)
-        cloud_name = value + ".pcd";
-      else if (i == 5)
-        x = boost::lexical_cast<double>(value);
-      else if (i == 6)
-        y = boost::lexical_cast<double>(value);
-      else if (i == 7)
-        z = boost::lexical_cast<double>(value);
-      else if (i == 8)
-        qx = boost::lexical_cast<double>(value);
-      else if (i == 9)
-        qy = boost::lexical_cast<double>(value);
-      else if (i == 10)
-        qz = boost::lexical_cast<double>(value);
-      else if (i == 11)
-        qw = boost::lexical_cast<double>(value);
-      i++;
-    }
-    // Build the pair and save
-    tf::Vector3 t(x, y, z);
-    tf::Quaternion q(qx, qy, qz, qw);
-    tf::Transform transf(q, t);
-    cloud_poses.push_back(make_pair(cloud_name, transf));
-  }
-  return true;
 }

@@ -1,6 +1,6 @@
 #include <iostream>
 #include <ros/ros.h>
-#include "reconstruction/base.h"
+#include "reconstruction/offline/base.h"
 
 using namespace reconstruction;
 

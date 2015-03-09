@@ -16,8 +16,10 @@
 #include <pcl_ros/point_cloud.h>
 #include <tf/transform_broadcaster.h>
 #include <pcl/kdtree/kdtree_flann.h>
+#include "../../common/tools.h"
 
 using namespace std;
+using namespace tools;
 
 // Custom point type XYZ with the weight property
 struct PointXYZRGBW
@@ -120,9 +122,6 @@ protected:
   ros::NodeHandle nh_private_;
 
 private:
-
-  // Read the poses from the graph file
-  bool readPoses(vector< pair<string, tf::Transform> > &cloud_poses);
 
   Params params_;                   //!> Stores parameters
 };

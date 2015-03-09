@@ -16,7 +16,7 @@
 #include <g2o/core/optimization_algorithm_levenberg.h>
 #include <g2o/solvers/dense/linear_solver_dense.h>
 #include <nav_msgs/Odometry.h>
-#include "tools.h"
+#include "../common/tools.h"
 
 using namespace std;
 using namespace tools;

@@ -1,9 +1,12 @@
 #include "localization/base.h"
 #include "opencv2/core/core.hpp"
 #include <boost/filesystem.hpp>
-#include <pcl/filters/passthrough.h>
+#include <pcl/common/common.h>
 #include <pcl/filters/filter.h>
-
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/approximate_voxel_grid.h>
+//#include <pcl/filters/statistical_outlier_removal.h>
+//#include <pcl/filters/radius_outlier_removal.h>
 
 using namespace boost;
 namespace fs=filesystem;
@@ -100,8 +103,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
 {
   // Get the cloud
   PointCloudRGB::Ptr pcl_cloud(new PointCloudRGB);
-  pcl::fromROSMsg(*cloud_msg, *pcl_cloud);
-  pcl::copyPointCloud(*pcl_cloud, pcl_cloud_);
+  fromROSMsg(*cloud_msg, *pcl_cloud);
+  copyPointCloud(*pcl_cloud, pcl_cloud_);
 
   // Run the general slam callback
   msgsCallback(odom_msg, l_img_msg, r_img_msg, l_info_msg, r_info_msg);
@@ -229,7 +232,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Detect loop closures between nodes by distance
   bool any_loop_closure = false;
   vector<int> neighbors;
-  graph_.findClosestNodes(params_.min_neighbor, 2, neighbors);
+  graph_.findClosestNodes(params_.min_neighbor, 3, neighbors);
   for (uint i=0; i<neighbors.size(); i++)
   {
     tf::Transform edge;
@@ -279,7 +282,7 @@ PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr in_cloud)
   // Remove nans
   vector<int> indicies;
   PointCloudRGB::Ptr cloud(new PointCloudRGB);
-  pcl::removeNaNFromPointCloud(*in_cloud, *cloud, indicies);
+  removeNaNFromPointCloud(*in_cloud, *cloud, indicies);
 
   // Limit filtering
   PointCloudRGB::Ptr cloud_filtered_ptr(new PointCloudRGB);
@@ -292,6 +295,27 @@ PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr in_cloud)
   pass.setFilterLimits(params_.z_filter_min, params_.z_filter_max);
   pass.setInputCloud(cloud);
   pass.filter(*cloud_filtered_ptr);
+
+  // Voxel grid filter (used as x-y surface extraction. Note that leaf in z is very big)
+  pcl::ApproximateVoxelGrid<PointRGB> grid;
+  grid.setLeafSize(0.005, 0.005, 0.5);
+  grid.setDownsampleAllData(true);
+  grid.setInputCloud(cloud_filtered_ptr);
+  grid.filter(*cloud_filtered_ptr);
+
+  // Remove isolated points
+  /*
+  RadiusOutlierRemoval<PointRGB> outrem;
+  outrem.setInputCloud(cloud_filtered_ptr);
+  outrem.setRadiusSearch(0.04);
+  outrem.setMinNeighborsInRadius(50);
+  outrem.filter(*cloud_filtered_ptr);
+  StatisticalOutlierRemoval<PointRGB> sor;
+  sor.setInputCloud(cloud_filtered_ptr);
+  sor.setMeanK(40);
+  sor.setStddevMulThresh(2.0);
+  sor.filter(*cloud_filtered_ptr);
+  */
 
   return cloud_filtered_ptr;
 }

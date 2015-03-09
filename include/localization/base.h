@@ -17,17 +17,14 @@
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
 #include <pcl/point_types.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/filters/passthrough.h>
 #include <libhaloc/lc.h>
 #include <std_srvs/Empty.h>
 #include "stereo_slam/SlamInfo.h"
 #include "pose.h"
 #include "graph.h"
-#include "tools.h"
+#include "../common/tools.h"
 
 using namespace std;
-using namespace cv;
 using namespace tools;
 
 typedef pcl::PointXYZRGB                  PointRGB;
