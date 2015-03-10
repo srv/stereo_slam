@@ -2,8 +2,6 @@
 #define TOOLS
 
 #include <ros/ros.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/filters/passthrough.h>
 #include <pcl/common/common.h>
 #include <image_geometry/stereo_camera_model.h>
 #include <sensor_msgs/image_encodings.h>
@@ -31,32 +29,6 @@ public:
   typedef pcl::PointXYZRGB        Point;
   typedef pcl::PointCloud<Point>  PointCloud;
 
-  // Filter parameters
-  struct FilterParams
-  {
-    double x_filter_min;
-    double x_filter_max;
-    double y_filter_min;
-    double y_filter_max;
-    double z_filter_min;
-    double z_filter_max;
-    double x_voxel_size;
-    double y_voxel_size;
-    double z_voxel_size;
-
-    // Default settings
-    FilterParams () {
-      x_filter_min  = -2.0;
-      x_filter_max  = 2.0;
-      y_filter_min  = -2.0;
-      y_filter_max  = 2.0;
-      z_filter_min  = 0.2;
-      z_filter_max  = 2.0;
-      x_voxel_size  = 0.005;
-      y_voxel_size  = 0.005;
-      z_voxel_size  = 0.4;
-    }
-  };
 
   /** \brief convert a tf::transform to Eigen::Isometry3d
     * @return Eigen::Isometry3d matrix
@@ -290,52 +262,6 @@ public:
     ROS_INFO_STREAM("[StereoSlam:]\n" << r0.x() << ", " << r0.y() << ", " << r0.z() << ", " << tran.x() <<
                     "\n" << r1.x() << ", " << r1.y() << ", " << r1.z() << ", " << tran.y() <<
                     "\n" << r2.x() << ", " << r2.y() << ", " << r2.z() << ", " << tran.z());
-  }
-
-  /** \brief Filter some pointcloud
-    * @return
-    * \param the input pointcloud (will be overwritten)
-    */
-  static void filterPointCloud(PointCloud::Ptr cloud, tools::Tools::FilterParams params)
-  {
-    // NAN and limit filtering
-      pcl::PassThrough<Point> pass;
-
-      // X-filtering
-      pass.setFilterFieldName("x");
-      pass.setFilterLimits(params.x_filter_min, params.x_filter_max);
-      pass.setInputCloud(cloud);
-      pass.filter(*cloud);
-
-      // Y-filtering
-      pass.setFilterFieldName("y");
-      pass.setFilterLimits(params.y_filter_min, params.y_filter_max);
-      pass.setInputCloud(cloud);
-      pass.filter(*cloud);
-
-      // Z-filtering
-      pass.setFilterFieldName("z");
-      pass.setFilterLimits(params.z_filter_min, params.z_filter_max);
-      pass.setInputCloud(cloud);
-      pass.filter(*cloud);
-
-      // Downsampling using voxel grid
-      pcl::VoxelGrid<PointRGB> grid;
-      grid.setLeafSize(params.x_voxel_size,
-                       params.y_voxel_size,
-                       params.z_voxel_size);
-      grid.setDownsampleAllData(true);
-      grid.setInputCloud(cloud);
-      grid.filter(*cloud);
-
-      /*
-      // Remove isolated points
-      pcl::StatisticalOutlierRemoval<PointRGB> sor;
-      sor.setInputCloud (cloud);
-      sor.setMeanK (50);
-      sor.setStddevMulThresh (1.0);
-      sor.filter(*cloud);
-      */
   }
 
   static void readPoses(string work_dir, vector< pair<string, tf::Transform> > &cloud_poses)

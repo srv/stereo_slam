@@ -3,10 +3,7 @@
 #include <boost/filesystem.hpp>
 #include <pcl/common/common.h>
 #include <pcl/filters/filter.h>
-#include <pcl/filters/passthrough.h>
 #include <pcl/filters/approximate_voxel_grid.h>
-//#include <pcl/filters/statistical_outlier_removal.h>
-//#include <pcl/filters/radius_outlier_removal.h>
 
 using namespace boost;
 namespace fs=filesystem;
@@ -272,11 +269,10 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   return;
 }
 
-
 /** \brief Filters a pointcloud
-  * @return filtered cloud
-  * \param input cloud
-  */
+* @return filtered cloud
+* \param input cloud
+*/
 PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr in_cloud)
 {
   // Remove nans
@@ -284,40 +280,14 @@ PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr in_cloud)
   PointCloudRGB::Ptr cloud(new PointCloudRGB);
   removeNaNFromPointCloud(*in_cloud, *cloud, indicies);
 
-  // Limit filtering
-  PointCloudRGB::Ptr cloud_filtered_ptr(new PointCloudRGB);
-  pcl::PassThrough<PointRGB> pass;
-  pass.setFilterFieldName("x");
-  pass.setFilterLimits(params_.x_filter_min, params_.x_filter_max);
-  pass.setFilterFieldName("y");
-  pass.setFilterLimits(params_.y_filter_min, params_.y_filter_max);
-  pass.setFilterFieldName("z");
-  pass.setFilterLimits(params_.z_filter_min, params_.z_filter_max);
-  pass.setInputCloud(cloud);
-  pass.filter(*cloud_filtered_ptr);
-
   // Voxel grid filter (used as x-y surface extraction. Note that leaf in z is very big)
   pcl::ApproximateVoxelGrid<PointRGB> grid;
   grid.setLeafSize(0.005, 0.005, 0.5);
   grid.setDownsampleAllData(true);
-  grid.setInputCloud(cloud_filtered_ptr);
-  grid.filter(*cloud_filtered_ptr);
+  grid.setInputCloud(cloud);
+  grid.filter(*cloud);
 
-  // Remove isolated points
-  /*
-  RadiusOutlierRemoval<PointRGB> outrem;
-  outrem.setInputCloud(cloud_filtered_ptr);
-  outrem.setRadiusSearch(0.04);
-  outrem.setMinNeighborsInRadius(50);
-  outrem.filter(*cloud_filtered_ptr);
-  StatisticalOutlierRemoval<PointRGB> sor;
-  sor.setInputCloud(cloud_filtered_ptr);
-  sor.setMeanK(40);
-  sor.setStddevMulThresh(2.0);
-  sor.filter(*cloud_filtered_ptr);
-  */
-
-  return cloud_filtered_ptr;
+  return cloud;
 }
 
 
@@ -329,13 +299,11 @@ void slam::SlamBase::processCloud(int cloud_id)
   // Proceed?
   if (pcl_cloud_.size() == 0 || !params_.save_clouds ) return;
 
-  // Cloud filtering
-  PointCloudRGB::Ptr cloud_filtered(new PointCloudRGB);
-  cloud_filtered = filterCloud(pcl_cloud_.makeShared());
-
   // Save cloud
   string id = lexical_cast<string>(cloud_id);
-  pcl::io::savePCDFileBinary(params_.clouds_dir + id + ".pcd", pcl_cloud_);
+  PointCloudRGB::Ptr cloud;
+  cloud = filterCloud(pcl_cloud_.makeShared());
+  pcl::io::savePCDFileBinary(params_.clouds_dir + id + ".pcd", *cloud);
 }
 
 
@@ -452,14 +420,6 @@ void slam::SlamBase::readParameters()
   // G2O parameters
   nh_private_.param("g2o_algorithm",              graph_params.g2o_algorithm,       0);
   nh_private_.param("g2o_opt_max_iter",           graph_params.go2_opt_max_iter,    20);
-
-  // Cloud filtering values
-  nh_private_.param("x_filter_min",               params.x_filter_min,              -3.0);
-  nh_private_.param("x_filter_max",               params.x_filter_max,              3.0);
-  nh_private_.param("y_filter_min",               params.y_filter_min,              -3.0);
-  nh_private_.param("y_filter_max",               params.y_filter_max,              3.0);
-  nh_private_.param("z_filter_min",               params.z_filter_min,              0.2);
-  nh_private_.param("z_filter_max",               params.z_filter_max,              6.0);
 
   // Some other graph parameters
   graph_params.save_dir = lc_params.work_dir;

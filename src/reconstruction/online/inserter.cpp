@@ -1,8 +1,6 @@
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
 #include <mysql/mysql.h>
-#include <sys/inotify.h>
-#include <sys/stat.h>
 #include <errno.h>
 #include <boost/filesystem.hpp>
 #include <pcl/common/common.h>
@@ -38,8 +36,11 @@ private:
   int mod_id_;
 
   // Cloud parameters
-  double voxel_size_;
   vector<string> processed_clouds_;
+  vector<int> cloud_sizes_;
+
+  // Lock
+  bool lock_;
 
 public:
 
@@ -52,7 +53,6 @@ public:
   {
     // Read parameters
     nh_private_.param("work_dir",   work_dir_,    string(""));
-    nh_private_.param("voxel_size", voxel_size_,  0.005);
     nh_private_.param("db_host",    db_host_,     string("localhost"));
     nh_private_.param("db_user",    db_user_,     string("root"));
     nh_private_.param("db_pass",    db_pass_,     string("root"));
@@ -61,6 +61,9 @@ public:
     // Init workspace
     if (work_dir_[work_dir_.length()-1] != '/')
       work_dir_ += "/";
+
+    // Init the lock
+    lock_ = false;
 
     // Init the poses modification id
     mod_id_ = 0;
@@ -78,10 +81,12 @@ public:
       ROS_INFO("[Inserter:] DB connection succeeded.");
 
       // Create database
-      string query = "DROP DATABASE " + db_name_ + ";";
+      //string query = "DROP DATABASE " + db_name_ + ";";
+      //mysql_query(connect, query.c_str());
+      string query = "CREATE DATABASE IF NOT EXISTS " + db_name_ + ";";
       mysql_query(connect, query.c_str());
-      query = "CREATE DATABASE " + db_name_ + ";";
-      mysql_query(connect, query.c_str());
+
+      query = "SET bulk_insert_buffer_size =1024*1024*128;";
 
       // Create tables
       connect = mysql_init(NULL);
@@ -91,6 +96,8 @@ public:
                                    db_pass_.c_str(),
                                    db_name_.c_str(),
                                    0, NULL, 0);
+      query = "DROP TABLE IF EXISTS `poses`;";
+      mysql_query(connect, query.c_str());
       query = "CREATE TABLE IF NOT EXISTS `poses` ("
               "`id` int(11) NOT NULL AUTO_INCREMENT,"
               "`node_id` int(11) NOT NULL,"
@@ -105,6 +112,8 @@ public:
               "PRIMARY KEY (`id`)"
               ") ENGINE=InnoDB DEFAULT CHARSET=utf8 AUTO_INCREMENT=1;";
       mysql_query(connect, query.c_str());
+      query = "DROP TABLE IF EXISTS `clouds`;";
+      mysql_query(connect, query.c_str());
       query = "CREATE TABLE IF NOT EXISTS `clouds` ("
               "`id` int(11) NOT NULL AUTO_INCREMENT,"
               "`node_id` int(11) NOT NULL,"
@@ -116,9 +125,8 @@ public:
               ") ENGINE=InnoDB DEFAULT CHARSET=utf8 AUTO_INCREMENT=1;";
       mysql_query(connect, query.c_str());
 
-      // Move database to RAM to speedup the process
+      // TODO: Move database to RAM to speedup the process
       // http://tomislavsantek.iz.hr/2011/03/moving-mysql-databases-to-ramdisk-in-ubuntu-linux/
-      // TODO
 
       ROS_INFO("[Inserter:] DB tables created successfully.");
     }
@@ -152,38 +160,54 @@ public:
   }
 
   /**
-   * Graph vertices file change callback
+   * Insert callback
    */
-  void fileChangeCb(int fd)
+  void insert()
   {
-    int i = 0;
-    char buffer[BUF_LEN];
-
-    // This blocks the execution until the file is changed
-    int length = read(fd, buffer, BUF_LEN);
-
-    // Update the poses table
-    vector< pair<string, tf::Transform> > cloud_poses;
-    Tools::readPoses(work_dir_, cloud_poses);
-    updatePoses(cloud_poses);
+    // Lock insert
+    if (lock_) return;
+    lock_ = true;
 
     // Update the clouds table
     string node_id = lexical_cast<string>(processed_clouds_.size());
     string filename = work_dir_ + "clouds/" + node_id + ".pcd";
-    if(fs::exists(filename))
+    if (insertCloud(node_id))
     {
-      ROS_INFO_STREAM("[Inserter:] Inserting pointcloud " << node_id << " into database...");
-      if (insertCloud(node_id))
-        processed_clouds_.push_back(node_id);
+      processed_clouds_.push_back(node_id);
+
+      // Only update the poses when a new cloud is inserted
+      insertPoses();
     }
+
+    // Unlock
+    lock_ = false;
   }
 
   /**
-   * Update the cloud poses
+   * Insert/update the cloud poses
    */
-  void updatePoses(vector< pair<string, tf::Transform> > cloud_poses)
+  void insertPoses()
   {
-    for (uint i=0; i<cloud_poses.size(); i++)
+    // Read the poses file
+    vector< pair<string, tf::Transform> > cloud_poses;
+    Tools::readPoses(work_dir_, cloud_poses);
+
+    // Stores the number of points to be updated in this iteration
+    int total_updated_points = 0;
+
+    // Maximum processed cloud
+    int max = cloud_poses.size();
+    if (processed_clouds_.size() < max)
+      max = processed_clouds_.size();
+
+    // Init the insert query
+    string q_insert = "";
+
+    // Init the update query
+    vector<string> id_val, x_val, y_val, z_val, qx_val, qy_val, qz_val, qw_val, mod_id_val;
+
+    // Loop poses
+    for (uint i=0; i<max; i++)
     {
       string node_id = cloud_poses[i].first;
       tf::Transform pose = cloud_poses[i].second;
@@ -223,20 +247,76 @@ public:
         float diff = poseDiff(new_x, new_y, new_z, old_x, old_y, old_z);
         if (diff >= 0.01) // 1cm
         {
-          // Update the pose into the database
-          string id = lexical_cast<string>(row[0]);
-          string q = "UPDATE poses SET x='"+x+"',y='"+y+"',z='"+z+"',qx='"+qx+"',qy='"+qy+"',qz='"+qz+"',qw='"+qw+"',mod_id='"+mod_id+"' WHERE id='"+id+"'";
-          query(q);
+          // Store for pose update in a single query
+          id_val.push_back(lexical_cast<string>(row[0]));
+          x_val.push_back(x);
+          y_val.push_back(y);
+          z_val.push_back(z);
+          qx_val.push_back(qx);
+          qy_val.push_back(qy);
+          qz_val.push_back(qz);
+          qw_val.push_back(qw);
+          mod_id_val.push_back(mod_id);
+
+          total_updated_points += cloud_sizes_[lexical_cast<int>(node_id)];
         }
       }
       else
       {
+        if (q_insert.size() == 0)
+        {
+          q_insert = "INSERT INTO poses (node_id, mod_id, x, y, z, qx, qy, qz, qw) VALUES ";
+        }
         // Insert the pose
-        string q = "INSERT INTO poses (node_id, mod_id, x, y, z, qx, qy, qz, qw) VALUES ";
-        q += "('"+node_id+"','"+mod_id+"','"+x+"','"+y+"','"+z+"', '"+qx+"', '"+qy+"', '"+qz+"', '"+qw+"')";
-        query(q);
+        q_insert += "('"+node_id+"','"+mod_id+"','"+x+"','"+y+"','"+z+"', '"+qx+"', '"+qy+"', '"+qz+"', '"+qw+"'),";
       }
     }
+
+    // Insert query
+    if (q_insert.size() > 0)
+    {
+      q_insert = q_insert.substr(0, q_insert.size()-1) + ";";
+      query(q_insert);
+    }
+
+    // Update query
+    if (id_val.size() > 0)
+    {
+      string q_id = "";
+      string q_x = "x = CASE id ";
+      string q_y = "y = CASE id ";
+      string q_z = "z = CASE id ";
+      string q_qx = "qx = CASE id ";
+      string q_qy = "qy = CASE id ";
+      string q_qz = "qz = CASE id ";
+      string q_qw = "qw = CASE id ";
+      string q_mod_id = "mod_id = CASE id ";
+      for (uint i=0; i<id_val.size(); i++)
+      {
+        q_id      += id_val[i]+",";
+        q_x       += "WHEN "+id_val[i]+" THEN "+x_val[i]+" ";
+        q_y       += "WHEN "+id_val[i]+" THEN "+y_val[i]+" ";
+        q_z       += "WHEN "+id_val[i]+" THEN "+z_val[i]+" ";
+        q_qx      += "WHEN "+id_val[i]+" THEN "+qx_val[i]+" ";
+        q_qy      += "WHEN "+id_val[i]+" THEN "+qy_val[i]+" ";
+        q_qz      += "WHEN "+id_val[i]+" THEN "+qz_val[i]+" ";
+        q_qw      += "WHEN "+id_val[i]+" THEN "+qw_val[i]+" ";
+        q_mod_id  += "WHEN "+id_val[i]+" THEN "+mod_id_val[i]+" ";
+      }
+
+      q_id = q_id.substr(0, q_id.size()-1);
+      string q_update = "UPDATE poses SET "+q_x+"END, "+q_y+"END, "+q_z+"END, "+q_qx+"END, "+q_qy+"END, "+q_qz+"END, "+q_qw+"END, "+q_mod_id+"END WHERE id IN ("+q_id+")";
+      query(q_update);
+    }
+
+    // Sum of all points
+    int total_points = 0;
+    for (uint i=0; i<max; i++)
+    {
+      total_points += cloud_sizes_[i];
+    }
+
+    ROS_INFO_STREAM("TOTAL POINTS: " << total_points << " (" << total_updated_points << " updated).");
 
     // Increase the poses modification id
     mod_id_++;
@@ -250,6 +330,10 @@ public:
     // The cloud path
     string filename = work_dir_ + "clouds/" + node_id + ".pcd";
 
+    // Check if it exists or not
+    if(!fs::exists(filename))
+      return false;
+
     // Read the cloud
     PointCloudRGB::Ptr in_cloud(new PointCloudRGB);
     if (pcl::io::loadPCDFile<PointRGB> (filename, *in_cloud) == -1)
@@ -259,8 +343,10 @@ public:
     }
 
     // Filter cloud
+    ros::WallTime init_time = ros::WallTime::now();
     PointCloudRGB::Ptr cloud(new PointCloudRGB);
-    cloud = filterCloud(in_cloud, voxel_size_);
+    cloud = filterCloud(in_cloud);
+    ros::WallDuration filter_time = ros::WallTime::now() - init_time;
 
     // Insert into database
     // You should increase the 'max_allowed_packet' up to 500M to this query take effect.
@@ -274,7 +360,15 @@ public:
       string rgb = lexical_cast<string>(cloud->points[n].rgb);
       q += "('"+node_id+"','"+x+"','"+y+"','"+z+"', '"+rgb+"'),";
     }
+    q = q.substr(0, q.size()-1) + ";";
+    init_time = ros::WallTime::now();
     query(q);
+    ros::WallDuration query_time = ros::WallTime::now() - init_time;
+
+    // Save the size of the cloud
+    cloud_sizes_.push_back(cloud->points.size());
+
+    ROS_INFO_STREAM("[Inserter:] Cloud " << node_id << " inserted. Filter time: " << filter_time.toSec() << ". Query time: " << query_time.toSec());
 
     return true;
   }
@@ -282,27 +376,14 @@ public:
   /**
    * Filter a pointcloud
    */
-  PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr in_cloud, double voxel_size)
+  PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr cloud)
   {
-    // Remove nans
-    vector<int> indices;
-    PointCloudRGB::Ptr cloud(new PointCloudRGB);
-    pcl::removeNaNFromPointCloud(*in_cloud, *cloud, indices);
-    indices.clear();
-
-    // Voxel grid filter (used as x-y surface extraction. Note that leaf in z is very big)
-    pcl::ApproximateVoxelGrid<PointRGB> grid;
-    grid.setLeafSize(voxel_size, voxel_size, 0.5);
-    grid.setDownsampleAllData(true);
-    grid.setInputCloud(cloud);
-    grid.filter(*cloud);
-
     // Remove isolated points
-    pcl::RadiusOutlierRemoval<PointRGB> outrem;
-    outrem.setInputCloud(cloud);
-    outrem.setRadiusSearch(0.04);
-    outrem.setMinNeighborsInRadius(50);
-    outrem.filter(*cloud);
+    //pcl::RadiusOutlierRemoval<PointRGB> outrem;
+    //outrem.setInputCloud(cloud);
+    //outrem.setRadiusSearch(0.04);
+    //outrem.setMinNeighborsInRadius(50);
+    //outrem.filter(*cloud);
     pcl::StatisticalOutlierRemoval<PointRGB> sor;
     sor.setInputCloud(cloud);
     sor.setMeanK(40);
@@ -326,33 +407,14 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "inserter");
   InserterNode node;
 
-  // The graph file
-  string graph_file = node.work_dir_ + "graph_vertices.txt";
-
-  // Wait until file is available
-  while(!fs::exists(graph_file))
-    sleep(1);
-
-  // Watch descriptor
-  int fd = inotify_init();
-  if (fd < 0) {
-    ROS_ERROR("[Inserter:] Impossible to create the file monitor.");
-    exit(1);
-  }
-  int wd = inotify_add_watch(fd, graph_file.c_str(), IN_MODIFY | IN_CREATE | IN_DELETE);
-  if (wd < 0) {
-    ROS_ERROR_STREAM("[Inserter:] Impossible watch the graph vertices file. " << strerror(errno));
-    exit(1);
-  }
-
-  ros::Rate r(1); // Hz
+  ros::Rate r(20); // Hz
   while(1)
   {
-    node.fileChangeCb(fd);
+    node.insert();
     ros::spinOnce();
     r.sleep();
   }
-  close(fd);
+  //close(fd);
   return 0;
 }
 
