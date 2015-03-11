@@ -1,8 +1,8 @@
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
 #include <mysql/mysql.h>
-#include <errno.h>
 #include <boost/filesystem.hpp>
+#include <boost/thread.hpp>
 #include <pcl/common/common.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/filters/approximate_voxel_grid.h>
@@ -33,6 +33,7 @@ private:
 
   // Database
   string db_host_, db_user_, db_pass_, db_name_;
+  MYSQL *connect_;
   int mod_id_;
 
   // Cloud parameters
@@ -124,6 +125,16 @@ public:
               "PRIMARY KEY (`id`)"
               ") ENGINE=InnoDB DEFAULT CHARSET=utf8 AUTO_INCREMENT=1;";
       mysql_query(connect, query.c_str());
+      mysql_close(connect);
+
+      // Init the connection
+      connect_ = mysql_init(NULL);
+      connect_ = mysql_real_connect(connect_,
+                                   db_host_.c_str(),
+                                   db_user_.c_str(),
+                                   db_pass_.c_str(),
+                                   db_name_.c_str(),
+                                   0, NULL, 0);
 
       // TODO: Move database to RAM to speedup the process
       // http://tomislavsantek.iz.hr/2011/03/moving-mysql-databases-to-ramdisk-in-ubuntu-linux/
@@ -139,22 +150,16 @@ public:
   /**
    * Launch a mysql query and return the output
    */
-  MYSQL_RES *query(string q)
+  MYSQL_RES *query(string q, bool get_res)
   {
     MYSQL_RES *res;
-    MYSQL *connect;
-    connect = mysql_init(NULL);
-    connect = mysql_real_connect(connect,
-                                 db_host_.c_str(),
-                                 db_user_.c_str(),
-                                 db_pass_.c_str(),
-                                 db_name_.c_str(),
-                                 0, NULL, 0);
-    if(connect)
+
+    if(connect_)
     {
-      mysql_query(connect, q.c_str());
-      res = mysql_store_result(connect);
-      mysql_close(connect);
+      mysql_query(connect_, q.c_str());
+
+      if (get_res)
+        res = mysql_store_result(connect_);
     }
     return res;
   }
@@ -225,7 +230,7 @@ public:
       string qw = lexical_cast<string>(rot.w());
 
       // Check if this pose exist into the database
-      MYSQL_RES *res = query("SELECT id, x, y, z FROM poses WHERE node_id='" + node_id + "'");
+      MYSQL_RES *res = query("SELECT id, x, y, z FROM poses WHERE node_id='" + node_id + "'", true);
       bool exists = false;
       if (res)
       {
@@ -270,13 +275,16 @@ public:
         // Insert the pose
         q_insert += "('"+node_id+"','"+mod_id+"','"+x+"','"+y+"','"+z+"', '"+qx+"', '"+qy+"', '"+qz+"', '"+qw+"'),";
       }
+
+      // Free the results from the database query
+      mysql_free_result(res);
     }
 
     // Insert query
     if (q_insert.size() > 0)
     {
       q_insert = q_insert.substr(0, q_insert.size()-1) + ";";
-      query(q_insert);
+      query(q_insert, false);
     }
 
     // Update query
@@ -306,7 +314,7 @@ public:
 
       q_id = q_id.substr(0, q_id.size()-1);
       string q_update = "UPDATE poses SET "+q_x+"END, "+q_y+"END, "+q_z+"END, "+q_qx+"END, "+q_qy+"END, "+q_qz+"END, "+q_qw+"END, "+q_mod_id+"END WHERE id IN ("+q_id+")";
-      query(q_update);
+      query(q_update, false);
     }
 
     // Sum of all points
@@ -316,7 +324,7 @@ public:
       total_points += cloud_sizes_[i];
     }
 
-    ROS_INFO_STREAM("TOTAL POINTS: " << total_points << " (" << total_updated_points << " updated).");
+    ROS_INFO_STREAM(processed_clouds_.size()+1 << " - TOTAL POINTS: " << total_points << " (" << total_updated_points << " updated).");
 
     // Increase the poses modification id
     mod_id_++;
@@ -343,10 +351,8 @@ public:
     }
 
     // Filter cloud
-    ros::WallTime init_time = ros::WallTime::now();
     PointCloudRGB::Ptr cloud(new PointCloudRGB);
     cloud = filterCloud(in_cloud);
-    ros::WallDuration filter_time = ros::WallTime::now() - init_time;
 
     // Insert into database
     // You should increase the 'max_allowed_packet' up to 500M to this query take effect.
@@ -361,14 +367,12 @@ public:
       q += "('"+node_id+"','"+x+"','"+y+"','"+z+"', '"+rgb+"'),";
     }
     q = q.substr(0, q.size()-1) + ";";
-    init_time = ros::WallTime::now();
-    query(q);
-    ros::WallDuration query_time = ros::WallTime::now() - init_time;
+
+    // Launch the query in a separate thread to continue reading pointclouds
+    boost::thread query_thread(&InserterNode::query, this, q, false);
 
     // Save the size of the cloud
     cloud_sizes_.push_back(cloud->points.size());
-
-    ROS_INFO_STREAM("[Inserter:] Cloud " << node_id << " inserted. Filter time: " << filter_time.toSec() << ". Query time: " << query_time.toSec());
 
     return true;
   }
@@ -414,7 +418,7 @@ int main(int argc, char** argv)
     ros::spinOnce();
     r.sleep();
   }
-  //close(fd);
+
   return 0;
 }
 

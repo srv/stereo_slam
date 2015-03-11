@@ -319,7 +319,7 @@ public:
     int ret_code = remove(lock_file.c_str());
     if (ret_code != 0)
     {
-      ROS_ERROR("[Tools:] Error deleting the locking file.");
+      ROS_ERROR("[StereoSlam:] Error deleting the locking file.");
     }
   }
 };
