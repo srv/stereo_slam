@@ -1,5 +1,6 @@
 #include <ros/ros.h>
-#include <tf/transform_broadcaster.h>
+#include <tf/transform_datatypes.h>
+#include <tf_conversions/tf_eigen.h>
 #include <mysql/mysql.h>
 #include <boost/filesystem.hpp>
 #include <boost/thread.hpp>
@@ -8,6 +9,7 @@
 #include <pcl/filters/approximate_voxel_grid.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/radius_outlier_removal.h>
+#include <pcl/filters/crop_box.h>
 #include <pcl/filters/filter.h>
 #include "common/tools.h"
 
@@ -37,8 +39,10 @@ private:
   int mod_id_;
 
   // Cloud parameters
-  vector<string> processed_clouds_;
-  vector<int> cloud_sizes_;
+  int cur_cloud_id_;
+  double max_overlap_;
+  vector<PointRGB> cloud_mins_;
+  vector<PointRGB> cloud_maxs_;
 
   // Lock
   bool lock_;
@@ -53,10 +57,11 @@ public:
   InserterNode() : nh_private_("~")
   {
     // Read parameters
-    nh_private_.param("work_dir",   work_dir_,    string(""));
-    nh_private_.param("db_host",    db_host_,     string(""));
-    nh_private_.param("db_user",    db_user_,     string(""));
-    nh_private_.param("db_pass",    db_pass_,     string(""));
+    nh_private_.param("work_dir",     work_dir_,    string(""));
+    nh_private_.param("db_host",      db_host_,     string(""));
+    nh_private_.param("db_user",      db_user_,     string(""));
+    nh_private_.param("db_pass",      db_pass_,     string(""));
+    nh_private_.param("max_overlap",  max_overlap_, 0.1);         // In meters
     db_name_ = "reconstruction";
 
     // Init workspace
@@ -65,6 +70,9 @@ public:
 
     // Init the locks
     lock_ = false;
+
+    // Init the current cloud id
+    cur_cloud_id_ = 0;
 
     // Init the poses modification id
     mod_id_ = 0;
@@ -174,15 +182,19 @@ public:
     if (lock_) return;
     lock_ = true;
 
-    // Update the clouds table
-    string node_id = lexical_cast<string>(processed_clouds_.size());
+    // Only update when new cloud is available
+    string node_id = lexical_cast<string>(cur_cloud_id_);
     string filename = work_dir_ + "clouds/" + node_id + ".pcd";
-    if (insertCloud(node_id))
+    if (isCloudAvailable(node_id))
     {
-      processed_clouds_.push_back(node_id);
-
-      // Only update the poses when a new cloud is inserted
+      // Insert poses
       insertPoses();
+
+      // Insert cloud
+      if (insertCloud(node_id))
+      {
+        cur_cloud_id_++;
+      }
     }
 
     // Unlock
@@ -198,14 +210,6 @@ public:
     vector< pair<string, tf::Transform> > cloud_poses;
     Tools::readPoses(work_dir_, cloud_poses);
 
-    // Stores the number of points to be updated in this iteration
-    int total_updated_points = 0;
-
-    // Maximum processed cloud
-    int max = cloud_poses.size();
-    if (processed_clouds_.size() < max)
-      max = processed_clouds_.size();
-
     // Init the insert query
     string q_insert = "";
 
@@ -213,7 +217,7 @@ public:
     vector<string> id_val, x_val, y_val, z_val, qx_val, qy_val, qz_val, qw_val, mod_id_val;
 
     // Loop poses
-    for (uint i=0; i<max; i++)
+    for (uint i=0; i<cloud_poses.size(); i++)
     {
       string node_id = cloud_poses[i].first;
       tf::Transform pose = cloud_poses[i].second;
@@ -263,8 +267,6 @@ public:
           qz_val.push_back(qz);
           qw_val.push_back(qw);
           mod_id_val.push_back(mod_id);
-
-          total_updated_points += cloud_sizes_[lexical_cast<int>(node_id)];
         }
       }
       else
@@ -317,25 +319,34 @@ public:
       string q_update = "UPDATE poses SET "+q_x+"END, "+q_y+"END, "+q_z+"END, "+q_qx+"END, "+q_qy+"END, "+q_qz+"END, "+q_qw+"END, "+q_mod_id+"END WHERE id IN ("+q_id+")";
       query(q_update, false);
     }
-    
-    // Sum of all points
-    int total_points = 0;
-    for (uint i=0; i<max; i++)
-    {
-      total_points += cloud_sizes_[i];
-    }
-
-    ROS_INFO_STREAM("[Inserter:] Total processed clouds: " << processed_clouds_.size() << " (Points: " << total_points << " / " << total_updated_points << ")");
 
     // Increase the poses modification id
     mod_id_++;
   }
 
   /**
+   * Is a cloud available?
+   */
+   bool isCloudAvailable(string node_id)
+   {
+    // The cloud path
+    string filename = work_dir_ + "clouds/" + node_id + ".pcd";
+
+    // Check if it exists or not
+    if(!fs::exists(filename))
+      return false;
+    else
+      return true;
+   }
+
+  /**
    * Insert a pointcloud into the database
    */
   bool insertCloud(string node_id)
   {
+    // The cloud id
+    int cloud_id = lexical_cast<int>(node_id);
+
     // The cloud path
     string filename = work_dir_ + "clouds/" + node_id + ".pcd";
 
@@ -355,6 +366,42 @@ public:
     PointCloudRGB::Ptr cloud(new PointCloudRGB);
     cloud = filterCloud(in_cloud);
 
+    // Compute the minimum and maximum values for this cloud
+    PointRGB min_pt, max_pt;
+    pcl::getMinMax3D(*cloud, min_pt, max_pt);
+    cloud_mins_.push_back(min_pt);
+    cloud_maxs_.push_back(max_pt);
+
+    // Remove the overlapping region
+    if (cloud_id > 0)
+    {
+      // Build the bounding box
+      Eigen::Vector4f min_point;
+      min_point[0] = cloud_mins_[cloud_id-1].x+max_overlap_;
+      min_point[1] = cloud_mins_[cloud_id-1].y+max_overlap_;
+      min_point[2] = -10.0;
+      //min_point[3] = 1.0;
+      Eigen::Vector4f max_point;
+      max_point[0] = cloud_maxs_[cloud_id-1].x-max_overlap_;
+      max_point[1] = cloud_maxs_[cloud_id-1].y-max_overlap_;
+      max_point[2] = 10.0;
+      //max_point[3] = 1.0;
+
+      // Get the transformation between current and last cloud
+      tf::Transform transf = getNodesTransformation(cloud_id, cloud_id-1);
+      Eigen::Affine3d tf_tmp;
+      tf::transformTFToEigen(transf, tf_tmp);
+      Eigen::Affine3f eigen_transf = Eigen::Affine3f(tf_tmp);
+
+      // Filter
+      pcl::CropBox<PointRGB> crop;
+      crop.setInputCloud(cloud);
+      crop.setMin(min_point);
+      crop.setMax(max_point);
+      crop.setTransform(eigen_transf);
+      crop.filter(*cloud);
+    }
+
     // Insert into database
     // You should increase the 'max_allowed_packet' up to 500M to this query take effect.
     // 'max_allowed_packet' can be changed in '/etc/mysql/my.cnf'.
@@ -373,12 +420,29 @@ public:
     //boost::thread query_thread(&InserterNode::query, this, q, false);
     query(q, false);
 
-    // Save the size of the cloud
-    cloud_sizes_.push_back(cloud->points.size());
-
     return true;
   }
 
+  /**
+   * Retrieve the transformation between two graph nodes. A -> B
+   */
+  tf::Transform getNodesTransformation(int node_a, int node_b)
+  {
+    // Read the poses file
+    vector< pair<string, tf::Transform> > cloud_poses;
+    Tools::readPoses(work_dir_, cloud_poses);
+
+    // Init the output transform
+    tf::Transform output;
+
+    if (cloud_poses.size() <= node_a || cloud_poses.size() <= node_b)
+    {
+      return output;
+    }
+
+    output = cloud_poses[node_a].second.inverse() * cloud_poses[node_b].second;
+    return output;
+  }
 
   /**
    * Round float number to 3 decimals
