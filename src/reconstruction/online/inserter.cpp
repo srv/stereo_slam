@@ -63,7 +63,7 @@ public:
     if (work_dir_[work_dir_.length()-1] != '/')
       work_dir_ += "/";
 
-    // Init the lock
+    // Init the locks
     lock_ = false;
 
     // Init the poses modification id
@@ -161,6 +161,7 @@ public:
       if (get_res)
         res = mysql_store_result(connect_);
     }
+
     return res;
   }
 
@@ -221,13 +222,13 @@ public:
       // Extract the fields
       tf::Vector3 trans = pose.getOrigin();
       tf::Quaternion rot = pose.getRotation();
-      string x  = lexical_cast<string>(trans.x());
-      string y  = lexical_cast<string>(trans.y());
-      string z  = lexical_cast<string>(trans.z());
-      string qx = lexical_cast<string>(rot.x());
-      string qy = lexical_cast<string>(rot.y());
-      string qz = lexical_cast<string>(rot.z());
-      string qw = lexical_cast<string>(rot.w());
+      string x  = lexical_cast<string>(r3d(trans.x()));
+      string y  = lexical_cast<string>(r3d(trans.y()));
+      string z  = lexical_cast<string>(r3d(trans.z()));
+      string qx = lexical_cast<string>(r3d(rot.x()));
+      string qy = lexical_cast<string>(r3d(rot.y()));
+      string qz = lexical_cast<string>(r3d(rot.z()));
+      string qw = lexical_cast<string>(r3d(rot.w()));
 
       // Check if this pose exist into the database
       MYSQL_RES *res = query("SELECT id, x, y, z FROM poses WHERE node_id='" + node_id + "'", true);
@@ -316,7 +317,7 @@ public:
       string q_update = "UPDATE poses SET "+q_x+"END, "+q_y+"END, "+q_z+"END, "+q_qx+"END, "+q_qy+"END, "+q_qz+"END, "+q_qw+"END, "+q_mod_id+"END WHERE id IN ("+q_id+")";
       query(q_update, false);
     }
-
+    
     // Sum of all points
     int total_points = 0;
     for (uint i=0; i<max; i++)
@@ -324,7 +325,7 @@ public:
       total_points += cloud_sizes_[i];
     }
 
-    ROS_INFO_STREAM(processed_clouds_.size() << " - TOTAL POINTS: " << total_points << " (" << total_updated_points << " updated).");
+    ROS_INFO_STREAM("[Inserter:] Total processed clouds: " << processed_clouds_.size() << " (Points: " << total_points << " / " << total_updated_points << ")");
 
     // Increase the poses modification id
     mod_id_++;
@@ -360,21 +361,31 @@ public:
     string q = "INSERT INTO clouds (node_id, x, y, z, rgb) VALUES ";
     for (uint n=0; n<cloud->points.size(); n++)
     {
-      string x = lexical_cast<string>(cloud->points[n].x);
-      string y = lexical_cast<string>(cloud->points[n].y);
-      string z = lexical_cast<string>(cloud->points[n].z);
+      string x = lexical_cast<string>(r3d(cloud->points[n].x));
+      string y = lexical_cast<string>(r3d(cloud->points[n].y));
+      string z = lexical_cast<string>(r3d(cloud->points[n].z));
       string rgb = lexical_cast<string>(cloud->points[n].rgb);
       q += "('"+node_id+"','"+x+"','"+y+"','"+z+"', '"+rgb+"'),";
     }
     q = q.substr(0, q.size()-1) + ";";
 
     // Launch the query in a separate thread to continue reading pointclouds
-    boost::thread query_thread(&InserterNode::query, this, q, false);
+    //boost::thread query_thread(&InserterNode::query, this, q, false);
+    query(q, false);
 
     // Save the size of the cloud
     cloud_sizes_.push_back(cloud->points.size());
 
     return true;
+  }
+
+
+  /**
+   * Round float number to 3 decimals
+   */
+  float r3d(float f)
+  {
+    return roundf(f * 1000) / 1000;
   }
 
   /**
