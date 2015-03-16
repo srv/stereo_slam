@@ -54,9 +54,9 @@ public:
   {
     // Read parameters
     nh_private_.param("work_dir",   work_dir_,    string(""));
-    nh_private_.param("db_host",    db_host_,     string("localhost"));
-    nh_private_.param("db_user",    db_user_,     string("root"));
-    nh_private_.param("db_pass",    db_pass_,     string("root"));
+    nh_private_.param("db_host",    db_host_,     string(""));
+    nh_private_.param("db_user",    db_user_,     string(""));
+    nh_private_.param("db_pass",    db_pass_,     string(""));
     db_name_ = "reconstruction";
 
     // Init workspace
@@ -324,7 +324,7 @@ public:
       total_points += cloud_sizes_[i];
     }
 
-    ROS_INFO_STREAM(processed_clouds_.size()+1 << " - TOTAL POINTS: " << total_points << " (" << total_updated_points << " updated).");
+    ROS_INFO_STREAM(processed_clouds_.size() << " - TOTAL POINTS: " << total_points << " (" << total_updated_points << " updated).");
 
     // Increase the poses modification id
     mod_id_++;
