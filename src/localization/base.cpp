@@ -1,3 +1,5 @@
+#include <signal.h>
+
 #include "localization/base.h"
 #include "opencv2/core/core.hpp"
 #include <boost/filesystem.hpp>
@@ -8,6 +10,18 @@
 using namespace boost;
 namespace fs=filesystem;
 
+// Stop handler binding
+boost::function<void(int)> stopHandlerCb;
+
+/** \brief Catches the Ctrl+C signal.
+  */
+void stopHandler(int s)
+{
+  printf("Caught signal %d\n",s);
+  stopHandlerCb(s);
+  ros::shutdown();
+}
+
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
   * @return
@@ -17,6 +31,9 @@ namespace fs=filesystem;
 slam::SlamBase::SlamBase(
   ros::NodeHandle nh, ros::NodeHandle nhp) : nh_(nh), nh_private_(nhp)
 {
+  // Bind the finalize member to stopHandler signal
+  stopHandlerCb = std::bind1st(std::mem_fun(&slam::SlamBase::finalize), this);
+
   // Read the node parameters
   readParameters();
 
@@ -58,9 +75,42 @@ void slam::SlamBase::genericCallback(const nav_msgs::Odometry::ConstPtr& odom_ms
       tf::Transform last_graph_pose, last_graph_odom;
       graph_.getLastPoses(current_odom_camera, last_graph_pose, last_graph_odom);
       tf::Transform corrected_odom = pose_.correctPose(current_odom_camera, last_graph_pose, last_graph_odom);
+      corrected_odom = corrected_odom * odom2camera_.inverse();
+
+      // Check the difference between previous and this odometry
+      double pose_diff = Tools::poseDiff(last_pub_odom_, corrected_odom);
+      if (pose_diff > params_.max_correction)
+      {
+        // Exit without publishing odometry
+        ROS_ERROR_STREAM("[Localization:] The correction between previous and current odometry is too large: " << pose_diff);
+        return;
+      }
+
+      // Interpolate the output (to avoid large jumps when graph corrections are applied)
+      // Compute the time of the interpolation depending on the size of the odometry jump
+      double time_to_interpolate = pose_diff*params_.correction_interp_time/params_.max_correction;
+      double elapsed_time = ros::WallTime::now().toSec() - last_pub_time_;
+
+      // Have we time to interpolate the output?
+      double factor = 0.0;
+      if (elapsed_time < time_to_interpolate)
+      {
+        factor = (time_to_interpolate - elapsed_time) / time_to_interpolate;
+        tf::Vector3 t_last = last_pub_odom_.getOrigin();
+        tf::Vector3 t_curr = corrected_odom.getOrigin();
+        double x = factor*t_last.x() + (1-factor)*t_curr.x();
+        double y = factor*t_last.y() + (1-factor)*t_curr.y();
+        double z = factor*t_last.z() + (1-factor)*t_curr.z();
+
+        // Re-write the output odometry
+        tf::Quaternion q = corrected_odom.getRotation();
+        tf::Vector3 t(x, y, z);
+        tf::Transform tmp(q, t);
+        corrected_odom = tmp;
+      }
 
       // Publish
-      publish(*odom_msg, corrected_odom * odom2camera_.inverse());
+      publish(*odom_msg, corrected_odom);
     }
     else
     {
@@ -319,7 +369,10 @@ void slam::SlamBase::publish(nav_msgs::Odometry odom_msg, tf::Transform odom)
 {
   // Publish the odometry message
   pose_.publish(odom_msg, odom);
-  last_pub_odom_ = ros::WallTime::now();
+
+  // Save last published odometry
+  last_pub_odom_ = odom;
+  last_pub_time_ = ros::WallTime::now().toSec();
 
   // Information message
   if (info_pub_.getNumSubscribers() > 0)
@@ -380,6 +433,8 @@ void slam::SlamBase::readParameters()
   // Motion parameters
   nh_private_.param("refine_neighbors",           params.refine_neighbors,          false);
   nh_private_.param("min_displacement",           params.min_displacement,          0.3);
+  nh_private_.param("max_correction",             params.max_correction,            5.0);
+  nh_private_.param("correction_interp_time",     params.correction_interp_time,    15.0);
 
   // 3D reconstruction parameters
   nh_private_.param("save_clouds",                params.save_clouds,               false);
@@ -427,6 +482,13 @@ void slam::SlamBase::readParameters()
   */
 void slam::SlamBase::init()
 {
+  // Setup the signal handler
+  struct sigaction sigIntHandler;
+  sigIntHandler.sa_handler = stopHandler;
+  sigemptyset(&sigIntHandler.sa_mask);
+  sigIntHandler.sa_flags = 0;
+  sigaction(SIGINT, &sigIntHandler, NULL);
+
   // Advertise the slam odometry message
   pose_.advertisePoseMsg(nh_private_);
 
@@ -438,7 +500,6 @@ void slam::SlamBase::init()
   {
     // Init
     first_iter_ = true;
-    last_pub_odom_ = ros::WallTime::now();
     odom2camera_.setIdentity();
 
     // Init Haloc
@@ -488,7 +549,7 @@ void slam::SlamBase::init()
 /** \brief Finalize stereo slam node
   * @return
   */
-void slam::SlamBase::finalize()
+void slam::SlamBase::finalize(int s)
 {
   ROS_INFO("[Localization:] Finalizing...");
   lc_.finalize();

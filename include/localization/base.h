@@ -42,17 +42,19 @@ public:
   SlamBase(ros::NodeHandle nh, ros::NodeHandle nhp);
 
   // Finalize stereo slam node
-  void finalize();
+  void finalize(int s);
 
   struct Params
   {
-    bool enable;                      //!> Enable the slam
-    double min_displacement;          //!> Minimum odometry displacement between poses to be saved as graph vertices
-    bool save_clouds;                 //!> Save the pointclouds
-    string clouds_dir;                //!> Directory where pointclouds will be saved
-    string odom_topic;                //!> Odometry topic name
-    int min_neighbor;                 //!> Jump this number of neighbors for closer loop closing candidates
-    bool refine_neighbors;            //!> If true, solvePNP will be applied between consecutive nodes. If false, the odometry will be applied
+    bool enable;                      //!> Enable the slam.
+    double min_displacement;          //!> Minimum odometry displacement between poses to be saved as graph vertices (in meters).
+    bool save_clouds;                 //!> Save the pointclouds.
+    string clouds_dir;                //!> Directory where pointclouds will be saved.
+    string odom_topic;                //!> Odometry topic name.
+    int min_neighbor;                 //!> Jump this number of neighbors for closer loop closing candidates.
+    bool refine_neighbors;            //!> If true, solvePNP will be applied between consecutive nodes. If false, the odometry will be applied.
+    double max_correction;            //!> Maximum allowed correction (jump in the output odometry). In meters. If a jump is larger than this, the slam gives an error.
+    double correction_interp_time;    //!> Duration (in sec.) of the interpolation when the max_correction is applied to the odometry output.
 
     // Default settings
     Params () {
@@ -63,6 +65,8 @@ public:
       odom_topic                  = "";
       min_neighbor                = 10;
       refine_neighbors            = false;
+      max_correction              = 5.0;
+      correction_interp_time      = 15.0;
     }
   };
 
@@ -142,15 +146,16 @@ private:
   // Messages
   ros::Publisher info_pub_;
 
-  Params params_;                     //!> Stores parameters
-  haloc::LoopClosure lc_;             //!> Loop closure object
-  slam::Pose pose_;                   //!> Pose object
-  slam::Graph graph_;                 //!> Graph object
-  bool first_iter_;                   //!> Indicates first iteration
-  tf::TransformListener tf_listener_; //!> Transform listener
-  PointCloudRGB pcl_cloud_;           //!> Current pointcloud to be saved
-  ros::WallTime last_pub_odom_;       //!> Last publication of a slam odometry
-  tf::StampedTransform odom2camera_;  //!> Transformation between robot odometry frame and camera frame
+  Params params_;                     //!> Stores parameters.
+  haloc::LoopClosure lc_;             //!> Loop closure object.
+  slam::Pose pose_;                   //!> Pose object.
+  slam::Graph graph_;                 //!> Graph object.
+  bool first_iter_;                   //!> Indicates first iteration.
+  tf::TransformListener tf_listener_; //!> Transform listener.
+  PointCloudRGB pcl_cloud_;           //!> Current pointcloud to be saved.
+  tf::Transform last_pub_odom_;       //!> Last publication of a slam odometry.
+  double last_pub_time_;              //!> Time of the publication of the last slam odometry.
+  tf::StampedTransform odom2camera_;  //!> Transformation between robot odometry frame and camera frame.
 };
 
 } // namespace
