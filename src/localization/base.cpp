@@ -44,14 +44,14 @@ void slam::SlamBase::genericCallback(const nav_msgs::Odometry::ConstPtr& odom_ms
   else
   {
     // Check if syncronized callback is working, i.e. corrected odometry is published regularly
-    ros::WallDuration elapsed_time = ros::WallTime::now() - last_pub_odom_;
-    if (elapsed_time.toSec() < 2.0)
-    {
+    //ros::WallDuration elapsed_time = ros::WallTime::now() - last_pub_odom_;
+    //if (elapsed_time.toSec() < 2.0)
+    //{
       // It seems the msgCallback is publishing corrected odometry regularly ;)
-      return;
-    }
+    //  return;
+    //}
 
-    ROS_WARN_STREAM("[Localization:] We are not getting synchronized messages regularly. No SLAM corrections will be performed. Elapsed time: " << elapsed_time.toSec());
+    //ROS_WARN_STREAM("[Localization:] We are not getting synchronized messages regularly. No SLAM corrections will be performed. Elapsed time: " << elapsed_time.toSec());
 
     // Get the current odometry
     tf::Transform current_odom_robot = Tools::odomTotf(*odom_msg);
@@ -163,7 +163,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
       processCloud(cur_id);
 
       // Publish
-      publish(*odom_msg, current_odom_robot);
+      //publish(*odom_msg, current_odom_robot);
 
       // Slam initialized!
       first_iter_ = false;
@@ -171,7 +171,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     else
     {
       // Slam is not already initialized, publish the current odometry
-      publish(*odom_msg, current_odom_robot);
+      //publish(*odom_msg, current_odom_robot);
     }
 
     // Exit
@@ -191,7 +191,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   if (pose_diff <= params_.min_displacement)
   {
     // Publish and exit
-    publish(*odom_msg, corrected_odom * odom2camera_.inverse());
+    //publish(*odom_msg, corrected_odom * odom2camera_.inverse());
     return;
   }
 
@@ -203,7 +203,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   {
     // Publish and exit
     ROS_DEBUG("[Localization:] Impossible to save the node due to its poor quality.");
-    publish(*odom_msg, corrected_odom * odom2camera_.inverse());
+    //publish(*odom_msg, corrected_odom * odom2camera_.inverse());
     return;
   }
 
@@ -260,8 +260,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   if (any_loop_closure) graph_.update();
 
   // Publish the slam pose
-  graph_.getLastPoses(current_odom_camera, last_graph_pose, last_graph_odom);
-  publish(*odom_msg, last_graph_pose * odom2camera_.inverse());
+  //graph_.getLastPoses(current_odom_camera, last_graph_pose, last_graph_odom);
+  //publish(*odom_msg, last_graph_pose * odom2camera_.inverse());
 
   // Save graph to file and send (if needed)
   graph_.saveToFile(odom2camera_.inverse());
