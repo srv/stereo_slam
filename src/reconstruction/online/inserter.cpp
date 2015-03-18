@@ -380,12 +380,10 @@ public:
       min_point[0] = cloud_mins_[cloud_id-1].x+max_overlap_;
       min_point[1] = cloud_mins_[cloud_id-1].y+max_overlap_;
       min_point[2] = -10.0;
-      //min_point[3] = 1.0;
       Eigen::Vector4f max_point;
       max_point[0] = cloud_maxs_[cloud_id-1].x-max_overlap_;
       max_point[1] = cloud_maxs_[cloud_id-1].y-max_overlap_;
       max_point[2] = 10.0;
-      //max_point[3] = 1.0;
 
       // Get the transformation between current and last cloud
       tf::Transform transf = getNodesTransformation(cloud_id, cloud_id-1);
@@ -393,7 +391,7 @@ public:
       tf::transformTFToEigen(transf, tf_tmp);
       Eigen::Affine3f eigen_transf = Eigen::Affine3f(tf_tmp);
 
-      // Filter
+      // Filter, remove part of the overlapping region
       pcl::CropBox<PointRGB> crop;
       crop.setInputCloud(cloud);
       crop.setMin(min_point);

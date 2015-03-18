@@ -43,16 +43,6 @@ void slam::SlamBase::genericCallback(const nav_msgs::Odometry::ConstPtr& odom_ms
   }
   else
   {
-    // Check if syncronized callback is working, i.e. corrected odometry is published regularly
-    //ros::WallDuration elapsed_time = ros::WallTime::now() - last_pub_odom_;
-    //if (elapsed_time.toSec() < 2.0)
-    //{
-      // It seems the msgCallback is publishing corrected odometry regularly ;)
-    //  return;
-    //}
-
-    //ROS_WARN_STREAM("[Localization:] We are not getting synchronized messages regularly. No SLAM corrections will be performed. Elapsed time: " << elapsed_time.toSec());
-
     // Get the current odometry
     tf::Transform current_odom_robot = Tools::odomTotf(*odom_msg);
 
@@ -162,16 +152,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
       ROS_INFO_STREAM("[Localization:] Node " << cur_id << " inserted.");
       processCloud(cur_id);
 
-      // Publish
-      //publish(*odom_msg, current_odom_robot);
-
       // Slam initialized!
       first_iter_ = false;
-    }
-    else
-    {
-      // Slam is not already initialized, publish the current odometry
-      //publish(*odom_msg, current_odom_robot);
     }
 
     // Exit
@@ -190,8 +172,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   double pose_diff = Tools::poseDiff(last_graph_odom, current_odom_camera);
   if (pose_diff <= params_.min_displacement)
   {
-    // Publish and exit
-    //publish(*odom_msg, corrected_odom * odom2camera_.inverse());
+    // Exit
     return;
   }
 
@@ -201,9 +182,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Check if node has been inserted
   if (id_tmp < 0)
   {
-    // Publish and exit
+    // Exit
     ROS_DEBUG("[Localization:] Impossible to save the node due to its poor quality.");
-    //publish(*odom_msg, corrected_odom * odom2camera_.inverse());
     return;
   }
 
@@ -258,10 +238,6 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
 
   // Update the graph if any loop closing
   if (any_loop_closure) graph_.update();
-
-  // Publish the slam pose
-  //graph_.getLastPoses(current_odom_camera, last_graph_pose, last_graph_odom);
-  //publish(*odom_msg, last_graph_pose * odom2camera_.inverse());
 
   // Save graph to file and send (if needed)
   graph_.saveToFile(odom2camera_.inverse());
