@@ -23,13 +23,13 @@ slam::Graph::Graph()
 bool slam::Graph::init()
 {
   // Delete all the files (if any)
-  string block_file, vertices_file, edges_file;
+  string lock_file, vertices_file, edges_file;
   vertices_file = params_.save_dir + "graph_vertices.txt";
   edges_file = params_.save_dir + "graph_edges.txt";
-  block_file = params_.save_dir + ".graph.lock";
+  lock_file = params_.save_dir + ".graph.lock";
   fs::remove(vertices_file);
   fs::remove(edges_file);
-  fs::remove(block_file);
+  fs::remove(lock_file);
 
   // Initialize the g2o graph optimizer
   if (params_.g2o_algorithm == 0)
@@ -268,16 +268,16 @@ void slam::Graph::update()
   */
 bool slam::Graph::saveToFile(tf::Transform camera2odom)
 {
-  string block_file, vertices_file, edges_file;
+  string lock_file, vertices_file, edges_file;
   vertices_file = params_.save_dir + "graph_vertices.txt";
   edges_file = params_.save_dir + "graph_edges.txt";
-  block_file = params_.save_dir + ".graph.lock";
+  lock_file = params_.save_dir + ".graph.lock";
 
   // Wait until lock file has been released
-  while(fs::exists(block_file)){}
+  while(fs::exists(lock_file));
 
   // Create a locking element
-  fstream f_block(block_file.c_str(), ios::out | ios::trunc);
+  fstream f_lock(lock_file.c_str(), ios::out | ios::trunc);
 
   // Open to append
   fstream f_vertices(vertices_file.c_str(), ios::out | ios::trunc);
@@ -348,12 +348,12 @@ bool slam::Graph::saveToFile(tf::Transform camera2odom)
   }
   f_edges.close();
 
-  // Un-block
-  f_block.close();
-  int ret_code = remove(block_file.c_str());
+  // Un-lock
+  f_lock.close();
+  int ret_code = remove(lock_file.c_str());
   if (ret_code != 0)
   {
-    ROS_ERROR("[Localization:] Error deleting the blocking file.");
+    ROS_ERROR("[Localization:] Error deleting the locking file.");
     return false;
   }
 

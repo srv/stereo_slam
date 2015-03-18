@@ -17,17 +17,14 @@
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
 #include <pcl/point_types.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/filters/passthrough.h>
 #include <libhaloc/lc.h>
 #include <std_srvs/Empty.h>
 #include "stereo_slam/SlamInfo.h"
 #include "pose.h"
 #include "graph.h"
-#include "tools.h"
+#include "../common/tools.h"
 
 using namespace std;
-using namespace cv;
 using namespace tools;
 
 typedef pcl::PointXYZRGB                  PointRGB;
@@ -45,23 +42,19 @@ public:
   SlamBase(ros::NodeHandle nh, ros::NodeHandle nhp);
 
   // Finalize stereo slam node
-  void finalize();
+  void finalize(int s);
 
   struct Params
   {
-    bool enable;                      //!> Enable the slam
-    double min_displacement;          //!> Minimum odometry displacement between poses to be saved as graph vertices
-    bool save_clouds;                 //!> Save the pointclouds
-    string clouds_dir;                //!> Directory where pointclouds will be saved
-    string odom_topic;                //!> Odometry topic name
-    int min_neighbor;                 //!> Jump this number of neighbors for closer loop closing candidates
-    bool refine_neighbors;            //!> If true, solvePNP will be applied between consecutive nodes. If false, the odometry will be applied
-    double x_filter_min;              //!> Cloud limit filter
-    double x_filter_max;              //!> Cloud limit filter
-    double y_filter_min;              //!> Cloud limit filter
-    double y_filter_max;              //!> Cloud limit filter
-    double z_filter_min;              //!> Cloud limit filter
-    double z_filter_max;              //!> Cloud limit filter
+    bool enable;                      //!> Enable the slam.
+    double min_displacement;          //!> Minimum odometry displacement between poses to be saved as graph vertices (in meters).
+    bool save_clouds;                 //!> Save the pointclouds.
+    string clouds_dir;                //!> Directory where pointclouds will be saved.
+    string odom_topic;                //!> Odometry topic name.
+    int min_neighbor;                 //!> Jump this number of neighbors for closer loop closing candidates.
+    bool refine_neighbors;            //!> If true, solvePNP will be applied between consecutive nodes. If false, the odometry will be applied.
+    double max_correction;            //!> Maximum allowed correction (jump in the output odometry). In meters. If a jump is larger than this, the slam gives an error.
+    double correction_interp_time;    //!> Duration (in sec.) of the interpolation when the max_correction is applied to the odometry output.
 
     // Default settings
     Params () {
@@ -72,12 +65,8 @@ public:
       odom_topic                  = "";
       min_neighbor                = 10;
       refine_neighbors            = false;
-      x_filter_min                = 3.0;
-      x_filter_max                = -3.0;
-      y_filter_min                = 3.0;
-      y_filter_max                = -3.0;
-      z_filter_min                = 0.2;
-      z_filter_max                = 6.0;
+      max_correction              = 5.0;
+      correction_interp_time      = 15.0;
     }
   };
 
@@ -120,7 +109,7 @@ protected:
                     const sensor_msgs::ImageConstPtr& r_img_msg,
                     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
                     const sensor_msgs::CameraInfoConstPtr& r_info_msg);
-  PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr cloud);
+  PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr in_cloud);
   void processCloud(int cloud_id);
   bool getOdom2CameraTf(nav_msgs::Odometry odom_msg,
                         sensor_msgs::Image img_msg,
@@ -157,15 +146,16 @@ private:
   // Messages
   ros::Publisher info_pub_;
 
-  Params params_;                     //!> Stores parameters
-  haloc::LoopClosure lc_;             //!> Loop closure object
-  slam::Pose pose_;                   //!> Pose object
-  slam::Graph graph_;                 //!> Graph object
-  bool first_iter_;                   //!> Indicates first iteration
-  tf::TransformListener tf_listener_; //!> Transform listener
-  PointCloudRGB pcl_cloud_;           //!> Current pointcloud to be saved
-  ros::WallTime last_pub_odom_;       //!> Last publication of a slam odometry
-  tf::StampedTransform odom2camera_;  //!> Transformation between robot odometry frame and camera frame
+  Params params_;                     //!> Stores parameters.
+  haloc::LoopClosure lc_;             //!> Loop closure object.
+  slam::Pose pose_;                   //!> Pose object.
+  slam::Graph graph_;                 //!> Graph object.
+  bool first_iter_;                   //!> Indicates first iteration.
+  tf::TransformListener tf_listener_; //!> Transform listener.
+  PointCloudRGB pcl_cloud_;           //!> Current pointcloud to be saved.
+  tf::Transform last_pub_odom_;       //!> Last publication of a slam odometry.
+  double last_pub_time_;              //!> Time of the publication of the last slam odometry.
+  tf::StampedTransform odom2camera_;  //!> Transformation between robot odometry frame and camera frame.
 };
 
 } // namespace

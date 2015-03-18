@@ -15,7 +15,8 @@ find_package(catkin REQUIRED COMPONENTS
 	image_geometry
 	std_srvs
 	pcl_ros
-	cmake_modules)
+	cmake_modules
+	tf_conversions)
 
 ## Declare ROS messages and services
 add_message_files(FILES SlamInfo.msg)
@@ -46,19 +47,25 @@ find_package(SuiteSparse REQUIRED)
 # using -DG2O_INCLUDE_DIRS.
 find_package(G2O REQUIRED)
 
+# Dependencies - MySql
+find_package(mysqlclient REQUIRED)
+
 catkin_package(CATKIN_DEPENDS message_runtime)
 
-include_directories(	include
+include_directories(include
 						${catkin_INCLUDE_DIRS}
 						${Eigen_INCLUDE_DIRS}
 						${libhaloc_INCLUDE_DIRS}
 						${OpenCV_INCLUDE_DIRS}
 						${SUITESPARSE_INCLUDE_DIRS}
 						${G2O_INCLUDE_DIRS}
-						${PCL_INCLUDE_DIRS})
+						${PCL_INCLUDE_DIRS}
+						${MYSQL_INCLUDE_DIRS})
+
+add_definitions(${MYSQL_DEFINITIONS})
 
 # Localization node
-add_executable(			localization
+add_executable(localization
 						src/localization/node.cpp
 						src/localization/base.cpp
 						src/localization/graph.cpp
@@ -71,4 +78,18 @@ target_link_libraries(	localization
 						${G2O_LIBRARIES}
 						cholmod
 						${catkin_LIBRARIES})
-add_dependencies(		localization stereo_slam_gencpp)
+add_dependencies(localization stereo_slam_gencpp)
+
+# Reconstruction nodes
+add_executable(offline_reconstruction
+						src/reconstruction/offline/node.cpp
+						src/reconstruction/offline/base.cpp)
+target_link_libraries(offline_reconstruction
+						${eigen_LIBRARIES}
+						${catkin_LIBRARIES})
+add_executable(inserter
+						src/reconstruction/online/inserter.cpp)
+target_link_libraries(inserter
+						${eigen_LIBRARIES}
+						${MYSQL_LIBRARIES}
+						${catkin_LIBRARIES})

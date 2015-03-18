@@ -1,11 +1,26 @@
+#include <signal.h>
+
 #include "localization/base.h"
 #include "opencv2/core/core.hpp"
 #include <boost/filesystem.hpp>
-#include <pcl/filters/passthrough.h>
-
+#include <pcl/common/common.h>
+#include <pcl/filters/filter.h>
+#include <pcl/filters/approximate_voxel_grid.h>
 
 using namespace boost;
 namespace fs=filesystem;
+
+// Stop handler binding
+boost::function<void(int)> stopHandlerCb;
+
+/** \brief Catches the Ctrl+C signal.
+  */
+void stopHandler(int s)
+{
+  printf("Caught signal %d\n",s);
+  stopHandlerCb(s);
+  ros::shutdown();
+}
 
 
 /** \brief Class constructor. Reads node parameters and initialize some properties.
@@ -16,6 +31,9 @@ namespace fs=filesystem;
 slam::SlamBase::SlamBase(
   ros::NodeHandle nh, ros::NodeHandle nhp) : nh_(nh), nh_private_(nhp)
 {
+  // Bind the finalize member to stopHandler signal
+  stopHandlerCb = std::bind1st(std::mem_fun(&slam::SlamBase::finalize), this);
+
   // Read the node parameters
   readParameters();
 
@@ -42,16 +60,6 @@ void slam::SlamBase::genericCallback(const nav_msgs::Odometry::ConstPtr& odom_ms
   }
   else
   {
-    // Check if syncronized callback is working, i.e. corrected odometry is published regularly
-    ros::WallDuration elapsed_time = ros::WallTime::now() - last_pub_odom_;
-    if (elapsed_time.toSec() < 0.9)
-    {
-      // It seems the msgCallback is publishing corrected odometry regularly ;)
-      return;
-    }
-
-    ROS_WARN_STREAM("[Localization:] We are not getting synchronized messages regularly. No SLAM corrections will be performed. Elapsed time: " << elapsed_time.toSec());
-
     // Get the current odometry
     tf::Transform current_odom_robot = Tools::odomTotf(*odom_msg);
 
@@ -67,9 +75,42 @@ void slam::SlamBase::genericCallback(const nav_msgs::Odometry::ConstPtr& odom_ms
       tf::Transform last_graph_pose, last_graph_odom;
       graph_.getLastPoses(current_odom_camera, last_graph_pose, last_graph_odom);
       tf::Transform corrected_odom = pose_.correctPose(current_odom_camera, last_graph_pose, last_graph_odom);
+      corrected_odom = corrected_odom * odom2camera_.inverse();
+
+      // Check the difference between previous and this odometry
+      double pose_diff = Tools::poseDiff(last_pub_odom_, corrected_odom);
+      if (pose_diff > params_.max_correction)
+      {
+        // Exit without publishing odometry
+        ROS_ERROR_STREAM("[Localization:] The correction between previous and current odometry is too large: " << pose_diff);
+        return;
+      }
+
+      // Interpolate the output (to avoid large jumps when graph corrections are applied)
+      // Compute the time of the interpolation depending on the size of the odometry jump
+      double time_to_interpolate = pose_diff*params_.correction_interp_time/params_.max_correction;
+      double elapsed_time = ros::WallTime::now().toSec() - last_pub_time_;
+
+      // Have we time to interpolate the output?
+      double factor = 0.0;
+      if (elapsed_time < time_to_interpolate)
+      {
+        factor = (time_to_interpolate - elapsed_time) / time_to_interpolate;
+        tf::Vector3 t_last = last_pub_odom_.getOrigin();
+        tf::Vector3 t_curr = corrected_odom.getOrigin();
+        double x = factor*t_last.x() + (1-factor)*t_curr.x();
+        double y = factor*t_last.y() + (1-factor)*t_curr.y();
+        double z = factor*t_last.z() + (1-factor)*t_curr.z();
+
+        // Re-write the output odometry
+        tf::Quaternion q = corrected_odom.getRotation();
+        tf::Vector3 t(x, y, z);
+        tf::Transform tmp(q, t);
+        corrected_odom = tmp;
+      }
 
       // Publish
-      publish(*odom_msg, corrected_odom * odom2camera_.inverse());
+      publish(*odom_msg, corrected_odom);
     }
     else
     {
@@ -99,8 +140,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
 {
   // Get the cloud
   PointCloudRGB::Ptr pcl_cloud(new PointCloudRGB);
-  pcl::fromROSMsg(*cloud_msg, *pcl_cloud);
-  pcl::copyPointCloud(*pcl_cloud, pcl_cloud_);
+  fromROSMsg(*cloud_msg, *pcl_cloud);
+  copyPointCloud(*pcl_cloud, pcl_cloud_);
 
   // Run the general slam callback
   msgsCallback(odom_msg, l_img_msg, r_img_msg, l_info_msg, r_info_msg);
@@ -161,16 +202,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
       ROS_INFO_STREAM("[Localization:] Node " << cur_id << " inserted.");
       processCloud(cur_id);
 
-      // Publish
-      publish(*odom_msg, current_odom_robot);
-
       // Slam initialized!
       first_iter_ = false;
-    }
-    else
-    {
-      // Slam is not already initialized, publish the current odometry
-      publish(*odom_msg, current_odom_robot);
     }
 
     // Exit
@@ -189,8 +222,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   double pose_diff = Tools::poseDiff(last_graph_odom, current_odom_camera);
   if (pose_diff <= params_.min_displacement)
   {
-    // Publish and exit
-    publish(*odom_msg, corrected_odom * odom2camera_.inverse());
+    // Exit
     return;
   }
 
@@ -200,9 +232,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Check if node has been inserted
   if (id_tmp < 0)
   {
-    // Publish and exit
+    // Exit
     ROS_DEBUG("[Localization:] Impossible to save the node due to its poor quality.");
-    publish(*odom_msg, corrected_odom * odom2camera_.inverse());
     return;
   }
 
@@ -228,7 +259,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Detect loop closures between nodes by distance
   bool any_loop_closure = false;
   vector<int> neighbors;
-  graph_.findClosestNodes(params_.min_neighbor, 2, neighbors);
+  graph_.findClosestNodes(params_.min_neighbor, 3, neighbors);
   for (uint i=0; i<neighbors.size(); i++)
   {
     tf::Transform edge;
@@ -236,7 +267,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
     bool valid_lc = lc_.getLoopClosure(lexical_cast<string>(cur_id), lc_id, edge, true);
     if (valid_lc)
     {
-      ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id);
+      //ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id);
+      cout << "\033[1;32m[ INFO]: [Localization:] Node " << cur_id << " closes loop with " << lc_id << ".\033[0m\n";
       graph_.addEdge(lexical_cast<int>(lc_id), cur_id, edge);
       any_loop_closure = true;
     }
@@ -248,7 +280,8 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   bool valid_lc = lc_.getLoopClosure(lc_id_num, edge);
   if (valid_lc)
   {
-    ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id_num);
+    //ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id_num);
+    cout << "\033[1;32m[ INFO]: [Localization:] Node " << cur_id << " closes loop with " << lc_id_num << ".\033[0m\n";
     graph_.addEdge(lc_id_num, cur_id, edge);
     any_loop_closure = true;
   }
@@ -256,36 +289,31 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   // Update the graph if any loop closing
   if (any_loop_closure) graph_.update();
 
-  // Publish the slam pose
-  graph_.getLastPoses(current_odom_camera, last_graph_pose, last_graph_odom);
-  publish(*odom_msg, last_graph_pose * odom2camera_.inverse());
-
   // Save graph to file and send (if needed)
   graph_.saveToFile(odom2camera_.inverse());
 
   return;
 }
 
-
 /** \brief Filters a pointcloud
-  * @return filtered cloud
-  * \param input cloud
-  */
-PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr cloud)
+* @return filtered cloud
+* \param input cloud
+*/
+PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr in_cloud)
 {
-  // NAN and limit filtering
-  PointCloudRGB::Ptr cloud_filtered_ptr(new PointCloudRGB);
-  pcl::PassThrough<PointRGB> pass;
-  pass.setFilterFieldName("x");
-  pass.setFilterLimits(params_.x_filter_min, params_.x_filter_max);
-  pass.setFilterFieldName("y");
-  pass.setFilterLimits(params_.y_filter_min, params_.y_filter_max);
-  pass.setFilterFieldName("z");
-  pass.setFilterLimits(params_.z_filter_min, params_.z_filter_max);
-  pass.setInputCloud(cloud);
-  pass.filter(*cloud_filtered_ptr);
+  // Remove nans
+  vector<int> indicies;
+  PointCloudRGB::Ptr cloud(new PointCloudRGB);
+  removeNaNFromPointCloud(*in_cloud, *cloud, indicies);
 
-  return cloud_filtered_ptr;
+  // Voxel grid filter (used as x-y surface extraction. Note that leaf in z is very big)
+  pcl::ApproximateVoxelGrid<PointRGB> grid;
+  grid.setLeafSize(0.005, 0.005, 0.5);
+  grid.setDownsampleAllData(true);
+  grid.setInputCloud(cloud);
+  grid.filter(*cloud);
+
+  return cloud;
 }
 
 
@@ -297,13 +325,11 @@ void slam::SlamBase::processCloud(int cloud_id)
   // Proceed?
   if (pcl_cloud_.size() == 0 || !params_.save_clouds ) return;
 
-  // Cloud filtering
-  PointCloudRGB::Ptr cloud_filtered(new PointCloudRGB);
-  cloud_filtered = filterCloud(pcl_cloud_.makeShared());
-
   // Save cloud
   string id = lexical_cast<string>(cloud_id);
-  pcl::io::savePCDFileBinary(params_.clouds_dir + id + ".pcd", pcl_cloud_);
+  PointCloudRGB::Ptr cloud;
+  cloud = filterCloud(pcl_cloud_.makeShared());
+  pcl::io::savePCDFileBinary(params_.clouds_dir + id + ".pcd", *cloud);
 }
 
 
@@ -343,7 +369,10 @@ void slam::SlamBase::publish(nav_msgs::Odometry odom_msg, tf::Transform odom)
 {
   // Publish the odometry message
   pose_.publish(odom_msg, odom);
-  last_pub_odom_ = ros::WallTime::now();
+
+  // Save last published odometry
+  last_pub_odom_ = odom;
+  last_pub_time_ = ros::WallTime::now().toSec();
 
   // Information message
   if (info_pub_.getNumSubscribers() > 0)
@@ -404,6 +433,8 @@ void slam::SlamBase::readParameters()
   // Motion parameters
   nh_private_.param("refine_neighbors",           params.refine_neighbors,          false);
   nh_private_.param("min_displacement",           params.min_displacement,          0.3);
+  nh_private_.param("max_correction",             params.max_correction,            5.0);
+  nh_private_.param("correction_interp_time",     params.correction_interp_time,    15.0);
 
   // 3D reconstruction parameters
   nh_private_.param("save_clouds",                params.save_clouds,               false);
@@ -420,14 +451,6 @@ void slam::SlamBase::readParameters()
   // G2O parameters
   nh_private_.param("g2o_algorithm",              graph_params.g2o_algorithm,       0);
   nh_private_.param("g2o_opt_max_iter",           graph_params.go2_opt_max_iter,    20);
-
-  // Cloud filtering values
-  nh_private_.param("x_filter_min",               params.x_filter_min,              -3.0);
-  nh_private_.param("x_filter_max",               params.x_filter_max,              3.0);
-  nh_private_.param("y_filter_min",               params.y_filter_min,              -3.0);
-  nh_private_.param("y_filter_max",               params.y_filter_max,              3.0);
-  nh_private_.param("z_filter_min",               params.z_filter_min,              0.2);
-  nh_private_.param("z_filter_max",               params.z_filter_max,              6.0);
 
   // Some other graph parameters
   graph_params.save_dir = lc_params.work_dir;
@@ -459,6 +482,13 @@ void slam::SlamBase::readParameters()
   */
 void slam::SlamBase::init()
 {
+  // Setup the signal handler
+  struct sigaction sigIntHandler;
+  sigIntHandler.sa_handler = stopHandler;
+  sigemptyset(&sigIntHandler.sa_mask);
+  sigIntHandler.sa_flags = 0;
+  sigaction(SIGINT, &sigIntHandler, NULL);
+
   // Advertise the slam odometry message
   pose_.advertisePoseMsg(nh_private_);
 
@@ -470,7 +500,6 @@ void slam::SlamBase::init()
   {
     // Init
     first_iter_ = true;
-    last_pub_odom_ = ros::WallTime::now();
     odom2camera_.setIdentity();
 
     // Init Haloc
@@ -520,7 +549,7 @@ void slam::SlamBase::init()
 /** \brief Finalize stereo slam node
   * @return
   */
-void slam::SlamBase::finalize()
+void slam::SlamBase::finalize(int s)
 {
   ROS_INFO("[Localization:] Finalizing...");
   lc_.finalize();
