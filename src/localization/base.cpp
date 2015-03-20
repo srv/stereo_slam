@@ -317,13 +317,13 @@ PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr in_cloud)
 }
 
 
-/** \brief Save and/or send the accumulated cloud depending on the value of 'save_clouds' and 'listen_reconstruction_srv'
+/** \brief Save and/or send the accumulated cloud depending on the value of 'save_clouds'
  * \param Cloud id
  */
 void slam::SlamBase::processCloud(int cloud_id)
 {
   // Proceed?
-  if (pcl_cloud_.size() == 0 || !params_.save_clouds ) return;
+  if (!params_.save_clouds) return;
 
   // Save cloud
   string id = lexical_cast<string>(cloud_id);
@@ -436,7 +436,8 @@ void slam::SlamBase::readParameters()
   nh_private_.param("max_correction",             params.max_correction,            5.0);
   nh_private_.param("correction_interp_time",     params.correction_interp_time,    15.0);
 
-  // 3D reconstruction parameters
+  // Log parameters
+  nh_private_.param("save_images",                lc_params.save_images,            false);
   nh_private_.param("save_clouds",                params.save_clouds,               false);
 
   // Loop closure parameters

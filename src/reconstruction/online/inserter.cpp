@@ -3,7 +3,6 @@
 #include <tf_conversions/tf_eigen.h>
 #include <mysql/mysql.h>
 #include <boost/filesystem.hpp>
-#include <boost/thread.hpp>
 #include <pcl/common/common.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/filters/approximate_voxel_grid.h>
@@ -401,7 +400,7 @@ public:
     }
 
     // Insert into database
-    // You should increase the 'max_allowed_packet' up to 500M to this query take effect.
+    // You should increase the 'max_allowed_packet' up to 256M to this query take effect.
     // 'max_allowed_packet' can be changed in '/etc/mysql/my.cnf'.
     string q = "INSERT INTO clouds (node_id, x, y, z, rgb) VALUES ";
     for (uint n=0; n<cloud->points.size(); n++)
@@ -414,8 +413,7 @@ public:
     }
     q = q.substr(0, q.size()-1) + ";";
 
-    // Launch the query in a separate thread to continue reading pointclouds
-    //boost::thread query_thread(&InserterNode::query, this, q, false);
+    // Launch the query
     query(q, false);
 
     return true;
@@ -456,17 +454,16 @@ public:
   PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr cloud)
   {
     // Remove isolated points
-    //pcl::RadiusOutlierRemoval<PointRGB> outrem;
-    //outrem.setInputCloud(cloud);
-    //outrem.setRadiusSearch(0.04);
-    //outrem.setMinNeighborsInRadius(50);
-    //outrem.filter(*cloud);
+    pcl::RadiusOutlierRemoval<PointRGB> outrem;
+    outrem.setInputCloud(cloud);
+    outrem.setRadiusSearch(0.04);
+    outrem.setMinNeighborsInRadius(50);
+    outrem.filter(*cloud);
     pcl::StatisticalOutlierRemoval<PointRGB> sor;
     sor.setInputCloud(cloud);
     sor.setMeanK(40);
     sor.setStddevMulThresh(2.0);
     sor.filter(*cloud);
-
     return cloud;
   }
 

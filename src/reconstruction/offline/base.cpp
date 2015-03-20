@@ -205,7 +205,7 @@ void reconstruction::ReconstructionBase::build3D()
     // Increase the total of points processed
     total_points += in_cloud->points.size();
 
-    //ROS_INFO("Filtering");
+    ROS_INFO("[Reconstruction:] Filtering");
     PointCloudRGB::Ptr cloud(new PointCloudRGB);
     //pcl::copyPointCloud(*in_cloud, *cloud);
     cloud = filter(in_cloud, voxel_size);
@@ -229,7 +229,8 @@ void reconstruction::ReconstructionBase::build3D()
 
     // Transform the accumulated cloud to the new cloud frame
     tf::Transform tf0 = cloud_poses[0].second;
-    tf::Transform tfn0 = cloud_poses[i].second.inverse()*tf0;
+    tf::Transform tfi = cloud_poses[i].second;
+    tf::Transform tfn0 = tfi.inverse()*tf0;
     Eigen::Affine3d tfn0_eigen;
     transformTFToEigen(tfn0, tfn0_eigen);
     pcl::transformPointCloud(*acc, *acc, tfn0_eigen);
@@ -282,6 +283,7 @@ void reconstruction::ReconstructionBase::build3D()
       acc->points[n].w = 0.0;
 
     // Get the maximum distance from current cloud to the accumulated contour
+    vector<double> distances;
     float max_contour_dist = 0.0;
     for (uint n=0; n<cloud->points.size(); n++)
     {
@@ -289,6 +291,13 @@ void reconstruction::ReconstructionBase::build3D()
       PointXY sp;
       sp.x = cloud->points[n].x;
       sp.y = cloud->points[n].y;
+
+      if (cloud->points[n].x >= -0.2 && cloud->points[n].x <= 0.2 &&
+          cloud->points[n].y >= -0.2 && cloud->points[n].y <= 0.2 &&
+          !std::isnan(cloud->points[n].z))
+      {
+        distances.push_back(cloud->points[n].z);
+      }
 
       int K = 1;
       vector<int> neighbor_idx(K);
@@ -304,6 +313,9 @@ void reconstruction::ReconstructionBase::build3D()
           max_contour_dist = dist;
       }
     }
+
+    // Log altitude
+    //ROS_INFO_STREAM(distances[distances.size()/2]);
 
     // Merge the current cloud with the accumulated
     for (uint n=0; n<cloud->points.size(); n++)
@@ -375,10 +387,10 @@ void reconstruction::ReconstructionBase::build3D()
 
           // Build the new point
           PointXYZRGBW p_new;
-          p_new.x = cloud->points[n].x;
-          p_new.y = cloud->points[n].y;
-          p_new.rgb = p.rgb;
+          p_new.x = p.x;
+          p_new.y = p.y;
           p_new.z = p.z;
+          p_new.rgb = p.rgb;
           p_new.w = 1.0;
 
           // Add the point
@@ -505,14 +517,6 @@ void reconstruction::ReconstructionBase::setParameters(string work_dir)
     work_dir += "/";
   params.work_dir = work_dir;
   params.clouds_dir = work_dir + "clouds/";
-  params.output_dir = work_dir + "clouds/output/";
   params.graph_file = work_dir + "graph_vertices.txt";
   setParams(params);
-
-  // Create the output directory
-  if (fs::is_directory(params.output_dir))
-    fs::remove_all(params.output_dir);
-  fs::path dir(params.output_dir);
-  if (!fs::create_directory(dir))
-    ROS_ERROR("[Reconstruction:] ERROR -> Impossible to create the output directory.");
 }

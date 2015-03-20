@@ -279,6 +279,8 @@ public:
     fstream f_lock(lock_file.c_str(), ios::out | ios::trunc);
 
     // Get the pointcloud poses file
+    int line_counter = 0;
+    tf::Transform zero_pose;
     ifstream poses_file(graph_file.c_str());
     string line;
     while (getline(poses_file, line))
@@ -307,11 +309,21 @@ public:
           qw = boost::lexical_cast<double>(value);
         i++;
       }
-      // Build the pair and save
+      // Build the tf
       tf::Vector3 t(x, y, z);
       tf::Quaternion q(qx, qy, qz, qw);
       tf::Transform transf(q, t);
+
+      // Save the first
+      if (line_counter == 0)
+        zero_pose = transf.inverse();
+
+      // Set origin to zero
+      transf = transf * zero_pose;
+
+      // Save
       cloud_poses.push_back(make_pair(cloud_name, transf));
+      line_counter++;
     }
 
     // Un-lock
