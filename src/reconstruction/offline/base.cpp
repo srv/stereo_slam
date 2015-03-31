@@ -1,3 +1,4 @@
+#include <numeric>
 #include "reconstruction/offline/base.h"
 #include <boost/filesystem.hpp>
 #include <tf_conversions/tf_eigen.h>
@@ -20,6 +21,11 @@
 #include <pcl/surface/vtk_smoothing/vtk_mesh_smoothing_laplacian.h>
 #include <pcl/surface/concave_hull.h>
 #include <pcl/surface/convex_hull.h>
+
+#include <pcl/ModelCoefficients.h>
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/segmentation/sac_segmentation.h>
 
 namespace fs=boost::filesystem;
 
@@ -202,20 +208,88 @@ void reconstruction::ReconstructionBase::build3D()
       continue;
     }
 
+    // Sanity check
+    if (in_cloud->points.size() < 10000)
+      continue;
+
     // Increase the total of points processed
     total_points += in_cloud->points.size();
 
-    ROS_INFO("[Reconstruction:] Filtering");
+    //ROS_INFO("[Reconstruction:] Filtering");
     PointCloudRGB::Ptr cloud(new PointCloudRGB);
     //pcl::copyPointCloud(*in_cloud, *cloud);
     cloud = filter(in_cloud, voxel_size);
     //pcl::io::savePCDFile(params_.work_dir + cloud_poses[i].first + ".pcd", *cloud);
 
     // Sanity check
-    if (cloud->points.size() == 0)
+    if (cloud->points.size() < 10000)
       continue;
 
-    ROS_INFO("[Reconstruction:] Merging");
+    // -----------------------------------------------------------------------------
+    // ROTATE CLOUD TO BE PLANAR!!!!
+    PointCloudXYZ::Ptr test(new PointCloudXYZ);
+    pcl::copyPointCloud(*cloud, *test);
+
+    pcl::ModelCoefficients::Ptr coeff (new pcl::ModelCoefficients);
+    pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
+    // Create the segmentation object
+    pcl::SACSegmentation<pcl::PointXYZ> seg;
+    seg.setOptimizeCoefficients (true);
+    seg.setModelType (pcl::SACMODEL_PLANE);
+    seg.setMethodType (pcl::SAC_RANSAC);
+    seg.setDistanceThreshold (0.01);
+    seg.setInputCloud (test);
+    seg.segment (*inliers, *coeff);
+
+    if (inliers->indices.size () == 0)
+    {
+      ROS_INFO_STREAM ("Could not estimate a planar model for the given dataset.");
+    }
+    else
+    {
+      // ROTATE X
+      static const float arrx[] = {1,0,0};
+      vector<float> dx (arrx, arrx + sizeof(arrx) / sizeof(arrx[0]) );
+      float modA = sqrt(coeff->values[0]*coeff->values[0] + coeff->values[1]*coeff->values[1] + coeff->values[2]*coeff->values[2]);
+      float modB = sqrt(dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2]);
+      float dot = coeff->values[0]*dx[0] + coeff->values[1]*dx[1] + coeff->values[2]*dx[2];
+      float angle = M_PI/2 - acos(dot / (modA*modB));
+      //ROS_INFO_STREAM("[Reconstruction:] Plane orientation X: " << roundf(angle * 1800 / M_PI) / 10 << " [deg].");
+
+      // Rotate the cloud to be planar.
+      Eigen::Matrix4f rot_mat_x;
+      rot_mat_x <<  cos(angle),   0,   -sin(angle),   0,
+                    0,            1,   0,             0,
+                    sin(angle),   0,   cos(angle),    0,
+                    0,            0,   0,             1;
+
+      pcl::transformPointCloud(*cloud, *cloud, rot_mat_x);
+
+      /*
+      // ROTATE Y
+      static const float arry[] = {0,1,0};
+      vector<float> dy (arry, arry + sizeof(arry) / sizeof(arry[0]) );
+      modA = sqrt(coeff->values[0]*coeff->values[0] + coeff->values[1]*coeff->values[1] + coeff->values[2]*coeff->values[2]);
+      modB = sqrt(dy[0]*dy[0] + dy[1]*dy[1] + dy[2]*dy[2]);
+      dot = coeff->values[0]*dy[0] + coeff->values[1]*dy[1] + coeff->values[2]*dy[2];
+      angle = M_PI/2 - acos(dot / (modA*modB));
+      ROS_INFO_STREAM("[Reconstruction:] Plane orientation Y: " << roundf(angle * 1800 / M_PI) / 10 << " [deg].");
+
+      // Rotate the cloud to be planar.
+      Eigen::Matrix4f rot_mat_y;
+      rot_mat_y <<  1,    0,            0,            0,
+                    0,    cos(angle),   sin(angle),   0,
+                    0,    -sin(angle),  cos(angle),   0,
+                    0,    0,            0,            1;
+
+      pcl::transformPointCloud(*cloud, *cloud, rot_mat_y);
+      */
+    }
+    // END CLOUD ROTATION
+    // -----------------------------------------------------------------
+
+
+    ROS_INFO_STREAM("[Reconstruction:] Merging -> " << cloud->points.size() << " points");
     // First iteration
     if (acc->points.size() == 0)
     {
@@ -229,8 +303,8 @@ void reconstruction::ReconstructionBase::build3D()
 
     // Transform the accumulated cloud to the new cloud frame
     tf::Transform tf0 = cloud_poses[0].second;
-    tf::Transform tfi = cloud_poses[i].second;
-    tf::Transform tfn0 = tfi.inverse()*tf0;
+    tf::Transform tfn = cloud_poses[i].second;
+    tf::Transform tfn0 = tfn.inverse()*tf0;
     Eigen::Affine3d tfn0_eigen;
     transformTFToEigen(tfn0, tfn0_eigen);
     pcl::transformPointCloud(*acc, *acc, tfn0_eigen);
@@ -252,7 +326,9 @@ void reconstruction::ReconstructionBase::build3D()
     pcl::copyPointCloud(*acc, idx_roi, *acc_roi);
 
     // Extract the contour of the interesting part of the accumulated cloud
-    PointCloudXY::Ptr acc_contour_xy = getContourXY(acc_roi, voxel_size);
+    //PointCloudXY::Ptr acc_contour_xy = getContourXY(acc_roi, voxel_size);
+    //if (acc_contour_xy->points.size() < 20)
+    //  continue;
 
     // Convert the accumulated cloud to PointXY. So, we are supposing
     // the robot is navigating parallel to the surface and the camera line of sight is
@@ -269,8 +345,8 @@ void reconstruction::ReconstructionBase::build3D()
     kdtree_neighbors.setInputCloud(acc_xy);
 
     // To search the closest point of the contour of the accumulated cloud.
-    pcl::KdTreeFLANN<PointXY> kdtree_contour;
-    kdtree_contour.setInputCloud(acc_contour_xy);
+    //pcl::KdTreeFLANN<PointXY> kdtree_contour;
+    //kdtree_contour.setInputCloud(acc_contour_xy);
 
     // To search the closes point of the acc to the current cloud
     PointCloudXY::Ptr cloud_xy(new PointCloudXY);
@@ -283,6 +359,7 @@ void reconstruction::ReconstructionBase::build3D()
       acc->points[n].w = 0.0;
 
     // Get the maximum distance from current cloud to the accumulated contour
+    /*
     vector<double> distances;
     float max_contour_dist = 0.0;
     for (uint n=0; n<cloud->points.size(); n++)
@@ -313,9 +390,10 @@ void reconstruction::ReconstructionBase::build3D()
           max_contour_dist = dist;
       }
     }
+    */
 
     // Log altitude
-    //ROS_INFO_STREAM(distances[distances.size()/2]);
+    //ROS_INFO_STREAM(std::accumulate(distances.begin(), distances.end(), 0.0) / distances.size());
 
     // Merge the current cloud with the accumulated
     for (uint n=0; n<cloud->points.size(); n++)
@@ -360,6 +438,7 @@ void reconstruction::ReconstructionBase::build3D()
         // 1. Get the closest acc point
         int min_index = min_element(neighbor_squared_dist.begin(), neighbor_squared_dist.end()) - neighbor_squared_dist.begin();
         PointXYZRGBW p_acc = acc->points[ idx_roi[neighbor_idx[min_index]] ];
+        /*
         // 2. Get the contour closest point
         int N = 1;
         vector<int> contour_idx(N);
@@ -368,6 +447,7 @@ void reconstruction::ReconstructionBase::build3D()
         // 3. Apply the blending function
         float alpha = ( max_contour_dist - sqrt(contour_squared_dist[0]) ) / max_contour_dist;
         p.rgb = colorBlending(p_acc.rgb, p.rgb, alpha);
+        */
 
         // Determine if it is a point on the border or not.
         bool is_border = true;
@@ -415,6 +495,7 @@ void reconstruction::ReconstructionBase::build3D()
         acc->push_back(p);
       }
 
+      /*
       // Fix the color of all internal accumulated points that has not been blended.
       for (uint h=0; h<acc_overlap_idx.size(); h++)
       {
@@ -446,6 +527,7 @@ void reconstruction::ReconstructionBase::build3D()
           }
         }
       }
+      */
     }
 
     // Return the acc to its original pose

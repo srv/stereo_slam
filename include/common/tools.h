@@ -264,7 +264,7 @@ public:
                     "\n" << r2.x() << ", " << r2.y() << ", " << r2.z() << ", " << tran.z());
   }
 
-  static void readPoses(string work_dir, vector< pair<string, tf::Transform> > &cloud_poses)
+  static tf::Transform readPoses(string work_dir, vector< pair<string, tf::Transform> > &cloud_poses)
   {
     // Init
     cloud_poses.clear();
@@ -319,7 +319,7 @@ public:
         zero_pose = transf.inverse();
 
       // Set origin to zero
-      transf = transf * zero_pose;
+      transf = zero_pose * transf;
 
       // Save
       cloud_poses.push_back(make_pair(cloud_name, transf));

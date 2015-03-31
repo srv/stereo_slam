@@ -2,6 +2,8 @@
 
 #include "localization/base.h"
 #include "opencv2/core/core.hpp"
+#include <cv.h>
+#include <highgui.h>
 #include <boost/filesystem.hpp>
 #include <pcl/common/common.h>
 #include <pcl/filters/filter.h>
@@ -323,12 +325,13 @@ PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr in_cloud)
 void slam::SlamBase::processCloud(int cloud_id)
 {
   // Proceed?
-  if (!params_.save_clouds) return;
+  if (!params_.save_clouds || pcl_cloud_.points.size() == 0) return;
 
   // Save cloud
   string id = lexical_cast<string>(cloud_id);
   PointCloudRGB::Ptr cloud;
   cloud = filterCloud(pcl_cloud_.makeShared());
+  if (cloud->points.size() == 0) return;
   pcl::io::savePCDFileBinary(params_.clouds_dir + id + ".pcd", *cloud);
 }
 
@@ -476,6 +479,7 @@ void slam::SlamBase::readParameters()
 
   if (params_.save_clouds)
     cloud_sub_.subscribe(nh_, cloud_topic, 5);
+
 }
 
 
