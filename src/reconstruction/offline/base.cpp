@@ -179,7 +179,7 @@ void reconstruction::ReconstructionBase::build3D()
   Tools::readPoses(params_.work_dir, cloud_poses);
 
   // Output log
-  ostringstream output_csv;
+  ostringstream output_csv, output_cloud, output_altitude;
 
   output_csv << "Pointcloud ID, Points Processed, Accumulated cloud size, Processing time"  << endl;
 
@@ -191,6 +191,8 @@ void reconstruction::ReconstructionBase::build3D()
 
   // Total of points processed
   int total_points = 0;
+
+  ROS_INFO_STREAM("KKKKKKKKKK: " << cloud_poses.size());
 
   // Load, convert and accumulate every pointcloud
   PointCloudXYZW::Ptr acc(new PointCloudXYZW);
@@ -295,6 +297,10 @@ void reconstruction::ReconstructionBase::build3D()
     {
       // Make this the accumulated
       pcl::copyPointCloud(*cloud, *acc);
+
+      for (uint n=0; n<acc->points.size(); n++)
+        acc->points[n].z0 = acc->points[n].z;
+
       continue;
     }
 
@@ -359,7 +365,6 @@ void reconstruction::ReconstructionBase::build3D()
       acc->points[n].w = 0.0;
 
     // Get the maximum distance from current cloud to the accumulated contour
-    /*
     vector<double> distances;
     float max_contour_dist = 0.0;
     for (uint n=0; n<cloud->points.size(); n++)
@@ -376,6 +381,7 @@ void reconstruction::ReconstructionBase::build3D()
         distances.push_back(cloud->points[n].z);
       }
 
+      /*
       int K = 1;
       vector<int> neighbor_idx(K);
       vector<float> neighbor_squared_dist(K);
@@ -389,11 +395,12 @@ void reconstruction::ReconstructionBase::build3D()
         if (dist > max_contour_dist)
           max_contour_dist = dist;
       }
+      */
     }
-    */
 
     // Log altitude
-    //ROS_INFO_STREAM(std::accumulate(distances.begin(), distances.end(), 0.0) / distances.size());
+    float altitude = std::accumulate(distances.begin(), distances.end(), 0.0) / distances.size();
+    output_altitude << i << "," << altitude << endl;
 
     // Merge the current cloud with the accumulated
     for (uint n=0; n<cloud->points.size(); n++)
@@ -409,6 +416,7 @@ void reconstruction::ReconstructionBase::build3D()
       p.y = cloud->points[n].y;
       p.z = cloud->points[n].z;
       p.rgb = cloud->points[n].rgb;
+      p.z0 = cloud->points[n].z;
 
       // Check if this point is inside or in the border of the current accumulated cloud
       int K = 10;
@@ -472,6 +480,7 @@ void reconstruction::ReconstructionBase::build3D()
           p_new.z = p.z;
           p_new.rgb = p.rgb;
           p_new.w = 1.0;
+          p_new.z0 = p.z0;
 
           // Add the point
           acc->push_back(p_new);
@@ -575,9 +584,27 @@ void reconstruction::ReconstructionBase::build3D()
   // Save the log
   string out_file;
   out_file = params_.work_dir + "output_log.txt";
-  fstream f_out(out_file.c_str(), ios::out | ios::trunc);
-  f_out << output_csv.str();
-  f_out.close();
+  fstream f_log(out_file.c_str(), ios::out | ios::trunc);
+  f_log << output_csv.str();
+  f_log.close();
+
+  // Save altitude
+  string out_altitude;
+  out_altitude = params_.work_dir + "output_altitude.txt";
+  fstream f_altitude(out_altitude.c_str(), ios::out | ios::trunc);
+  f_altitude << output_altitude.str();
+  f_altitude.close();
+
+  // Save the custom output cloud
+  for (uint n=0; n<acc->points.size(); n++)
+  {
+    output_cloud << acc->points[n].x << "," << acc->points[n].y << "," << acc->points[n].z << "," << setprecision(9) << acc->points[n].rgb << setprecision(3) << "," << acc->points[n].z0 << endl;
+  }
+  string out_cloud;
+  out_cloud = params_.work_dir + "custom_reconstruction.txt";
+  fstream f_cloud(out_cloud.c_str(), ios::out | ios::trunc);
+  f_cloud << output_cloud.str();
+  f_cloud.close();
 
   // Save accumulated cloud
   ROS_INFO("[Reconstruction:] Saving pointclouds...");

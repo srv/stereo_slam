@@ -29,6 +29,7 @@ struct PointXYZRGBW
   float z;
   float rgb;
   float w;
+  float z0;
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;   // make sure our new allocators are aligned
 
   // Default values
@@ -38,6 +39,7 @@ struct PointXYZRGBW
     z = 0.0;
     rgb = 0.0;
     w = 0.0;
+    z0 = 0.0;
   }
 } EIGEN_ALIGN16;                    // enforce SSE padding for correct memory alignment
 POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZRGBW,
@@ -46,6 +48,7 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZRGBW,
                                    (float, z, z)
                                    (float, rgb, rgb)
                                    (float, w, w)
+                                   (float, z0, z0)
 );
 
 // Defines
