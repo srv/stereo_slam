@@ -27,7 +27,7 @@ int main(int argc, char **argv)
   reconstruction.setParameters(work_dir);
 
   // Accumulate all the clouds
-  reconstruction.build3D();
+  reconstruction.build3Dv2();
 
   return 0;
 }

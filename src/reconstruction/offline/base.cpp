@@ -21,6 +21,7 @@
 #include <pcl/surface/vtk_smoothing/vtk_mesh_smoothing_laplacian.h>
 #include <pcl/surface/concave_hull.h>
 #include <pcl/surface/convex_hull.h>
+#include <pcl/octree/octree.h>
 
 #include <pcl/ModelCoefficients.h>
 #include <pcl/sample_consensus/method_types.h>
@@ -170,6 +171,166 @@ float reconstruction::ReconstructionBase::colorBlending(float color_a, float col
   return *reinterpret_cast<float*>(&new_rgb);
 }
 
+/** \brief Align 2 pointclouds and return the transformation
+  */
+bool reconstruction::ReconstructionBase::pairAlign(PointCloudRGB::Ptr src,
+                                                   PointCloudRGB::Ptr tgt,
+                                                   tf::Transform &output)
+{
+  PointCloudRGB::Ptr aligned (new PointCloudRGB);
+  IterativeClosestPoint icp;
+  icp.setMaxCorrespondenceDistance(0.07);
+  icp.setRANSACOutlierRejectionThreshold(0.005);
+  icp.setTransformationEpsilon(0.000001);
+  icp.setEuclideanFitnessEpsilon(0.0001);
+  icp.setMaximumIterations(100);
+  icp.setInputSource(src);
+  icp.setInputTarget(tgt);
+  icp.align(*aligned);
+
+  // The transform
+  output = Tools::matrix4fToTf(icp.getFinalTransformation());
+  return icp.hasConverged();
+}
+
+/** \brief Build the 3D
+  */
+void reconstruction::ReconstructionBase::build3Dv2()
+{
+  // Voxel size
+  float voxel_size = 0.005;
+
+  // Maximum distance from point to voxel
+  float max_dist = sqrt( (voxel_size*voxel_size)/2 );
+
+  // The total runtime
+  double total_time = 0.0;
+
+  // Read the graph poses
+  vector< pair<string, tf::Transform> > cloud_poses;
+  Tools::readPoses(params_.work_dir, cloud_poses);
+
+  // Load, convert and accumulate every pointcloud
+  PointCloudRGB::Ptr acc(new PointCloudRGB);
+  for (uint i=0; i<5; i++)//cloud_poses.size(); i++)
+  {
+    string file_idx = cloud_poses[i].first;
+    ROS_INFO_STREAM("[Reconstruction:] Processing cloud " << file_idx.substr(0,file_idx.length()-4) << "/" << cloud_poses.size()-1 << ".");
+
+    // Read the current pointcloud.
+    string cloud_filename = params_.clouds_dir + cloud_poses[i].first + ".pcd";
+    PointCloudRGB::Ptr in_cloud(new PointCloudRGB);
+    if (pcl::io::loadPCDFile<PointRGB> (cloud_filename, *in_cloud) == -1)
+    {
+      ROS_WARN_STREAM("[Reconstruction:] Couldn't read the file: " << cloud_filename);
+      continue;
+    }
+
+    // Filter cloud
+    ROS_INFO("[Reconstruction:] Filtering...");
+    PointCloudRGB::Ptr cloud(new PointCloudRGB);
+    cloud = filter(in_cloud, voxel_size);
+
+    // First iteration
+    if (acc->points.size() == 0)
+    {
+      // Make this the accumulated
+      pcl::copyPointCloud(*cloud, *acc);
+      continue;
+    }
+
+    // Runtime
+    ros::WallTime init_time = ros::WallTime::now();
+
+    // Transform current cloud according to slam pose
+    tf::Transform tf_0 = cloud_poses[0].second;
+    tf::Transform tf_n = cloud_poses[i].second;
+    tf::Transform tf_0n = tf_0.inverse() * tf_n;
+    Eigen::Affine3d tf_0n_eigen;
+    transformTFToEigen(tf_0n, tf_0n_eigen);
+    pcl::transformPointCloud(*cloud, *cloud, tf_0n_eigen);
+
+    // Reduce the size of the accumulated cloud to speed-up the process
+    PointRGB min_pt, max_pt;
+    pcl::getMinMax3D(*cloud, min_pt, max_pt);
+    vector<int> idx_roi;
+    pcl::PassThrough<PointRGB> pass;
+    pass.setFilterFieldName("x");
+    pass.setFilterLimits(min_pt.x, max_pt.x);
+    pass.setFilterFieldName("y");
+    pass.setFilterLimits(min_pt.y, max_pt.y);
+    pass.setFilterFieldName("z");
+    pass.setFilterLimits(min_pt.z, max_pt.z);
+    pass.setInputCloud(acc);
+    pass.filter(idx_roi);
+
+    // Extract the interesting part of the accumulated cloud
+    PointCloudRGB::Ptr acc_roi(new PointCloudRGB);
+    pcl::copyPointCloud(*acc, idx_roi, *acc_roi);
+
+    // Register current with previous cloud
+    ROS_INFO("[Reconstruction:] Aligning clouds...");
+    tf::Transform correction;
+    pairAlign(cloud, acc_roi, correction);
+
+    // Log
+    double distance = sqrt(correction.getOrigin().x()*correction.getOrigin().x() +
+                           correction.getOrigin().y()*correction.getOrigin().y() +
+                           correction.getOrigin().z()*correction.getOrigin().z());
+    ROS_INFO_STREAM("[Reconstruction:] Correction is: " << correction.getOrigin().x() << ", " << correction.getOrigin().y() << ", " << correction.getOrigin().z() << " (dist -> " << distance << ").");
+
+    // Distance threshold
+    double max_correction = 0.2;
+    if (distance > max_correction) {
+      ROS_WARN_STREAM("[Reconstruction:] Pointcloud discarted due to its large correction (>" << max_correction << ").");
+      continue;
+    }
+
+    // Apply the correction
+    Eigen::Affine3d correction_eigen;
+    transformTFToEigen(correction, correction_eigen);
+    pcl::transformPointCloud(*cloud, *cloud, correction_eigen);
+
+    // Merge current cloud with the accumulated (add only new points)
+    ROS_INFO("[Reconstruction:] Mergin cloud with accumulated...");
+    PointCloudRGB::Ptr accepted_points(new PointCloudRGB);
+    pcl::KdTreeFLANN<PointRGB> kdtree;
+    kdtree.setInputCloud(acc_roi);
+    for (uint n=0; n<cloud->points.size(); n++)
+    {
+      // Get the cloud point (XY)
+      PointRGB sp = cloud->points[n];
+
+      // Search the closest point
+      vector<int> idx_vec;
+      vector<float> squared_dist;
+      if (kdtree.nearestKSearch(sp, 1, idx_vec, squared_dist) > 0)
+      {
+        float dist = sqrt(squared_dist[0]);
+        if (dist > 2*max_dist)
+          accepted_points->push_back(sp);
+      }
+    }
+    ROS_INFO_STREAM("[Reconstruction:] Adding " << accepted_points->points.size() << " to the accumulated cloud...");
+
+    // Accumulate cloud
+    *acc += *accepted_points;
+
+    // Log runtime
+    ros::WallDuration elapsed_time = ros::WallTime::now() - init_time;
+    total_time += elapsed_time.toSec();
+    ROS_INFO_STREAM("[Reconstruction:] Runtime: " << elapsed_time.toSec() << " (s).");
+  }
+
+  // Log runtime
+  ROS_INFO_STREAM("[Reconstruction:] The total runtime is: " << total_time << " (s).");
+
+  // Save
+  ROS_INFO("[Reconstruction:] Saving output cloud...");
+  pcl::io::savePCDFile(params_.work_dir +  + "full.pcd", *acc);
+  ROS_INFO("[Reconstruction:] Done!");
+}
+
 /** \brief Build the 3D
   */
 void reconstruction::ReconstructionBase::build3D()
@@ -191,8 +352,6 @@ void reconstruction::ReconstructionBase::build3D()
 
   // Total of points processed
   int total_points = 0;
-
-  ROS_INFO_STREAM("KKKKKKKKKK: " << cloud_poses.size());
 
   // Load, convert and accumulate every pointcloud
   PointCloudXYZW::Ptr acc(new PointCloudXYZW);
@@ -598,7 +757,7 @@ void reconstruction::ReconstructionBase::build3D()
   // Save the custom output cloud
   for (uint n=0; n<acc->points.size(); n++)
   {
-    output_cloud << acc->points[n].x << "," << acc->points[n].y << "," << acc->points[n].z << "," << setprecision(9) << acc->points[n].rgb << setprecision(3) << "," << acc->points[n].z0 << endl;
+    output_cloud << acc->points[n].x << "," << acc->points[n].y << "," << acc->points[n].z << "," << setprecision(15) << acc->points[n].rgb << setprecision(3) << "," << acc->points[n].z0 << endl;
   }
   string out_cloud;
   out_cloud = params_.work_dir + "custom_reconstruction.txt";

@@ -16,6 +16,7 @@
 #include <pcl_ros/point_cloud.h>
 #include <tf/transform_broadcaster.h>
 #include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/registration/icp.h>
 #include "../../common/tools.h"
 
 using namespace std;
@@ -59,6 +60,7 @@ typedef pcl::PointCloud<PointXY>          PointCloudXY;
 typedef pcl::PointCloud<PointXYZ>         PointCloudXYZ;
 typedef pcl::PointCloud<PointRGB>         PointCloudRGB;
 typedef pcl::PointCloud<PointXYZRGBW>     PointCloudXYZW;
+typedef pcl::IterativeClosestPoint<PointRGB, PointRGB> IterativeClosestPoint;
 
 namespace reconstruction
 {
@@ -103,7 +105,13 @@ public:
   // Set the parameters
   void setParameters(string work_dir);
 
+  // Align 2 pointclouds
+  bool pairAlign(PointCloudRGB::Ptr src,
+                 PointCloudRGB::Ptr tgt,
+                 tf::Transform &output);
+
   // 3D reconstruction
+  void build3Dv2();
   void build3D();
 
   // Greedy projection
