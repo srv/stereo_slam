@@ -212,7 +212,7 @@ void reconstruction::ReconstructionBase::build3Dv2()
 
   // Load, convert and accumulate every pointcloud
   PointCloudRGB::Ptr acc(new PointCloudRGB);
-  for (uint i=0; i<5; i++)//cloud_poses.size(); i++)
+  for (uint i=0; i<cloud_poses.size(); i++)
   {
     string file_idx = cloud_poses[i].first;
     ROS_INFO_STREAM("[Reconstruction:] Processing cloud " << file_idx.substr(0,file_idx.length()-4) << "/" << cloud_poses.size()-1 << ".");
