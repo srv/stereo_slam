@@ -16,6 +16,9 @@
 #include <g2o/core/optimization_algorithm_levenberg.h>
 #include <g2o/solvers/dense/linear_solver_dense.h>
 #include <nav_msgs/Odometry.h>
+#include "stereo_slam/SlamVertex.h"
+#include "stereo_slam/SlamEdge.h"
+#include "stereo_slam/Correction.h"
 #include "../common/tools.h"
 
 using namespace std;
@@ -42,6 +45,7 @@ public:
     string save_dir;                  //!> Directory where graph files will be saved.
     string pose_frame_id;             //!> Pose frame id for publisher.
     string pose_child_frame_id;       //!> Base frame id for publisher.
+    string correction_tp;             //!> The correction topic.
 
     // default settings
     Params () {
@@ -50,6 +54,7 @@ public:
       save_dir                    = "";
       pose_frame_id               = "/map";
       pose_child_frame_id         = "/robot";
+      correction_tp               = "";
     }
   };
 
@@ -70,6 +75,15 @@ public:
   // Initialize the graph
   bool init();
 
+  // Advertise messages
+  void advertiseMsgs(ros::NodeHandle nh);
+
+  // Subscribe message
+  void subscribeMsgs(ros::NodeHandle nh);
+
+  // Correction callback
+  void correctionCallback(const stereo_slam::Correction::ConstPtr& correction_msg);
+
   // Get the last vertex id
   int getLastVertexId();
 
@@ -84,10 +98,11 @@ public:
                         vector<int> &neighbors);
 
   // Add a vertex to the graph
-  int addVertex(tf::Transform pose_corrected);
   int addVertex(tf::Transform pose,
                 tf::Transform pose_corrected,
-                double timestamp);
+                ros::Time timestamp);
+  int addVertex(tf::Transform pose_corrected,
+                ros::Time timestamp);
 
   // Sets the vertex estimate
   void setVertexEstimate(int vertex_id, tf::Transform pose);
@@ -109,6 +124,10 @@ public:
 
 private:
 
+  // Messages
+  ros::Publisher vertex_pub_, edge_pub_;
+  ros::Subscriber correction_sub_;
+
 	// Pose properties
   vector< pair<tf::Transform,double> >
     odom_history_;  //!> Vector to save the odometry history
@@ -119,6 +138,9 @@ private:
 
   // Stores parameters
   Params params_;
+
+  // Lock
+  bool lock_;
 };
 
 } // namespace

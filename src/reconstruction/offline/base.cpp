@@ -187,10 +187,13 @@ bool reconstruction::ReconstructionBase::pairAlign(PointCloudRGB::Ptr src,
   icp.setInputSource(src);
   icp.setInputTarget(tgt);
   icp.align(*aligned);
+  double score = icp.getFitnessScore();
 
   // The transform
   output = Tools::matrix4fToTf(icp.getFinalTransformation());
-  return icp.hasConverged();
+
+  // Return valid or not
+  return ( icp.hasConverged() && (icp.getFitnessScore() < 0.1) );
 }
 
 /** \brief Build the 3D
@@ -271,7 +274,11 @@ void reconstruction::ReconstructionBase::build3Dv2()
     // Register current with previous cloud
     ROS_INFO("[Reconstruction:] Aligning clouds...");
     tf::Transform correction;
-    pairAlign(cloud, acc_roi, correction);
+    if ( !pairAlign(cloud, acc_roi, correction) )
+    {
+      ROS_WARN("[Reconstruction:] Pointcloud discarted due to its bad fitness score or not convergence.");
+      continue;
+    }
 
     // Log
     double distance = sqrt(correction.getOrigin().x()*correction.getOrigin().x() +
@@ -280,7 +287,7 @@ void reconstruction::ReconstructionBase::build3Dv2()
     ROS_INFO_STREAM("[Reconstruction:] Correction is: " << correction.getOrigin().x() << ", " << correction.getOrigin().y() << ", " << correction.getOrigin().z() << " (dist -> " << distance << ").");
 
     // Distance threshold
-    double max_correction = 0.2;
+    double max_correction = 0.25;
     if (distance > max_correction) {
       ROS_WARN_STREAM("[Reconstruction:] Pointcloud discarted due to its large correction (>" << max_correction << ").");
       continue;
@@ -292,7 +299,7 @@ void reconstruction::ReconstructionBase::build3Dv2()
     pcl::transformPointCloud(*cloud, *cloud, correction_eigen);
 
     // Merge current cloud with the accumulated (add only new points)
-    ROS_INFO("[Reconstruction:] Mergin cloud with accumulated...");
+    ROS_INFO("[Reconstruction:] Merging cloud with accumulated...");
     PointCloudRGB::Ptr accepted_points(new PointCloudRGB);
     pcl::KdTreeFLANN<PointRGB> kdtree;
     kdtree.setInputCloud(acc_roi);

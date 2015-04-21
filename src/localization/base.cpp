@@ -166,7 +166,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::CameraInfoConstPtr& r_info_msg)
 {
   // Get the current timestamp
-  double timestamp = l_img_msg->header.stamp.toSec();
+  ros::Time timestamp = l_img_msg->header.stamp;
 
   // Get the current odometry
   tf::Transform current_odom_robot = Tools::odomTotf(*odom_msg);
@@ -423,7 +423,7 @@ void slam::SlamBase::readParameters()
   nh_private_.param("enable", params.enable, true);
 
   // Topic parameters
-  string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic, cloud_topic;
+  string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic, cloud_topic, correction_topic;
   nh_private_.param("pose_frame_id",              pose_params.pose_frame_id,        string("/map"));
   nh_private_.param("pose_child_frame_id",        pose_params.pose_child_frame_id,  string("/robot"));
   nh_private_.param("odom_topic",                 odom_topic,                       string("/odometry"));
@@ -432,6 +432,7 @@ void slam::SlamBase::readParameters()
   nh_private_.param("left_info_topic",            left_info_topic,                  string("/left/camera_info"));
   nh_private_.param("right_info_topic",           right_info_topic,                 string("/right/camera_info"));
   nh_private_.param("cloud_topic",                cloud_topic,                      string("/points2"));
+  nh_private_.param("correction_topic",           correction_topic,                 string(""));
 
   // Motion parameters
   nh_private_.param("refine_neighbors",           params.refine_neighbors,          false);
@@ -460,6 +461,7 @@ void slam::SlamBase::readParameters()
   graph_params.save_dir = lc_params.work_dir;
   graph_params.pose_frame_id = pose_params.pose_frame_id;
   graph_params.pose_child_frame_id = pose_params.pose_child_frame_id;
+  graph_params.correction_tp = correction_topic;
 
   // Set the class parameters
   params.odom_topic = odom_topic;
@@ -494,8 +496,10 @@ void slam::SlamBase::init()
   sigIntHandler.sa_flags = 0;
   sigaction(SIGINT, &sigIntHandler, NULL);
 
-  // Advertise the slam odometry message
+  // Advertise/subscribe class messages
   pose_.advertisePoseMsg(nh_private_);
+  graph_.advertiseMsgs(nh_private_);
+  graph_.subscribeMsgs(nh_);
 
   // Generic subscriber
   generic_sub_ = nh_.subscribe<nav_msgs::Odometry>(params_.odom_topic, 1, &SlamBase::genericCallback, this);
