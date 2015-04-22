@@ -23,8 +23,9 @@ slam::Graph::Graph()
 void slam::Graph::advertiseMsgs(ros::NodeHandle nh)
 {
   // Advertise
-  vertex_pub_ = nh.advertise<stereo_slam::SlamVertex>("vertex", 1);
-  edge_pub_ = nh.advertise<stereo_slam::SlamEdge>("edge", 1);
+  vertex_pub_ = nh.advertise<stereo_slam::SlamVertex>("vertex", 2);
+  edge_pub_ = nh.advertise<stereo_slam::SlamEdge>("edge", 2);
+  graph_pub_ = nh.advertise<stereo_slam::GraphData>("graph", 2);
 }
 
 
@@ -42,6 +43,16 @@ void slam::Graph::subscribeMsgs(ros::NodeHandle nh)
 }
 
 
+/** \brief Set the camera to odom transformation
+  * @return
+  * \param the camera to odom tf
+  */
+void slam::Graph::setCamera2Odom(tf::Transform camera2odom)
+{
+  camera2odom_ = camera2odom;
+}
+
+
 /** \brief Init the graph
   * @return
   */
@@ -49,6 +60,9 @@ bool slam::Graph::init()
 {
   // Init lock
   lock_ = false;
+
+  // Odometry to camera transformation
+  camera2odom_.setIdentity();
 
   // Delete all the files (if any)
   string lock_file, vertices_file, edges_file;
@@ -313,7 +327,7 @@ int slam::Graph::addVertex(tf::Transform pose, ros::Time timestamp)
   // Unlock the graph
   lock_ = false;
 
-  // Publish
+  // Publish vertex
   if (vertex_pub_.getNumSubscribers() > 0)
   {
     stereo_slam::SlamVertex vertex_msg;
@@ -328,6 +342,9 @@ int slam::Graph::addVertex(tf::Transform pose, ros::Time timestamp)
     vertex_msg.qw = pose.getRotation().w();
     vertex_pub_.publish(vertex_msg);
   }
+
+  // Publish graph
+  publishGraph();
 
   return id;
 }
@@ -414,13 +431,16 @@ void slam::Graph::update()
 
   // Unlock the graph
   lock_ = false;
+
+  // Publish
+  publishGraph();
 }
 
 
 /** \brief Save the optimized graph into a file with the same format than odometry_msgs.
   * @return
   */
-bool slam::Graph::saveToFile(tf::Transform camera2odom)
+bool slam::Graph::saveToFile()
 {
   string lock_file, vertices_file, edges_file;
   vertices_file = params_.save_dir + "graph_vertices.txt";
@@ -438,13 +458,13 @@ bool slam::Graph::saveToFile(tf::Transform camera2odom)
   fstream f_edges(edges_file.c_str(), ios::out | ios::trunc);
 
   // Output the vertices file
-  for (unsigned int i=0; i<graph_optimizer_.vertices().size(); i++)
+  for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
   {
     // Get timestamp
     double timestamp = odom_history_.at(i).second;
 
     slam::Vertex* v = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[i]);
-    tf::Transform pose = Tools::getVertexPose(v)*camera2odom;
+    tf::Transform pose = Tools::getVertexPose(v)*camera2odom_;
     f_vertices << fixed << setprecision(9) <<
           timestamp  << "," <<
           i << "," <<
@@ -475,8 +495,8 @@ bool slam::Graph::saveToFile(tf::Transform camera2odom)
       {
         slam::Vertex* v_0 = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[e->vertices()[0]->id()]);
         slam::Vertex* v_1 = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[e->vertices()[1]->id()]);
-        tf::Transform pose_0 = Tools::getVertexPose(v_0)*camera2odom;
-        tf::Transform pose_1 = Tools::getVertexPose(v_1)*camera2odom;
+        tf::Transform pose_0 = Tools::getVertexPose(v_0)*camera2odom_;
+        tf::Transform pose_1 = Tools::getVertexPose(v_1)*camera2odom_;
 
         f_edges <<
               e->vertices()[0]->id() << "," <<
@@ -512,6 +532,47 @@ bool slam::Graph::saveToFile(tf::Transform camera2odom)
   }
 
   return true;
+}
+
+
+/** \brief Publish the graph
+  * @return
+  */
+void slam::Graph::publishGraph()
+{
+  if (graph_pub_.getNumSubscribers() > 0)
+  {
+    // Build the graph data
+    vector<int> id;
+    vector<double> x, y, z, qx, qy, qz, qw;
+    for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
+    {
+      slam::Vertex* v = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[i]);
+      tf::Transform pose = Tools::getVertexPose(v);
+
+      id.push_back(i);
+      x.push_back(pose.getOrigin().x());
+      y.push_back(pose.getOrigin().y());
+      z.push_back(pose.getOrigin().z());
+      qx.push_back(pose.getRotation().x());
+      qy.push_back(pose.getRotation().y());
+      qz.push_back(pose.getRotation().z());
+      qw.push_back(pose.getRotation().w());
+    }
+
+    // Publish
+    stereo_slam::GraphData graph_msg;
+    graph_msg.header.stamp = ros::Time::now();
+    graph_msg.id = id;
+    graph_msg.x = x;
+    graph_msg.y = y;
+    graph_msg.z = z;
+    graph_msg.qx = qx;
+    graph_msg.qy = qy;
+    graph_msg.qz = qz;
+    graph_msg.qw = qw;
+    graph_pub_.publish(graph_msg);
+  }
 }
 
 

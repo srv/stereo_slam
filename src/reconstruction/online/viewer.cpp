@@ -17,12 +17,15 @@
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/common/centroid.h>
 #include <boost/thread.hpp>
+#include <boost/filesystem.hpp>
 #include "common/tools.h"
-#include "stereo_slam/Correction.h"
+#include "stereo_slam/GraphData.h"
 
 using namespace std;
 using namespace tools;
 using namespace boost;
+
+namespace fs=filesystem;
 
 typedef pcl::PointXYZRGB              PointRGB;
 typedef pcl::PointCloud<PointRGB>     PointCloudRGB;
@@ -45,14 +48,17 @@ private:
   ros::NodeHandle nh_private_;
 
   // Topic subscribers
-  ros::Subscriber pose_sub_;
+  ros::Subscriber graph_sub_;
 
   // Node parameters
   string work_dir_;
-  string correction_topic_;
+  string graph_topic_;
   float voxel_size_;
   float max_dist_;
   bool viewer_initialized_;
+  vector< pair<int, tf::Transform> > graph_poses_;
+  vector< pair<int, tf::Transform> > viewer_poses_;
+  bool lock_;
 
   // Accumulated cloud
   PointCloudRGB::Ptr acc_;
@@ -79,84 +85,32 @@ public:
   }
 
 
-  /** \brief Messages callback. This function is called when synchronized vertex and cloud
-  * message are received.
-  * @return
-  * \param correction_msg message of type stereo_slam::VertexCorrection
-  */
-  // void msgsCallback(const stereo_slam::VertexCorrection::ConstPtr& correction_msg)
-  // {
-  //   // Check
-  //   int node_id = correction_msg->node_id;
+  /** \brief Called when a graph message is received.
+   * @return
+   * \param graph_msg message of type stereo_slam::GraphData
+   */
+  void msgsCallback(const stereo_slam::GraphData::ConstPtr& graph_msg)
+  {
+    // Lock
+    while(lock_) {}
+      lock_ = true;
 
-  //   // Extract the pose
-  //   tf::Vector3 t(correction_msg->x, correction_msg->y, correction_msg->z);
-  //   tf::Quaternion q(correction_msg->qx, correction_msg->qy, correction_msg->qz, correction_msg->qw);
-  //   tf::Transform pose(q, t);
+    // Reset the data
+    graph_poses_.clear();
 
-  //   // Load the cloud
-  //   string cloud_filename = work_dir_ + lexical_cast<string>(node_id) + ".pcd";
-  //   PointCloudRGB::Ptr cloud(new PointCloudRGB);
-  //   if (pcl::io::loadPCDFile<PointRGB> (cloud_filename, *cloud) == -1)
-  //   {
-  //     ROS_WARN_STREAM("[Viewer:] Couldn't read the file: " << cloud_filename);
-  //     return;
-  //   }
+    // Parse message
+    vector<int> id = graph_msg->id;
+    for(uint i=0; i<id.size(); i++)
+    {
+      tf::Vector3 t(graph_msg->x[i], graph_msg->y[i], graph_msg->z[i]);
+      tf::Quaternion q(graph_msg->qx[i], graph_msg->qy[i], graph_msg->qz[i], graph_msg->qw[i]);
+      tf::Transform pose(q, t);
+      graph_poses_.push_back(make_pair(id[i], pose));
+    }
 
-  //   // Transform the cloud
-  //   Eigen::Affine3d pose_eigen;
-  //   transformTFToEigen(pose, pose_eigen);
-  //   pcl::transformPointCloud(*cloud, *cloud, pose_eigen);
-
-  //   if (acc_->points.size() == 0)
-  //   {
-  //     pcl::copyPointCloud(*cloud, *acc_);
-  //     return;
-  //   }
-
-  //   // Reduce the size of the accumulated cloud to speed-up the process
-  //   PointRGB min_pt, max_pt;
-  //   pcl::getMinMax3D(*cloud, min_pt, max_pt);
-  //   vector<int> idx_roi;
-  //   pcl::PassThrough<PointRGB> pass;
-  //   pass.setFilterFieldName("x");
-  //   pass.setFilterLimits(min_pt.x, max_pt.x);
-  //   pass.setFilterFieldName("y");
-  //   pass.setFilterLimits(min_pt.y, max_pt.y);
-  //   pass.setFilterFieldName("z");
-  //   pass.setFilterLimits(min_pt.z, max_pt.z);
-  //   pass.setInputCloud(acc_);
-  //   pass.filter(idx_roi);
-
-  //   // Extract the interesting part of the accumulated cloud
-  //   PointCloudRGB::Ptr acc_roi(new PointCloudRGB);
-  //   pcl::copyPointCloud(*acc_, idx_roi, *acc_roi);
-
-  //   // Merge current cloud with the accumulated (add only new points)
-  //   ROS_INFO("[Viewer:] Merging cloud with accumulated...");
-  //   PointCloudRGB::Ptr accepted_points(new PointCloudRGB);
-  //   pcl::KdTreeFLANN<PointRGB> kdtree;
-  //   kdtree.setInputCloud(acc_roi);
-  //   for (uint n=0; n<cloud->points.size(); n++)
-  //   {
-  //     // Get the cloud point (XY)
-  //     PointRGB sp = cloud->points[n];
-
-  //     // Search the closest point
-  //     vector<int> idx_vec;
-  //     vector<float> squared_dist;
-  //     if (kdtree.nearestKSearch(sp, 1, idx_vec, squared_dist) > 0)
-  //     {
-  //       float dist = sqrt(squared_dist[0]);
-  //       if (dist > 2*max_dist_)
-  //         accepted_points->push_back(sp);
-  //     }
-  //   }
-  //   ROS_INFO_STREAM("[Viewer:] Adding " << accepted_points->points.size() << " to the accumulated cloud...");
-
-  //   // Accumulate cloud
-  //   *acc_ += *accepted_points;
-  // }
+    // Unlock
+    lock_ = false;
+  }
 
 
   /** \brief Thread to align the pointclouds
@@ -177,12 +131,15 @@ public:
       d.sleep();
       viewer.spinOnce(1);
 
-      // If no cloud received yet, continue
-      if(acc_->points.size() == 0)
-        continue;
+      // Check lock
+      if (lock_) continue;
+      lock_ = true;
 
-      // Delete the previous point cloud
-      viewer.removePointCloud("cloud");
+      // Copy
+      vector< pair<int, tf::Transform> > graph_poses = graph_poses_;
+
+      // Unlock
+      lock_ = false;
 
       // Initialize the camera view
       if(!viewer_initialized_)
@@ -191,14 +148,79 @@ public:
         EIGEN_ALIGN16 Eigen::Matrix3f covariance_matrix;
         pcl::computeMeanAndCovarianceMatrix(*acc_, covariance_matrix, xyz_centroid);
         viewer.initCameraParameters();
-        viewer.setCameraPosition(xyz_centroid(0), xyz_centroid(1), xyz_centroid(2)+3.0, 0, -1, 0);
+        viewer.setCameraPosition(xyz_centroid(0), xyz_centroid(1), xyz_centroid(2)-5.0, -1, -1, 0);
         ROS_INFO_STREAM("[Viewer:] Point cloud viewer camera initialized in: [" <<
           xyz_centroid(0) << ", " << xyz_centroid(1) << ", " << xyz_centroid(2)+3.0 << "]");
         viewer_initialized_ = true;
       }
-      // Show the point cloud
-      pcl::visualization::PointCloudColorHandlerRGBField<PointRGB> color_handler(acc_);
-      viewer.addPointCloud(acc_, color_handler, "cloud");
+
+      // If no data received yet, continue
+      if (graph_poses.size() == 0) continue;
+
+      // Loop the graph
+      for (uint i=0; i<graph_poses.size(); i++)
+      {
+        // The data
+        int id = graph_poses[i].first;
+        tf::Transform pose = graph_poses[i].second;
+
+        // Check if this cloud is on the workspace
+        string id_str = lexical_cast<string>(id);
+        string cloud_filename = work_dir_ + id_str + ".pcd";
+        if (!fs::exists(cloud_filename)) continue;
+
+        // Wait until unlock
+        string lock_file = work_dir_ + id_str + ".lock";
+        if(fs::exists(lock_file)) continue;
+
+        // Open
+        PointCloudRGB::Ptr cloud(new PointCloudRGB);
+        if (pcl::io::loadPCDFile<PointRGB> (cloud_filename, *cloud) == -1)
+        {
+          ROS_WARN_STREAM("[Viewer:] Couldn't read the file: " << cloud_filename);
+          continue;
+        }
+
+        // Transform the cloud
+        Eigen::Affine3d pose_eigen;
+        transformTFToEigen(pose, pose_eigen);
+        pcl::transformPointCloud(*cloud, *cloud, pose_eigen);
+
+        // Search this cloud in the viewer
+        bool is_in_viewer = false;
+        int viewer_idx = -1;
+        for (uint j=0; j<viewer_poses_.size(); j++)
+        {
+          if (id == viewer_poses_[j].first)
+          {
+            is_in_viewer = true;
+            viewer_idx = j;
+            break;
+          }
+        }
+
+        if (is_in_viewer)
+        {
+          // This cloud is in the viewer. Move it if needed.
+          tf::Transform v_pose = viewer_poses_[viewer_idx].second;
+          double pose_diff = Tools::poseDiff(pose, v_pose);
+          if (pose_diff > 0.01)
+          {
+            // Update
+            ROS_INFO_STREAM("[Viewer:] Updating visualization of cloud " << id_str << ".");
+            viewer.updatePointCloud(cloud, id_str);
+            viewer_poses_[viewer_idx].second = pose;
+          }
+        }
+        else
+        {
+          // This cloud is not in the viewer, insert.
+          ROS_INFO_STREAM("[Viewer:] Adding cloud " << id_str << ".");
+          pcl::visualization::PointCloudColorHandlerRGBField<PointRGB> color_handler(cloud);
+          viewer.addPointCloud(cloud, color_handler, id_str);
+          viewer_poses_.push_back(make_pair(id, pose));
+        }
+      }
     }
   }
 
@@ -207,8 +229,8 @@ public:
    */
   void readParameters()
   {
-    nh_private_.param("work_dir",           work_dir_,          string(""));
-    nh_private_.param("correction_topic",   correction_topic_,  string(""));
+    nh_private_.param("work_dir",      work_dir_,     string(""));
+    nh_private_.param("graph_topic",   graph_topic_,  string(""));
 
     // Init workspace
     if (work_dir_[work_dir_.length()-1] != '/')
@@ -220,8 +242,11 @@ public:
    */
   void init()
   {
+    // Unlock
+    lock_ = false;
+
     // Create the callback
-    //pose_sub_ = nh_.subscribe<stereo_slam::VertexCorrection>(correction_topic_, 1, &Viewer::msgsCallback, this);
+    graph_sub_ = nh_.subscribe<stereo_slam::GraphData>(graph_topic_, 1, &Viewer::msgsCallback, this);
 
     // Voxel size
     voxel_size_ = 0.005;

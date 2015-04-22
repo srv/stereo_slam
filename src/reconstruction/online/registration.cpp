@@ -21,6 +21,7 @@
 #include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/registration/icp.h>
 #include <boost/thread.hpp>
+#include <boost/filesystem.hpp>
 #include "common/tools.h"
 #include "stereo_slam/SlamVertex.h"
 #include "stereo_slam/SlamEdge.h"
@@ -29,6 +30,8 @@
 using namespace std;
 using namespace tools;
 using namespace boost;
+
+namespace fs=filesystem;
 
 typedef pcl::PointXYZRGB                                PointRGB;
 typedef pcl::PointCloud<PointRGB>                       PointCloudRGB;
@@ -109,18 +112,28 @@ public:
     int node_1 = edge_msg->node_1;
 
     // Check if clouds have been saved by the vertexCallback
-    string cloud_0_filename = work_dir_ + lexical_cast<string>(node_0) + ".pcd";
-    string cloud_1_filename = work_dir_ + lexical_cast<string>(node_1) + ".pcd";
+    string cloud_0_file = work_dir_ + lexical_cast<string>(node_0) + ".pcd";
+    string cloud_1_file = work_dir_ + lexical_cast<string>(node_1) + ".pcd";
+    // Check if exists
+    if(!fs::exists(cloud_0_file) || !fs::exists(cloud_1_file)) return;
+
+    // Cloud locks
+    string cloud_0_lock = work_dir_ + lexical_cast<string>(node_0) + ".lock";
+    string cloud_1_lock = work_dir_ + lexical_cast<string>(node_1) + ".lock";
+    // Wait until clouds have been unlocked
+    while(fs::exists(cloud_0_lock));
+    while(fs::exists(cloud_1_lock));
+
     PointCloudRGB::Ptr cloud_0(new PointCloudRGB);
     PointCloudRGB::Ptr cloud_1(new PointCloudRGB);
-    if (pcl::io::loadPCDFile<PointRGB> (cloud_0_filename, *cloud_0) == -1)
+    if (pcl::io::loadPCDFile<PointRGB> (cloud_0_file, *cloud_0) == -1)
     {
-      ROS_WARN_STREAM("[Registration:] Couldn't read the file: " << cloud_0_filename);
+      ROS_WARN_STREAM("[Registration:] Couldn't read the file: " << cloud_0_file);
       return;
     }
-    if (pcl::io::loadPCDFile<PointRGB> (cloud_1_filename, *cloud_1) == -1)
+    if (pcl::io::loadPCDFile<PointRGB> (cloud_1_file, *cloud_1) == -1)
     {
-      ROS_WARN_STREAM("[Registration:] Couldn't read the file: " << cloud_1_filename);
+      ROS_WARN_STREAM("[Registration:] Couldn't read the file: " << cloud_1_file);
       return;
     }
 
@@ -209,7 +222,11 @@ public:
       lock_ = true;
 
     // Save the cloud
+    string lock_file = work_dir_ + lexical_cast<string>(node_id) + ".lock";
+    fstream f_lock(lock_file.c_str(), ios::out | ios::trunc);
     pcl::io::savePCDFileBinary(work_dir_ + lexical_cast<string>(node_id) + ".pcd", *cloud);
+    f_lock.close();
+    remove(lock_file.c_str());
 
     // Extract the pose
     tf::Vector3 t(vertex_msg->x, vertex_msg->y, vertex_msg->z);
@@ -270,9 +287,6 @@ public:
       // Any cloud to be aligned?
       if (to_be_aligned > 0)
       {
-        // Mark as aligned
-        consecutive_aligned_.push_back(to_be_aligned);
-
         // Get the clouds
         uint idx_0 = -1;
         uint idx_1 = -1;
@@ -289,8 +303,19 @@ public:
         // Sanity check
         if (idx_0 < 0 || idx_1 < 0) continue;
 
+        // Cloud paths
         string cloud_0_file = work_dir_ + lexical_cast<string>(cloud_poses_[idx_0].first) + ".pcd";
         string cloud_1_file = work_dir_ + lexical_cast<string>(cloud_poses_[idx_1].first) + ".pcd";
+        // Check if exists
+        if(!fs::exists(cloud_0_file) || !fs::exists(cloud_1_file)) continue;
+
+        // Cloud locks
+        string cloud_0_lock = work_dir_ + lexical_cast<string>(cloud_poses_[idx_0].first) + ".lock";
+        string cloud_1_lock = work_dir_ + lexical_cast<string>(cloud_poses_[idx_1].first) + ".lock";
+        // Wait until clouds have been unlocked
+        while(fs::exists(cloud_0_lock));
+        while(fs::exists(cloud_1_lock));
+
         PointCloudRGB::Ptr cloud_0(new PointCloudRGB);
         PointCloudRGB::Ptr cloud_1(new PointCloudRGB);
         if (pcl::io::loadPCDFile<PointRGB>(cloud_0_file, *cloud_0) == -1)
@@ -312,6 +337,9 @@ public:
         Eigen::Affine3d tf_01_eigen;
         transformTFToEigen(tf_01, tf_01_eigen);
         pcl::transformPointCloud(*cloud_1, *cloud_1, tf_01_eigen);
+
+        // Mark as aligned
+        consecutive_aligned_.push_back(to_be_aligned);
 
         // TODO: check overlap!!!!!
 
@@ -459,10 +487,16 @@ public:
     nh_private_.param("cloud_queue",  cloud_queue_,   20);
     nh_private_.param("voxel_size",   voxel_size_,    0.005);
 
-
     // Init workspace
     if (work_dir_[work_dir_.length()-1] != '/')
       work_dir_ += "/";
+    work_dir_ = work_dir_ + "clouds/";
+    if (fs::is_directory(work_dir_))
+      fs::remove_all(work_dir_);
+    fs::path dir(work_dir_);
+    if (!fs::create_directory(dir))
+      ROS_ERROR("[Registration:] ERROR -> Impossible to create the clouds directory.");
+
   }
 
 

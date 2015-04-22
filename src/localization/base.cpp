@@ -185,6 +185,9 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
       return;
     }
 
+    // Set this transformation for the graph object
+    graph_.setCamera2Odom(odom2camera_.inverse());
+
     // Set the camera model (only once)
     Mat camera_matrix;
     image_geometry::StereoCameraModel stereo_camera_model;
@@ -292,7 +295,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   if (any_loop_closure) graph_.update();
 
   // Save graph to file and send (if needed)
-  graph_.saveToFile(odom2camera_.inverse());
+  graph_.saveToFile();
 
   return;
 }

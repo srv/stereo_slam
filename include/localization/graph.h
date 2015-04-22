@@ -19,6 +19,7 @@
 #include "stereo_slam/SlamVertex.h"
 #include "stereo_slam/SlamEdge.h"
 #include "stereo_slam/Correction.h"
+ #include "stereo_slam/GraphData.h"
 #include "../common/tools.h"
 
 using namespace std;
@@ -114,7 +115,7 @@ public:
   void update();
 
   // Save the graph to file
-  bool saveToFile(tf::Transform camera2odom);
+  bool saveToFile();
 
   // Return the number of vertices of the graph
   int numNodes();
@@ -122,10 +123,16 @@ public:
   // Return the number of loop closures of the graph
   int numLoopClosures();
 
+  // Sets the transformation between odometry and camera frames
+  void setCamera2Odom(tf::Transform camera2odom);
+
+  // Publish the graph
+  void publishGraph();
+
 private:
 
   // Messages
-  ros::Publisher vertex_pub_, edge_pub_;
+  ros::Publisher vertex_pub_, edge_pub_, graph_pub_;
   ros::Subscriber correction_sub_;
 
 	// Pose properties
@@ -141,6 +148,9 @@ private:
 
   // Lock
   bool lock_;
+
+  // Odometry to camera transformation
+  tf::Transform camera2odom_;
 };
 
 } // namespace

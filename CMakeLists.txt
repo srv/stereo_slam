@@ -19,7 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
 	tf_conversions)
 
 ## Declare ROS messages and services
-add_message_files(FILES SlamInfo.msg SlamVertex.msg SlamEdge.msg Correction.msg)
+add_message_files(FILES SlamInfo.msg SlamVertex.msg SlamEdge.msg Correction.msg GraphData.msg)
 generate_messages(DEPENDENCIES std_msgs)
 
 ####################################################
