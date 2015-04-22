@@ -148,9 +148,7 @@ public:
         EIGEN_ALIGN16 Eigen::Matrix3f covariance_matrix;
         pcl::computeMeanAndCovarianceMatrix(*acc_, covariance_matrix, xyz_centroid);
         viewer.initCameraParameters();
-        viewer.setCameraPosition(xyz_centroid(0), xyz_centroid(1), xyz_centroid(2)-5.0, -1, -1, 0);
-        ROS_INFO_STREAM("[Viewer:] Point cloud viewer camera initialized in: [" <<
-          xyz_centroid(0) << ", " << xyz_centroid(1) << ", " << xyz_centroid(2)+3.0 << "]");
+        viewer.setCameraPosition(xyz_centroid(0), xyz_centroid(1), xyz_centroid(2)-5.0, 0, -11, 0);
         viewer_initialized_ = true;
       }
 

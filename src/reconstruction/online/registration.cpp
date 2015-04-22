@@ -287,9 +287,12 @@ public:
       // Any cloud to be aligned?
       if (to_be_aligned > 0)
       {
+        // Mark as aligned
+        consecutive_aligned_.push_back(to_be_aligned);
+
         // Get the clouds
-        uint idx_0 = -1;
-        uint idx_1 = -1;
+        int idx_0 = -1;
+        int idx_1 = -1;
         for (uint i=0; i<cloud_poses_.size(); i++)
         {
           if (cloud_poses_[i].first == to_be_aligned-1)
@@ -337,9 +340,6 @@ public:
         Eigen::Affine3d tf_01_eigen;
         transformTFToEigen(tf_01, tf_01_eigen);
         pcl::transformPointCloud(*cloud_1, *cloud_1, tf_01_eigen);
-
-        // Mark as aligned
-        consecutive_aligned_.push_back(to_be_aligned);
 
         // TODO: check overlap!!!!!
 
@@ -490,11 +490,16 @@ public:
     // Init workspace
     if (work_dir_[work_dir_.length()-1] != '/')
       work_dir_ += "/";
+    if (fs::is_directory(work_dir_))
+      fs::remove_all(work_dir_);
+    fs::path dir1(work_dir_);
+    if (!fs::create_directory(dir1))
+      ROS_ERROR("[Registration:] ERROR -> Impossible to create the work directory.");
     work_dir_ = work_dir_ + "clouds/";
     if (fs::is_directory(work_dir_))
       fs::remove_all(work_dir_);
-    fs::path dir(work_dir_);
-    if (!fs::create_directory(dir))
+    fs::path dir2(work_dir_);
+    if (!fs::create_directory(dir2))
       ROS_ERROR("[Registration:] ERROR -> Impossible to create the clouds directory.");
 
   }
