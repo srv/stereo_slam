@@ -90,7 +90,7 @@ private:
   bool viewer_initialized_;
   vector< pair<int, tf::Transform> > graph_poses_;
   vector< pair<int, tf::Transform> > viewer_poses_;
-  bool lock_graph_, lock_acc_;
+  bool lock_graph_, lock_acc_, saving_cloud_;
 
   // Accumulated cloud
   PointCloudRGBID::Ptr acc_p_;
@@ -355,6 +355,7 @@ public:
 
     // Add a coordinate system to screen
     viewer.addCoordinateSystem(0.1);
+    viewer.registerKeyboardCallback( &Viewer::keyboardEventOccurred, *this );
 
     // Frequency
     ros::WallDuration d(0.01);
@@ -399,6 +400,35 @@ public:
   }
 
 
+  /** \brief Keyboard event to save the current cloud
+   */
+  void keyboardEventOccurred(const pcl::visualization::KeyboardEvent& event, void* nothing)
+  {
+    if (event.getKeySym() == "space" && event.keyDown()) {
+
+      ROS_INFO("[Viewer:] Saving pointcloud, please wait...");
+
+      // Check if already saving
+      if (saving_cloud_) return;
+      saving_cloud_ = true;
+
+      // Check lock
+      while(lock_acc_);
+      lock_acc_ = true;
+
+      // Ok, save the cloud
+      string cloud_filename = work_dir_  + "output.pcd";
+      if (pcl::io::savePCDFileBinary(cloud_filename, *acc_) == 0)
+        ROS_INFO_STREAM("[Viewer:] Pointcloud saved to: " << cloud_filename);
+      else
+        ROS_ERROR_STREAM("[Viewer:] Problem saving " << cloud_filename);
+
+      lock_acc_ = false;
+      saving_cloud_ = false;
+    }
+  }
+
+
   /** \brief Reads the node parameters
    */
   void readParameters()
@@ -416,11 +446,13 @@ public:
    */
   void init()
   {
-    // Unlock
+    // Init
     lock_graph_ = false;
     lock_acc_ = false;
+    viewer_initialized_ = false;
+    saving_cloud_ = false;
 
-    // Create the callback
+    // Create the message callback
     graph_sub_ = nh_.subscribe<stereo_slam::GraphData>(graph_topic_, 1, &Viewer::msgsCallback, this);
 
     // Voxel size
@@ -428,9 +460,6 @@ public:
 
     // Maximum distance from point to voxel
     max_dist_ = sqrt( (voxel_size_*voxel_size_)/2 );
-
-    // Set uninitialized
-    viewer_initialized_ = false;
   }
 
 };
