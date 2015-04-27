@@ -254,8 +254,8 @@ public:
       d.sleep();
 
       // Lock
-      while(lock_) {}
-        lock_ = true;
+      if(lock_) continue;
+      lock_ = true;
 
       // Determine the next cloud to be aligned
       int to_be_aligned = -1;
@@ -316,6 +316,7 @@ public:
         string cloud_0_lock = work_dir_ + lexical_cast<string>(cloud_poses_[idx_0].first) + ".lock";
         string cloud_1_lock = work_dir_ + lexical_cast<string>(cloud_poses_[idx_1].first) + ".lock";
         // Wait until clouds have been unlocked
+
         while(fs::exists(cloud_0_lock));
         while(fs::exists(cloud_1_lock));
 
@@ -341,12 +342,11 @@ public:
         transformTFToEigen(tf_01, tf_01_eigen);
         pcl::transformPointCloud(*cloud_1, *cloud_1, tf_01_eigen);
 
-        // TODO: check overlap!!!!!
-
         // Align
         bool converged;
         double score;
         tf::Transform correction;
+        ROS_INFO_STREAM("[Registration:] Aligning " << idx_0 << " and " << idx_1 << "..."); 
         if ( !pairAlign(cloud_1, cloud_0, correction, converged, score) )
         {
           ROS_WARN_STREAM("[Registration:] Pair align between " << to_be_aligned-1 <<

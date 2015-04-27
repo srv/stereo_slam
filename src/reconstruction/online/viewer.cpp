@@ -337,7 +337,7 @@ public:
         }
 
         // Store for visualization
-        while(lock_acc_);
+        if (lock_acc_) continue;
         lock_acc_ = true;
         pcl::copyPointCloud(*acc_p_, *acc_);
         lock_acc_ = false;
