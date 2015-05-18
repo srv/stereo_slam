@@ -19,7 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
 	tf_conversions)
 
 ## Declare ROS messages and services
-add_message_files(FILES SlamInfo.msg)
+add_message_files(FILES SlamInfo.msg SlamVertex.msg SlamEdge.msg Correction.msg GraphData.msg)
 generate_messages(DEPENDENCIES std_msgs)
 
 ####################################################
@@ -47,8 +47,8 @@ find_package(SuiteSparse REQUIRED)
 # using -DG2O_INCLUDE_DIRS.
 find_package(G2O REQUIRED)
 
-# Dependencies - MySql
-find_package(mysqlclient REQUIRED)
+# Dependencies - Vtk
+find_package(VTK REQUIRED)
 
 catkin_package(CATKIN_DEPENDS message_runtime)
 
@@ -60,9 +60,7 @@ include_directories(include
 						${SUITESPARSE_INCLUDE_DIRS}
 						${G2O_INCLUDE_DIRS}
 						${PCL_INCLUDE_DIRS}
-						${MYSQL_INCLUDE_DIRS})
-
-add_definitions(${MYSQL_DEFINITIONS})
+						${VTK_INCLUDE_DIRS})
 
 # Localization node
 add_executable(localization
@@ -87,9 +85,14 @@ add_executable(offline_reconstruction
 target_link_libraries(offline_reconstruction
 						${eigen_LIBRARIES}
 						${catkin_LIBRARIES})
-add_executable(inserter
-						src/reconstruction/online/inserter.cpp)
-target_link_libraries(inserter
+add_executable(registration
+						src/reconstruction/online/registration.cpp)
+target_link_libraries(registration
 						${eigen_LIBRARIES}
-						${MYSQL_LIBRARIES}
+						${catkin_LIBRARIES})
+add_executable(viewer
+						src/reconstruction/online/viewer.cpp)
+target_link_libraries(viewer
+						${eigen_LIBRARIES}
+						${VTK_LIBRARIES}
 						${catkin_LIBRARIES})

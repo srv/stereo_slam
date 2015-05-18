@@ -1,7 +1,8 @@
 #include <signal.h>
 
 #include "localization/base.h"
-#include "opencv2/core/core.hpp"
+#include <opencv2/opencv.hpp>
+#include <highgui.h>
 #include <boost/filesystem.hpp>
 #include <pcl/common/common.h>
 #include <pcl/filters/filter.h>
@@ -164,7 +165,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                                   const sensor_msgs::CameraInfoConstPtr& r_info_msg)
 {
   // Get the current timestamp
-  double timestamp = l_img_msg->header.stamp.toSec();
+  ros::Time timestamp = l_img_msg->header.stamp;
 
   // Get the current odometry
   tf::Transform current_odom_robot = Tools::odomTotf(*odom_msg);
@@ -182,6 +183,9 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
       ROS_WARN("[Localization:] Impossible to transform odometry to camera frame.");
       return;
     }
+
+    // Set this transformation for the graph object
+    graph_.setCamera2Odom(odom2camera_.inverse());
 
     // Set the camera model (only once)
     Mat camera_matrix;
@@ -243,7 +247,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   {
     tf::Transform vertex_disp;
     int last_id = graph_.getLastVertexId();
-    bool valid = lc_.getLoopClosure(lexical_cast<string>(last_id), lexical_cast<string>(last_id+1), vertex_disp);
+    bool valid = lc_.getLoopClosure(last_id, last_id+1, vertex_disp);
     if (valid)
     {
       ROS_INFO("[Localization:] Pose refined.");
@@ -263,13 +267,13 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   for (uint i=0; i<neighbors.size(); i++)
   {
     tf::Transform edge;
-    string lc_id = lexical_cast<string>(neighbors[i]);
-    bool valid_lc = lc_.getLoopClosure(lexical_cast<string>(cur_id), lc_id, edge, true);
+    int lc_id = neighbors[i];
+    bool valid_lc = lc_.getLoopClosure(cur_id, lc_id, edge, true);
     if (valid_lc)
     {
       //ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id);
       cout << "\033[1;32m[ INFO]: [Localization:] Node " << cur_id << " closes loop with " << lc_id << ".\033[0m\n";
-      graph_.addEdge(lexical_cast<int>(lc_id), cur_id, edge);
+      graph_.addEdge(lc_id, cur_id, edge);
       any_loop_closure = true;
     }
   }
@@ -290,7 +294,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   if (any_loop_closure) graph_.update();
 
   // Save graph to file and send (if needed)
-  graph_.saveToFile(odom2camera_.inverse());
+  graph_.saveToFile();
 
   return;
 }
@@ -317,18 +321,19 @@ PointCloudRGB::Ptr slam::SlamBase::filterCloud(PointCloudRGB::Ptr in_cloud)
 }
 
 
-/** \brief Save and/or send the accumulated cloud depending on the value of 'save_clouds' and 'listen_reconstruction_srv'
+/** \brief Save and/or send the accumulated cloud depending on the value of 'save_clouds'
  * \param Cloud id
  */
 void slam::SlamBase::processCloud(int cloud_id)
 {
   // Proceed?
-  if (pcl_cloud_.size() == 0 || !params_.save_clouds ) return;
+  if (!params_.save_clouds || pcl_cloud_.points.size() == 0) return;
 
   // Save cloud
   string id = lexical_cast<string>(cloud_id);
   PointCloudRGB::Ptr cloud;
   cloud = filterCloud(pcl_cloud_.makeShared());
+  if (cloud->points.size() == 0) return;
   pcl::io::savePCDFileBinary(params_.clouds_dir + id + ".pcd", *cloud);
 }
 
@@ -420,7 +425,7 @@ void slam::SlamBase::readParameters()
   nh_private_.param("enable", params.enable, true);
 
   // Topic parameters
-  string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic, cloud_topic;
+  string odom_topic, left_topic, right_topic, left_info_topic, right_info_topic, cloud_topic, correction_topic;
   nh_private_.param("pose_frame_id",              pose_params.pose_frame_id,        string("/map"));
   nh_private_.param("pose_child_frame_id",        pose_params.pose_child_frame_id,  string("/robot"));
   nh_private_.param("odom_topic",                 odom_topic,                       string("/odometry"));
@@ -429,6 +434,7 @@ void slam::SlamBase::readParameters()
   nh_private_.param("left_info_topic",            left_info_topic,                  string("/left/camera_info"));
   nh_private_.param("right_info_topic",           right_info_topic,                 string("/right/camera_info"));
   nh_private_.param("cloud_topic",                cloud_topic,                      string("/points2"));
+  nh_private_.param("correction_topic",           correction_topic,                 string(""));
 
   // Motion parameters
   nh_private_.param("refine_neighbors",           params.refine_neighbors,          false);
@@ -436,7 +442,8 @@ void slam::SlamBase::readParameters()
   nh_private_.param("max_correction",             params.max_correction,            5.0);
   nh_private_.param("correction_interp_time",     params.correction_interp_time,    15.0);
 
-  // 3D reconstruction parameters
+  // Log parameters
+  nh_private_.param("save_images",                lc_params.save_images,            false);
   nh_private_.param("save_clouds",                params.save_clouds,               false);
 
   // Loop closure parameters
@@ -456,6 +463,7 @@ void slam::SlamBase::readParameters()
   graph_params.save_dir = lc_params.work_dir;
   graph_params.pose_frame_id = pose_params.pose_frame_id;
   graph_params.pose_child_frame_id = pose_params.pose_child_frame_id;
+  graph_params.correction_tp = correction_topic;
 
   // Set the class parameters
   params.odom_topic = odom_topic;
@@ -475,6 +483,7 @@ void slam::SlamBase::readParameters()
 
   if (params_.save_clouds)
     cloud_sub_.subscribe(nh_, cloud_topic, 5);
+
 }
 
 
@@ -489,8 +498,10 @@ void slam::SlamBase::init()
   sigIntHandler.sa_flags = 0;
   sigaction(SIGINT, &sigIntHandler, NULL);
 
-  // Advertise the slam odometry message
+  // Advertise/subscribe class messages
   pose_.advertisePoseMsg(nh_private_);
+  graph_.advertiseMsgs(nh_private_);
+  graph_.subscribeMsgs(nh_);
 
   // Generic subscriber
   generic_sub_ = nh_.subscribe<nav_msgs::Odometry>(params_.odom_topic, 1, &SlamBase::genericCallback, this);

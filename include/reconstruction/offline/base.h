@@ -16,6 +16,7 @@
 #include <pcl_ros/point_cloud.h>
 #include <tf/transform_broadcaster.h>
 #include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/registration/icp.h>
 #include "../../common/tools.h"
 
 using namespace std;
@@ -29,6 +30,7 @@ struct PointXYZRGBW
   float z;
   float rgb;
   float w;
+  float z0;
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;   // make sure our new allocators are aligned
 
   // Default values
@@ -38,6 +40,7 @@ struct PointXYZRGBW
     z = 0.0;
     rgb = 0.0;
     w = 0.0;
+    z0 = 0.0;
   }
 } EIGEN_ALIGN16;                    // enforce SSE padding for correct memory alignment
 POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZRGBW,
@@ -46,16 +49,20 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZRGBW,
                                    (float, z, z)
                                    (float, rgb, rgb)
                                    (float, w, w)
+                                   (float, z0, z0)
 );
 
 // Defines
+typedef pcl::Normal                       Normal;
 typedef pcl::PointXY                      PointXY;
 typedef pcl::PointXYZ                     PointXYZ;
 typedef pcl::PointXYZRGB                  PointRGB;
+typedef pcl::PointCloud<Normal>           PointCloudNormal;
 typedef pcl::PointCloud<PointXY>          PointCloudXY;
 typedef pcl::PointCloud<PointXYZ>         PointCloudXYZ;
 typedef pcl::PointCloud<PointRGB>         PointCloudRGB;
 typedef pcl::PointCloud<PointXYZRGBW>     PointCloudXYZW;
+typedef pcl::IterativeClosestPoint<PointRGB, PointRGB> IterativeClosestPoint;
 
 namespace reconstruction
 {
@@ -100,7 +107,13 @@ public:
   // Set the parameters
   void setParameters(string work_dir);
 
+  // Align 2 pointclouds
+  bool pairAlign(PointCloudRGB::Ptr src,
+                 PointCloudRGB::Ptr tgt,
+                 tf::Transform &output);
+
   // 3D reconstruction
+  void build3Dv2();
   void build3D();
 
   // Greedy projection

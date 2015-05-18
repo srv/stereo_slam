@@ -16,12 +16,54 @@ slam::Graph::Graph()
   init();
 }
 
+/** \brief Advertises the graph messages
+  * @return
+  * \param Node handle where graph will be advertised.
+  */
+void slam::Graph::advertiseMsgs(ros::NodeHandle nh)
+{
+  // Advertise
+  vertex_pub_ = nh.advertise<stereo_slam::SlamVertex>("vertex", 2);
+  edge_pub_ = nh.advertise<stereo_slam::SlamEdge>("edge", 2);
+  graph_pub_ = nh.advertise<stereo_slam::GraphData>("graph", 2);
+}
+
+
+/** \brief Subscribes the graph correction messages
+  * @return
+  * \param Node handle where graph will be advertised.
+  */
+void slam::Graph::subscribeMsgs(ros::NodeHandle nh)
+{
+  // Subscribe to correction messages (if any)
+  if (params_.correction_tp != "")
+  {
+    correction_sub_ = nh.subscribe<stereo_slam::Correction>(params_.correction_tp, 5, &Graph::correctionCallback, this);
+  }
+}
+
+
+/** \brief Set the camera to odom transformation
+  * @return
+  * \param the camera to odom tf
+  */
+void slam::Graph::setCamera2Odom(tf::Transform camera2odom)
+{
+  camera2odom_ = camera2odom;
+}
+
 
 /** \brief Init the graph
   * @return
   */
 bool slam::Graph::init()
 {
+  // Init lock
+  lock_ = false;
+
+  // Odometry to camera transformation
+  camera2odom_.setIdentity();
+
   // Delete all the files (if any)
   string lock_file, vertices_file, edges_file;
   vertices_file = params_.save_dir + "graph_vertices.txt";
@@ -58,6 +100,70 @@ bool slam::Graph::init()
     return false;
   }
 }
+
+
+/** \brief Correction callback
+  * @return
+  * \param correction_msg message of type stereo_slam::Correction
+  */
+void slam::Graph::correctionCallback(const stereo_slam::Correction::ConstPtr& correction_msg)
+{
+  // Edge between nodes
+  int node_0 = correction_msg->node_0;
+  int node_1 = correction_msg->node_1;
+
+  // Extract the correction
+  tf::Vector3 t(correction_msg->x, correction_msg->y, correction_msg->z);
+  tf::Quaternion q(correction_msg->qx, correction_msg->qy, correction_msg->qz, correction_msg->qw);
+  tf::Transform pose(q, t);
+
+  // Search this edge and delete it
+  g2o::EdgeSE3* e;
+  slam::Vertex* v0;
+  slam::Vertex* v1;
+  bool found = false;
+  for ( g2o::OptimizableGraph::EdgeSet::iterator it=graph_optimizer_.edges().begin();
+        it!=graph_optimizer_.edges().end(); it++)
+  {
+    e = dynamic_cast<g2o::EdgeSE3*> (*it);
+    if (e)
+    {
+      v0 = dynamic_cast<slam::Vertex*>(e->vertex(0));
+      v1 = dynamic_cast<slam::Vertex*>(e->vertex(1));
+      if (v0->id() == node_0 && v1->id() == node_1)
+      {
+        found = true;
+        break;
+      }
+    }
+  }
+
+  if (!found) return;
+
+  // Lock the graph
+  while(lock_) {}
+    lock_ = true;
+
+  // Delete this edge
+  if (!graph_optimizer_.removeEdge(e)) return;
+
+  // Replace the edge
+  g2o::EdgeSE3* e_new = new g2o::EdgeSE3();
+  e_new->setVertex(0, v0);
+  e_new->setVertex(1, v1);
+  e_new->setMeasurement(Tools::tfToIsometry(pose));
+  graph_optimizer_.addEdge(e_new);
+
+  // Unlock the graph
+  lock_ = false;
+
+  // Log
+  ROS_INFO_STREAM("[Localization:] Correction applied between vertices " << node_0 << " and " << node_1 << ".");
+
+  // update
+  update();
+}
+
 
 /** \brief Get last vertex id
   * @return
@@ -155,12 +261,34 @@ void slam::Graph::findClosestNodes(int discart_first_n, int best_n, vector<int> 
 
 /** \brief Add new vertex into the graph
   * @return the vertex id
+  * \param Last estimated pose.
+  * \param Last corrected pose.
+  * \param Timestamp for the current odometry.
+  */
+int slam::Graph::addVertex(tf::Transform pose,
+                           tf::Transform pose_corrected,
+                           ros::Time timestamp)
+{
+  // Save the original odometry for this new node
+  odom_history_.push_back(make_pair(pose, timestamp.toSec()));
+
+  // Add the node
+  return addVertex(pose_corrected, timestamp);
+}
+
+
+/** \brief Add new vertex into the graph
+  * @return the vertex id
   * \param Last corrected odometry pose.
   * \param Current read odometry.
   * \param Timestamp for the current odometry.
   */
-int slam::Graph::addVertex(tf::Transform pose)
+int slam::Graph::addVertex(tf::Transform pose, ros::Time timestamp)
 {
+  // Lock the graph
+  while(lock_) {}
+    lock_ = true;
+
   // Convert pose for graph
   Eigen::Isometry3d vertex_pose = Tools::tfToIsometry(pose);
 
@@ -196,25 +324,29 @@ int slam::Graph::addVertex(tf::Transform pose)
     graph_optimizer_.addEdge(e);
   }
 
+  // Unlock the graph
+  lock_ = false;
+
+  // Publish vertex
+  if (vertex_pub_.getNumSubscribers() > 0)
+  {
+    stereo_slam::SlamVertex vertex_msg;
+    vertex_msg.header.stamp = timestamp;
+    vertex_msg.node_id = id;
+    vertex_msg.x = pose.getOrigin().x();
+    vertex_msg.y = pose.getOrigin().y();
+    vertex_msg.z = pose.getOrigin().z();
+    vertex_msg.qx = pose.getRotation().x();
+    vertex_msg.qy = pose.getRotation().y();
+    vertex_msg.qz = pose.getRotation().z();
+    vertex_msg.qw = pose.getRotation().w();
+    vertex_pub_.publish(vertex_msg);
+  }
+
+  // Publish graph
+  publishGraph();
+
   return id;
-}
-
-
-/** \brief Add new vertex into the graph
-  * @return the vertex id
-  * \param Last estimated pose.
-  * \param Last corrected pose.
-  * \param Timestamp for the current odometry.
-  */
-int slam::Graph::addVertex(tf::Transform pose,
-                           tf::Transform pose_corrected,
-                           double timestamp)
-{
-  // Save the original odometry for this new node
-  odom_history_.push_back(make_pair(pose, timestamp));
-
-  // Add the node
-  return addVertex(pose_corrected);
 }
 
 
@@ -228,17 +360,42 @@ void slam::Graph::addEdge(int i, int j, tf::Transform edge)
 {
   // TODO: Check size of graph
 
+  // Lock the graph
+  while(lock_) {}
+    lock_ = true;
+
   // Get the vertices
   slam::Vertex* v_i = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[i]);
   slam::Vertex* v_j = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[j]);
 
   // Add the new edge to graph
   g2o::EdgeSE3* e = new g2o::EdgeSE3();
-  Eigen::Isometry3d t = Tools::tfToIsometry(edge);
-  e->setVertex(0, v_j);
-  e->setVertex(1, v_i);
+  Eigen::Isometry3d t = Tools::tfToIsometry(edge.inverse());
+  e->setVertex(0, v_i);
+  e->setVertex(1, v_j);
   e->setMeasurement(t);
   graph_optimizer_.addEdge(e);
+
+  // Unlock the graph
+  lock_ = false;
+
+  // Publish
+  if (edge_pub_.getNumSubscribers() > 0)
+  {
+    tf::Transform edge_inv = edge.inverse();
+    stereo_slam::SlamEdge edge_msg;
+    edge_msg.header.stamp = ros::Time::now();
+    edge_msg.node_0 = i;
+    edge_msg.node_1 = j;
+    edge_msg.x = edge_inv.getOrigin().x();
+    edge_msg.y = edge_inv.getOrigin().y();
+    edge_msg.z = edge_inv.getOrigin().z();
+    edge_msg.qx = edge_inv.getRotation().x();
+    edge_msg.qy = edge_inv.getRotation().y();
+    edge_msg.qz = edge_inv.getRotation().z();
+    edge_msg.qw = edge_inv.getRotation().w();
+    edge_pub_.publish(edge_msg);
+  }
 }
 
 
@@ -249,7 +406,14 @@ void slam::Graph::addEdge(int i, int j, tf::Transform edge)
   */
 void slam::Graph::setVertexEstimate(int vertex_id, tf::Transform pose)
 {
+  // Lock the graph
+  while(lock_) {}
+    lock_ = true;
+
   dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[vertex_id])->setEstimate(Tools::tfToIsometry(pose));
+
+  // Unlock the graph
+  lock_ = false;
 }
 
 
@@ -257,16 +421,26 @@ void slam::Graph::setVertexEstimate(int vertex_id, tf::Transform pose)
   */
 void slam::Graph::update()
 {
-    graph_optimizer_.initializeOptimization();
-    graph_optimizer_.optimize(params_.go2_opt_max_iter);
-    ROS_INFO_STREAM("[Localization:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
+  // Lock the graph
+  while(lock_) {}
+    lock_ = true;
+
+  graph_optimizer_.initializeOptimization();
+  graph_optimizer_.optimize(params_.go2_opt_max_iter);
+  ROS_INFO_STREAM("[Localization:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
+
+  // Unlock the graph
+  lock_ = false;
+
+  // Publish
+  publishGraph();
 }
 
 
 /** \brief Save the optimized graph into a file with the same format than odometry_msgs.
   * @return
   */
-bool slam::Graph::saveToFile(tf::Transform camera2odom)
+bool slam::Graph::saveToFile()
 {
   string lock_file, vertices_file, edges_file;
   vertices_file = params_.save_dir + "graph_vertices.txt";
@@ -284,13 +458,13 @@ bool slam::Graph::saveToFile(tf::Transform camera2odom)
   fstream f_edges(edges_file.c_str(), ios::out | ios::trunc);
 
   // Output the vertices file
-  for (unsigned int i=0; i<graph_optimizer_.vertices().size(); i++)
+  for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
   {
     // Get timestamp
     double timestamp = odom_history_.at(i).second;
 
     slam::Vertex* v = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[i]);
-    tf::Transform pose = Tools::getVertexPose(v)*camera2odom;
+    tf::Transform pose = Tools::getVertexPose(v)*camera2odom_;
     f_vertices << fixed << setprecision(9) <<
           timestamp  << "," <<
           i << "," <<
@@ -321,8 +495,8 @@ bool slam::Graph::saveToFile(tf::Transform camera2odom)
       {
         slam::Vertex* v_0 = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[e->vertices()[0]->id()]);
         slam::Vertex* v_1 = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[e->vertices()[1]->id()]);
-        tf::Transform pose_0 = Tools::getVertexPose(v_0)*camera2odom;
-        tf::Transform pose_1 = Tools::getVertexPose(v_1)*camera2odom;
+        tf::Transform pose_0 = Tools::getVertexPose(v_0)*camera2odom_;
+        tf::Transform pose_1 = Tools::getVertexPose(v_1)*camera2odom_;
 
         f_edges <<
               e->vertices()[0]->id() << "," <<
@@ -358,6 +532,47 @@ bool slam::Graph::saveToFile(tf::Transform camera2odom)
   }
 
   return true;
+}
+
+
+/** \brief Publish the graph
+  * @return
+  */
+void slam::Graph::publishGraph()
+{
+  if (graph_pub_.getNumSubscribers() > 0)
+  {
+    // Build the graph data
+    vector<int> id;
+    vector<double> x, y, z, qx, qy, qz, qw;
+    for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
+    {
+      slam::Vertex* v = dynamic_cast<slam::Vertex*>(graph_optimizer_.vertices()[i]);
+      tf::Transform pose = Tools::getVertexPose(v);
+
+      id.push_back(i);
+      x.push_back(pose.getOrigin().x());
+      y.push_back(pose.getOrigin().y());
+      z.push_back(pose.getOrigin().z());
+      qx.push_back(pose.getRotation().x());
+      qy.push_back(pose.getRotation().y());
+      qz.push_back(pose.getRotation().z());
+      qw.push_back(pose.getRotation().w());
+    }
+
+    // Publish
+    stereo_slam::GraphData graph_msg;
+    graph_msg.header.stamp = ros::Time::now();
+    graph_msg.id = id;
+    graph_msg.x = x;
+    graph_msg.y = y;
+    graph_msg.z = z;
+    graph_msg.qx = qx;
+    graph_msg.qy = qy;
+    graph_msg.qz = qz;
+    graph_msg.qw = qw;
+    graph_pub_.publish(graph_msg);
+  }
 }
 
 

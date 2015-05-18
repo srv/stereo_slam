@@ -1,3 +1,4 @@
+#include <numeric>
 #include "reconstruction/offline/base.h"
 #include <boost/filesystem.hpp>
 #include <tf_conversions/tf_eigen.h>
@@ -20,6 +21,12 @@
 #include <pcl/surface/vtk_smoothing/vtk_mesh_smoothing_laplacian.h>
 #include <pcl/surface/concave_hull.h>
 #include <pcl/surface/convex_hull.h>
+#include <pcl/octree/octree.h>
+
+#include <pcl/ModelCoefficients.h>
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/segmentation/sac_segmentation.h>
 
 namespace fs=boost::filesystem;
 
@@ -164,6 +171,183 @@ float reconstruction::ReconstructionBase::colorBlending(float color_a, float col
   return *reinterpret_cast<float*>(&new_rgb);
 }
 
+/** \brief Align 2 pointclouds and return the transformation
+  */
+bool reconstruction::ReconstructionBase::pairAlign(PointCloudRGB::Ptr src,
+                                                   PointCloudRGB::Ptr tgt,
+                                                   tf::Transform &output)
+{
+  // Normal estimation
+  pcl::NormalEstimation<PointRGB, Normal> ne;
+  pcl::search::KdTree<PointRGB>::Ptr tree(new pcl::search::KdTree<PointRGB> ());
+  PointCloudNormal::Ptr src_normals(new PointCloudNormal);
+  ne.setSearchMethod(tree);
+  ne.setRadiusSearch(0.05);
+  ne.setInputCloud(src);
+  ne.compute(*src_normals);
+
+
+  PointCloudRGB::Ptr aligned (new PointCloudRGB);
+  IterativeClosestPoint icp;
+  icp.setMaxCorrespondenceDistance(0.07);
+  icp.setRANSACOutlierRejectionThreshold(0.005);
+  icp.setTransformationEpsilon(0.000001);
+  icp.setEuclideanFitnessEpsilon(0.0001);
+  icp.setMaximumIterations(100);
+  icp.setInputSource(src);
+  icp.setInputTarget(tgt);
+  icp.align(*aligned);
+  double score = icp.getFitnessScore();
+
+  // The transform
+  output = Tools::matrix4fToTf(icp.getFinalTransformation());
+
+  // Return valid or not
+  return ( icp.hasConverged() && (icp.getFitnessScore() < 0.1) );
+}
+
+/** \brief Build the 3D
+  */
+void reconstruction::ReconstructionBase::build3Dv2()
+{
+  // Voxel size
+  float voxel_size = 0.005;
+
+  // Maximum distance from point to voxel
+  float max_dist = sqrt( (voxel_size*voxel_size)/2 );
+
+  // The total runtime
+  double total_time = 0.0;
+
+  // Read the graph poses
+  vector< pair<string, tf::Transform> > cloud_poses;
+  Tools::readPoses(params_.work_dir, cloud_poses);
+
+  // Load, convert and accumulate every pointcloud
+  PointCloudRGB::Ptr acc(new PointCloudRGB);
+  for (uint i=0; i<cloud_poses.size(); i++)
+  {
+    string file_idx = cloud_poses[i].first;
+    ROS_INFO_STREAM("[Reconstruction:] Processing cloud " << file_idx.substr(0,file_idx.length()-4) << "/" << cloud_poses.size()-1 << ".");
+
+    // Read the current pointcloud.
+    string cloud_filename = params_.clouds_dir + cloud_poses[i].first + ".pcd";
+    PointCloudRGB::Ptr in_cloud(new PointCloudRGB);
+    if (pcl::io::loadPCDFile<PointRGB> (cloud_filename, *in_cloud) == -1)
+    {
+      ROS_WARN_STREAM("[Reconstruction:] Couldn't read the file: " << cloud_filename);
+      continue;
+    }
+
+    // Filter cloud
+    ROS_INFO("[Reconstruction:] Filtering...");
+    PointCloudRGB::Ptr cloud(new PointCloudRGB);
+    cloud = filter(in_cloud, voxel_size);
+
+    // First iteration
+    if (acc->points.size() == 0)
+    {
+      // Make this the accumulated
+      pcl::copyPointCloud(*cloud, *acc);
+      continue;
+    }
+
+    // Runtime
+    ros::WallTime init_time = ros::WallTime::now();
+
+    // Transform current cloud according to slam pose
+    tf::Transform tf_0 = cloud_poses[0].second;
+    tf::Transform tf_n = cloud_poses[i].second;
+    tf::Transform tf_0n = tf_0.inverse() * tf_n;
+    Eigen::Affine3d tf_0n_eigen;
+    transformTFToEigen(tf_0n, tf_0n_eigen);
+    pcl::transformPointCloud(*cloud, *cloud, tf_0n_eigen);
+
+    // Reduce the size of the accumulated cloud to speed-up the process
+    PointRGB min_pt, max_pt;
+    pcl::getMinMax3D(*cloud, min_pt, max_pt);
+    vector<int> idx_roi;
+    pcl::PassThrough<PointRGB> pass;
+    pass.setFilterFieldName("x");
+    pass.setFilterLimits(min_pt.x, max_pt.x);
+    pass.setFilterFieldName("y");
+    pass.setFilterLimits(min_pt.y, max_pt.y);
+    pass.setFilterFieldName("z");
+    pass.setFilterLimits(min_pt.z, max_pt.z);
+    pass.setInputCloud(acc);
+    pass.filter(idx_roi);
+
+    // Extract the interesting part of the accumulated cloud
+    PointCloudRGB::Ptr acc_roi(new PointCloudRGB);
+    pcl::copyPointCloud(*acc, idx_roi, *acc_roi);
+
+    // Register current with previous cloud
+    ROS_INFO("[Reconstruction:] Aligning clouds...");
+    tf::Transform correction;
+    if ( !pairAlign(cloud, acc_roi, correction) )
+    {
+      ROS_WARN("[Reconstruction:] Pointcloud discarted due to its bad fitness score or not convergence.");
+      continue;
+    }
+
+    // Log
+    double distance = sqrt(correction.getOrigin().x()*correction.getOrigin().x() +
+                           correction.getOrigin().y()*correction.getOrigin().y() +
+                           correction.getOrigin().z()*correction.getOrigin().z());
+    ROS_INFO_STREAM("[Reconstruction:] Correction is: " << correction.getOrigin().x() << ", " << correction.getOrigin().y() << ", " << correction.getOrigin().z() << " (dist -> " << distance << ").");
+
+    // Distance threshold
+    double max_correction = 0.25;
+    if (distance > max_correction) {
+      ROS_WARN_STREAM("[Reconstruction:] Pointcloud discarted due to its large correction (>" << max_correction << ").");
+      continue;
+    }
+
+    // Apply the correction
+    Eigen::Affine3d correction_eigen;
+    transformTFToEigen(correction, correction_eigen);
+    pcl::transformPointCloud(*cloud, *cloud, correction_eigen);
+
+    // Merge current cloud with the accumulated (add only new points)
+    ROS_INFO("[Reconstruction:] Merging cloud with accumulated...");
+    PointCloudRGB::Ptr accepted_points(new PointCloudRGB);
+    pcl::KdTreeFLANN<PointRGB> kdtree;
+    kdtree.setInputCloud(acc_roi);
+    for (uint n=0; n<cloud->points.size(); n++)
+    {
+      // Get the cloud point (XY)
+      PointRGB sp = cloud->points[n];
+
+      // Search the closest point
+      vector<int> idx_vec;
+      vector<float> squared_dist;
+      if (kdtree.nearestKSearch(sp, 1, idx_vec, squared_dist) > 0)
+      {
+        float dist = sqrt(squared_dist[0]);
+        if (dist > 2*max_dist)
+          accepted_points->push_back(sp);
+      }
+    }
+    ROS_INFO_STREAM("[Reconstruction:] Adding " << accepted_points->points.size() << " to the accumulated cloud...");
+
+    // Accumulate cloud
+    *acc += *accepted_points;
+
+    // Log runtime
+    ros::WallDuration elapsed_time = ros::WallTime::now() - init_time;
+    total_time += elapsed_time.toSec();
+    ROS_INFO_STREAM("[Reconstruction:] Runtime: " << elapsed_time.toSec() << " (s).");
+  }
+
+  // Log runtime
+  ROS_INFO_STREAM("[Reconstruction:] The total runtime is: " << total_time << " (s).");
+
+  // Save
+  ROS_INFO("[Reconstruction:] Saving output cloud...");
+  pcl::io::savePCDFile(params_.work_dir +  + "full.pcd", *acc);
+  ROS_INFO("[Reconstruction:] Done!");
+}
+
 /** \brief Build the 3D
   */
 void reconstruction::ReconstructionBase::build3D()
@@ -173,7 +357,7 @@ void reconstruction::ReconstructionBase::build3D()
   Tools::readPoses(params_.work_dir, cloud_poses);
 
   // Output log
-  ostringstream output_csv;
+  ostringstream output_csv, output_cloud, output_altitude;
 
   output_csv << "Pointcloud ID, Points Processed, Accumulated cloud size, Processing time"  << endl;
 
@@ -202,25 +386,97 @@ void reconstruction::ReconstructionBase::build3D()
       continue;
     }
 
+    // Sanity check
+    if (in_cloud->points.size() < 10000)
+      continue;
+
     // Increase the total of points processed
     total_points += in_cloud->points.size();
 
-    //ROS_INFO("Filtering");
+    //ROS_INFO("[Reconstruction:] Filtering");
     PointCloudRGB::Ptr cloud(new PointCloudRGB);
     //pcl::copyPointCloud(*in_cloud, *cloud);
     cloud = filter(in_cloud, voxel_size);
     //pcl::io::savePCDFile(params_.work_dir + cloud_poses[i].first + ".pcd", *cloud);
 
     // Sanity check
-    if (cloud->points.size() == 0)
+    if (cloud->points.size() < 10000)
       continue;
 
-    ROS_INFO("[Reconstruction:] Merging");
+    // -----------------------------------------------------------------------------
+    // ROTATE CLOUD TO BE PLANAR!!!!
+    PointCloudXYZ::Ptr test(new PointCloudXYZ);
+    pcl::copyPointCloud(*cloud, *test);
+
+    pcl::ModelCoefficients::Ptr coeff (new pcl::ModelCoefficients);
+    pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
+    // Create the segmentation object
+    pcl::SACSegmentation<pcl::PointXYZ> seg;
+    seg.setOptimizeCoefficients (true);
+    seg.setModelType (pcl::SACMODEL_PLANE);
+    seg.setMethodType (pcl::SAC_RANSAC);
+    seg.setDistanceThreshold (0.01);
+    seg.setInputCloud (test);
+    seg.segment (*inliers, *coeff);
+
+    if (inliers->indices.size () == 0)
+    {
+      ROS_INFO_STREAM ("Could not estimate a planar model for the given dataset.");
+    }
+    else
+    {
+      // ROTATE X
+      static const float arrx[] = {1,0,0};
+      vector<float> dx (arrx, arrx + sizeof(arrx) / sizeof(arrx[0]) );
+      float modA = sqrt(coeff->values[0]*coeff->values[0] + coeff->values[1]*coeff->values[1] + coeff->values[2]*coeff->values[2]);
+      float modB = sqrt(dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2]);
+      float dot = coeff->values[0]*dx[0] + coeff->values[1]*dx[1] + coeff->values[2]*dx[2];
+      float angle = M_PI/2 - acos(dot / (modA*modB));
+      //ROS_INFO_STREAM("[Reconstruction:] Plane orientation X: " << roundf(angle * 1800 / M_PI) / 10 << " [deg].");
+
+      // Rotate the cloud to be planar.
+      Eigen::Matrix4f rot_mat_x;
+      rot_mat_x <<  cos(angle),   0,   -sin(angle),   0,
+                    0,            1,   0,             0,
+                    sin(angle),   0,   cos(angle),    0,
+                    0,            0,   0,             1;
+
+      pcl::transformPointCloud(*cloud, *cloud, rot_mat_x);
+
+      /*
+      // ROTATE Y
+      static const float arry[] = {0,1,0};
+      vector<float> dy (arry, arry + sizeof(arry) / sizeof(arry[0]) );
+      modA = sqrt(coeff->values[0]*coeff->values[0] + coeff->values[1]*coeff->values[1] + coeff->values[2]*coeff->values[2]);
+      modB = sqrt(dy[0]*dy[0] + dy[1]*dy[1] + dy[2]*dy[2]);
+      dot = coeff->values[0]*dy[0] + coeff->values[1]*dy[1] + coeff->values[2]*dy[2];
+      angle = M_PI/2 - acos(dot / (modA*modB));
+      ROS_INFO_STREAM("[Reconstruction:] Plane orientation Y: " << roundf(angle * 1800 / M_PI) / 10 << " [deg].");
+
+      // Rotate the cloud to be planar.
+      Eigen::Matrix4f rot_mat_y;
+      rot_mat_y <<  1,    0,            0,            0,
+                    0,    cos(angle),   sin(angle),   0,
+                    0,    -sin(angle),  cos(angle),   0,
+                    0,    0,            0,            1;
+
+      pcl::transformPointCloud(*cloud, *cloud, rot_mat_y);
+      */
+    }
+    // END CLOUD ROTATION
+    // -----------------------------------------------------------------
+
+
+    ROS_INFO_STREAM("[Reconstruction:] Merging -> " << cloud->points.size() << " points");
     // First iteration
     if (acc->points.size() == 0)
     {
       // Make this the accumulated
       pcl::copyPointCloud(*cloud, *acc);
+
+      for (uint n=0; n<acc->points.size(); n++)
+        acc->points[n].z0 = acc->points[n].z;
+
       continue;
     }
 
@@ -229,7 +485,8 @@ void reconstruction::ReconstructionBase::build3D()
 
     // Transform the accumulated cloud to the new cloud frame
     tf::Transform tf0 = cloud_poses[0].second;
-    tf::Transform tfn0 = cloud_poses[i].second.inverse()*tf0;
+    tf::Transform tfn = cloud_poses[i].second;
+    tf::Transform tfn0 = tfn.inverse()*tf0;
     Eigen::Affine3d tfn0_eigen;
     transformTFToEigen(tfn0, tfn0_eigen);
     pcl::transformPointCloud(*acc, *acc, tfn0_eigen);
@@ -251,7 +508,9 @@ void reconstruction::ReconstructionBase::build3D()
     pcl::copyPointCloud(*acc, idx_roi, *acc_roi);
 
     // Extract the contour of the interesting part of the accumulated cloud
-    PointCloudXY::Ptr acc_contour_xy = getContourXY(acc_roi, voxel_size);
+    //PointCloudXY::Ptr acc_contour_xy = getContourXY(acc_roi, voxel_size);
+    //if (acc_contour_xy->points.size() < 20)
+    //  continue;
 
     // Convert the accumulated cloud to PointXY. So, we are supposing
     // the robot is navigating parallel to the surface and the camera line of sight is
@@ -268,8 +527,8 @@ void reconstruction::ReconstructionBase::build3D()
     kdtree_neighbors.setInputCloud(acc_xy);
 
     // To search the closest point of the contour of the accumulated cloud.
-    pcl::KdTreeFLANN<PointXY> kdtree_contour;
-    kdtree_contour.setInputCloud(acc_contour_xy);
+    //pcl::KdTreeFLANN<PointXY> kdtree_contour;
+    //kdtree_contour.setInputCloud(acc_contour_xy);
 
     // To search the closes point of the acc to the current cloud
     PointCloudXY::Ptr cloud_xy(new PointCloudXY);
@@ -282,6 +541,7 @@ void reconstruction::ReconstructionBase::build3D()
       acc->points[n].w = 0.0;
 
     // Get the maximum distance from current cloud to the accumulated contour
+    vector<double> distances;
     float max_contour_dist = 0.0;
     for (uint n=0; n<cloud->points.size(); n++)
     {
@@ -290,6 +550,14 @@ void reconstruction::ReconstructionBase::build3D()
       sp.x = cloud->points[n].x;
       sp.y = cloud->points[n].y;
 
+      if (cloud->points[n].x >= -0.2 && cloud->points[n].x <= 0.2 &&
+          cloud->points[n].y >= -0.2 && cloud->points[n].y <= 0.2 &&
+          !std::isnan(cloud->points[n].z))
+      {
+        distances.push_back(cloud->points[n].z);
+      }
+
+      /*
       int K = 1;
       vector<int> neighbor_idx(K);
       vector<float> neighbor_squared_dist(K);
@@ -303,7 +571,12 @@ void reconstruction::ReconstructionBase::build3D()
         if (dist > max_contour_dist)
           max_contour_dist = dist;
       }
+      */
     }
+
+    // Log altitude
+    float altitude = std::accumulate(distances.begin(), distances.end(), 0.0) / distances.size();
+    output_altitude << i << "," << altitude << endl;
 
     // Merge the current cloud with the accumulated
     for (uint n=0; n<cloud->points.size(); n++)
@@ -319,6 +592,7 @@ void reconstruction::ReconstructionBase::build3D()
       p.y = cloud->points[n].y;
       p.z = cloud->points[n].z;
       p.rgb = cloud->points[n].rgb;
+      p.z0 = cloud->points[n].z;
 
       // Check if this point is inside or in the border of the current accumulated cloud
       int K = 10;
@@ -348,6 +622,7 @@ void reconstruction::ReconstructionBase::build3D()
         // 1. Get the closest acc point
         int min_index = min_element(neighbor_squared_dist.begin(), neighbor_squared_dist.end()) - neighbor_squared_dist.begin();
         PointXYZRGBW p_acc = acc->points[ idx_roi[neighbor_idx[min_index]] ];
+        /*
         // 2. Get the contour closest point
         int N = 1;
         vector<int> contour_idx(N);
@@ -356,6 +631,7 @@ void reconstruction::ReconstructionBase::build3D()
         // 3. Apply the blending function
         float alpha = ( max_contour_dist - sqrt(contour_squared_dist[0]) ) / max_contour_dist;
         p.rgb = colorBlending(p_acc.rgb, p.rgb, alpha);
+        */
 
         // Determine if it is a point on the border or not.
         bool is_border = true;
@@ -375,11 +651,12 @@ void reconstruction::ReconstructionBase::build3D()
 
           // Build the new point
           PointXYZRGBW p_new;
-          p_new.x = cloud->points[n].x;
-          p_new.y = cloud->points[n].y;
-          p_new.rgb = p.rgb;
+          p_new.x = p.x;
+          p_new.y = p.y;
           p_new.z = p.z;
+          p_new.rgb = p.rgb;
           p_new.w = 1.0;
+          p_new.z0 = p.z0;
 
           // Add the point
           acc->push_back(p_new);
@@ -403,6 +680,7 @@ void reconstruction::ReconstructionBase::build3D()
         acc->push_back(p);
       }
 
+      /*
       // Fix the color of all internal accumulated points that has not been blended.
       for (uint h=0; h<acc_overlap_idx.size(); h++)
       {
@@ -434,6 +712,7 @@ void reconstruction::ReconstructionBase::build3D()
           }
         }
       }
+      */
     }
 
     // Return the acc to its original pose
@@ -481,9 +760,27 @@ void reconstruction::ReconstructionBase::build3D()
   // Save the log
   string out_file;
   out_file = params_.work_dir + "output_log.txt";
-  fstream f_out(out_file.c_str(), ios::out | ios::trunc);
-  f_out << output_csv.str();
-  f_out.close();
+  fstream f_log(out_file.c_str(), ios::out | ios::trunc);
+  f_log << output_csv.str();
+  f_log.close();
+
+  // Save altitude
+  string out_altitude;
+  out_altitude = params_.work_dir + "output_altitude.txt";
+  fstream f_altitude(out_altitude.c_str(), ios::out | ios::trunc);
+  f_altitude << output_altitude.str();
+  f_altitude.close();
+
+  // Save the custom output cloud
+  for (uint n=0; n<acc->points.size(); n++)
+  {
+    output_cloud << acc->points[n].x << "," << acc->points[n].y << "," << acc->points[n].z << "," << setprecision(15) << acc->points[n].rgb << setprecision(3) << "," << acc->points[n].z0 << endl;
+  }
+  string out_cloud;
+  out_cloud = params_.work_dir + "custom_reconstruction.txt";
+  fstream f_cloud(out_cloud.c_str(), ios::out | ios::trunc);
+  f_cloud << output_cloud.str();
+  f_cloud.close();
 
   // Save accumulated cloud
   ROS_INFO("[Reconstruction:] Saving pointclouds...");
@@ -505,14 +802,6 @@ void reconstruction::ReconstructionBase::setParameters(string work_dir)
     work_dir += "/";
   params.work_dir = work_dir;
   params.clouds_dir = work_dir + "clouds/";
-  params.output_dir = work_dir + "clouds/output/";
   params.graph_file = work_dir + "graph_vertices.txt";
   setParams(params);
-
-  // Create the output directory
-  if (fs::is_directory(params.output_dir))
-    fs::remove_all(params.output_dir);
-  fs::path dir(params.output_dir);
-  if (!fs::create_directory(dir))
-    ROS_ERROR("[Reconstruction:] ERROR -> Impossible to create the output directory.");
 }
