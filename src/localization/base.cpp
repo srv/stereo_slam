@@ -1,8 +1,7 @@
 #include <signal.h>
 
 #include "localization/base.h"
-#include "opencv2/core/core.hpp"
-#include <cv.h>
+#include <opencv2/opencv.hpp>
 #include <highgui.h>
 #include <boost/filesystem.hpp>
 #include <pcl/common/common.h>
@@ -248,7 +247,7 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   {
     tf::Transform vertex_disp;
     int last_id = graph_.getLastVertexId();
-    bool valid = lc_.getLoopClosure(lexical_cast<string>(last_id), lexical_cast<string>(last_id+1), vertex_disp);
+    bool valid = lc_.getLoopClosure(last_id, last_id+1, vertex_disp);
     if (valid)
     {
       ROS_INFO("[Localization:] Pose refined.");
@@ -268,13 +267,13 @@ void slam::SlamBase::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
   for (uint i=0; i<neighbors.size(); i++)
   {
     tf::Transform edge;
-    string lc_id = lexical_cast<string>(neighbors[i]);
-    bool valid_lc = lc_.getLoopClosure(lexical_cast<string>(cur_id), lc_id, edge, true);
+    int lc_id = neighbors[i];
+    bool valid_lc = lc_.getLoopClosure(cur_id, lc_id, edge, true);
     if (valid_lc)
     {
       //ROS_INFO_STREAM("[Localization:] Node with id " << cur_id << " closes loop with " << lc_id);
       cout << "\033[1;32m[ INFO]: [Localization:] Node " << cur_id << " closes loop with " << lc_id << ".\033[0m\n";
-      graph_.addEdge(lexical_cast<int>(lc_id), cur_id, edge);
+      graph_.addEdge(lc_id, cur_id, edge);
       any_loop_closure = true;
     }
   }

@@ -177,6 +177,16 @@ bool reconstruction::ReconstructionBase::pairAlign(PointCloudRGB::Ptr src,
                                                    PointCloudRGB::Ptr tgt,
                                                    tf::Transform &output)
 {
+  // Normal estimation
+  pcl::NormalEstimation<PointRGB, Normal> ne;
+  pcl::search::KdTree<PointRGB>::Ptr tree(new pcl::search::KdTree<PointRGB> ());
+  PointCloudNormal::Ptr src_normals(new PointCloudNormal);
+  ne.setSearchMethod(tree);
+  ne.setRadiusSearch(0.05);
+  ne.setInputCloud(src);
+  ne.compute(*src_normals);
+
+
   PointCloudRGB::Ptr aligned (new PointCloudRGB);
   IterativeClosestPoint icp;
   icp.setMaxCorrespondenceDistance(0.07);

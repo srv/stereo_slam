@@ -53,9 +53,11 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZRGBW,
 );
 
 // Defines
+typedef pcl::Normal                       Normal;
 typedef pcl::PointXY                      PointXY;
 typedef pcl::PointXYZ                     PointXYZ;
 typedef pcl::PointXYZRGB                  PointRGB;
+typedef pcl::PointCloud<Normal>           PointCloudNormal;
 typedef pcl::PointCloud<PointXY>          PointCloudXY;
 typedef pcl::PointCloud<PointXYZ>         PointCloudXYZ;
 typedef pcl::PointCloud<PointRGB>         PointCloudRGB;
