@@ -85,14 +85,19 @@ add_executable(offline_reconstruction
 target_link_libraries(offline_reconstruction
 						${eigen_LIBRARIES}
 						${catkin_LIBRARIES})
+add_dependencies(offline_reconstruction stereo_slam_gencpp)
+
 add_executable(registration
 						src/reconstruction/online/registration.cpp)
 target_link_libraries(registration
 						${eigen_LIBRARIES}
 						${catkin_LIBRARIES})
+add_dependencies(registration stereo_slam_gencpp)
+
 add_executable(viewer
 						src/reconstruction/online/viewer.cpp)
 target_link_libraries(viewer
 						${eigen_LIBRARIES}
 						${VTK_LIBRARIES}
 						${catkin_LIBRARIES})
+add_dependencies(viewer stereo_slam_gencpp)
