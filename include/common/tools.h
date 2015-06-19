@@ -2,6 +2,7 @@
 #define TOOLS
 
 #include <ros/ros.h>
+#include <fstream>
 #include <pcl/common/common.h>
 #include <image_geometry/stereo_camera_model.h>
 #include <sensor_msgs/image_encodings.h>

@@ -10,23 +10,11 @@
 #include <tf/transform_broadcaster.h>
 #include <g2o/core/sparse_optimizer.h>
 #include <g2o/core/block_solver.h>
-#include <g2o/solvers/cholmod/linear_solver_cholmod.h>
-#include <g2o/core/optimization_algorithm_gauss_newton.h>
 #include <g2o/types/slam3d/edge_se3.h>
+#include <g2o/solvers/cholmod/linear_solver_cholmod.h>
 #include <g2o/core/optimization_algorithm_levenberg.h>
-#include <g2o/solvers/dense/linear_solver_dense.h>
-#include <nav_msgs/Odometry.h>
-#include "stereo_slam/SlamVertex.h"
-#include "stereo_slam/SlamEdge.h"
-#include "stereo_slam/Correction.h"
- #include "stereo_slam/GraphData.h"
-#include "../common/tools.h"
 
 using namespace std;
-using namespace tools;
-
-typedef g2o::BlockSolver< g2o::BlockSolverTraits<-1, -1> >  SlamBlockSolver;
-typedef g2o::LinearSolverCholmod<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
 
 namespace slam
 {
@@ -36,121 +24,37 @@ class Graph
 
 public:
 
-	// Constructor
+	/** \brief Class constructor
+   */
   Graph();
 
-  struct Params
-  {
-    int g2o_algorithm;                //!> Set to 0 for LinearSlam Solver with gauss-newton. Set to 1 for LinearSlam Solver with Levenberg.
-    int go2_opt_max_iter;             //!> Maximum number of iteration for the graph optimization.
-    string save_dir;                  //!> Directory where graph files will be saved.
-    string pose_frame_id;             //!> Pose frame id for publisher.
-    string pose_child_frame_id;       //!> Base frame id for publisher.
-    string correction_tp;             //!> The correction topic.
-
-    // default settings
-    Params () {
-      g2o_algorithm               = 1;
-      go2_opt_max_iter            = 20;
-      save_dir                    = "";
-      pose_frame_id               = "/map";
-      pose_child_frame_id         = "/robot";
-      correction_tp               = "";
-    }
-  };
-
-  /**
-   * @param params new parameters
+  /** \brief Initialize the grapth
    */
-  inline void setParams(const Params& params)
-  {
-    params_ = params;
-    init();
-  }
-
-  /**
-   * @return current parameters
-   */
-  inline Params params() const { return params_; }
-
-  // Initialize the graph
   bool init();
 
-  // Advertise messages
-  void advertiseMsgs(ros::NodeHandle nh);
-
-  // Subscribe message
-  void subscribeMsgs(ros::NodeHandle nh);
-
-  // Correction callback
-  void correctionCallback(const stereo_slam::Correction::ConstPtr& correction_msg);
-
-  // Get the last vertex id
-  int getLastVertexId();
-
-  // Get the last pose of the graph (corrected graph pose and original odometry)
-  void getLastPoses(tf::Transform current_odom,
-                    tf::Transform &last_graph_pose,
-                    tf::Transform &last_graph_odom);
-
-  // Get the best neighbors by distance
-  void findClosestNodes(int discart_first_n,
-                        int best_n,
-                        vector<int> &neighbors);
-
-  // Add a vertex to the graph
+  /** \brief Add a vertex to the graph
+   * \param Vertex pose
+   * \param Number of inliers between this vertex and the previous
+   */
   int addVertex(tf::Transform pose,
-                tf::Transform pose_corrected,
-                ros::Time timestamp);
-  int addVertex(tf::Transform pose_corrected,
-                ros::Time timestamp);
+                int inliers);
 
-  // Sets the vertex estimate
-  void setVertexEstimate(int vertex_id, tf::Transform pose);
+  /** \brief Add an edge to the graph
+   * \param Index of vertex 1
+   * \param Index of vertex 2
+   * \param Transformation between vertices
+   * \param Number of inliers between these vertices
+   */
+  void addEdge(int i, int j, tf::Transform edge, int inliers);
 
-  // Add an edge to the graph
-  void addEdge(int i, int j, tf::Transform edge);
-
-  // Optimize the graph
+  /** \brief Optimize the graph
+   */
   void update();
-
-  // Save the graph to file
-  bool saveToFile();
-
-  // Return the number of vertices of the graph
-  int numNodes();
-
-  // Return the number of loop closures of the graph
-  int numLoopClosures();
-
-  // Sets the transformation between odometry and camera frames
-  void setCamera2Odom(tf::Transform camera2odom);
-
-  // Publish the graph
-  void publishGraph();
 
 private:
 
-  // Messages
-  ros::Publisher vertex_pub_, edge_pub_, graph_pub_;
-  ros::Subscriber correction_sub_;
+  g2o::SparseOptimizer graph_optimizer_; //!> G2O graph optimizer
 
-	// Pose properties
-  vector< pair<tf::Transform,double> >
-    odom_history_;  //!> Vector to save the odometry history
-
-  // G2O Optimization
-  g2o::SparseOptimizer
-  	graph_optimizer_;								//!> G2O graph optimizer
-
-  // Stores parameters
-  Params params_;
-
-  // Lock
-  bool lock_;
-
-  // Odometry to camera transformation
-  tf::Transform camera2odom_;
 };
 
 } // namespace

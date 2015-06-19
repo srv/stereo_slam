@@ -65,39 +65,16 @@ include_directories(include
 # Localization node
 add_executable(localization
 						src/localization/node.cpp
-						src/localization/base.cpp
-						src/localization/graph.cpp
-						src/localization/pose.cpp)
+						src/localization/frame.cpp
+						src/localization/frame_publisher.cpp
+						src/localization/tracking.cpp
+						src/localization/ldb.cpp
+						src/localization/graph.cpp)
 target_link_libraries(	localization
 						${eigen_LIBRARIES}
-						${libhaloc_LIBRARIES}
 						${OpenCV_LIBRARIES}
 						${SUITESPARSE_LIBRARIES}
 						${G2O_LIBRARIES}
 						cholmod
 						${catkin_LIBRARIES})
 add_dependencies(localization stereo_slam_gencpp)
-
-# Reconstruction nodes
-add_executable(offline_reconstruction
-						src/reconstruction/offline/node.cpp
-						src/reconstruction/offline/base.cpp)
-target_link_libraries(offline_reconstruction
-						${eigen_LIBRARIES}
-						${catkin_LIBRARIES})
-add_dependencies(offline_reconstruction stereo_slam_gencpp)
-
-add_executable(registration
-						src/reconstruction/online/registration.cpp)
-target_link_libraries(registration
-						${eigen_LIBRARIES}
-						${catkin_LIBRARIES})
-add_dependencies(registration stereo_slam_gencpp)
-
-add_executable(viewer
-						src/reconstruction/online/viewer.cpp)
-target_link_libraries(viewer
-						${eigen_LIBRARIES}
-						${VTK_LIBRARIES}
-						${catkin_LIBRARIES})
-add_dependencies(viewer stereo_slam_gencpp)
