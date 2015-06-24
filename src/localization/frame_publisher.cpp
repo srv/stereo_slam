@@ -99,8 +99,8 @@ namespace slam
     vector<Point2f> f_matched_kp, c_matched_kp;
     for(int i=0; i<matches.size(); i++)
     {
-      f_matched_kp.push_back(f_kp[matches[i].queryIdx].pt);
-      c_matched_kp.push_back(c_kp[matches[i].trainIdx].pt);
+      f_matched_kp.push_back(f_kp[matches[i].trainIdx].pt);
+      c_matched_kp.push_back(c_kp[matches[i].queryIdx].pt);
     }
 
     // Concat images

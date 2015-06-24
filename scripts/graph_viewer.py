@@ -15,10 +15,9 @@ from mpl_toolkits.mplot3d import Axes3D
 import tf.transformations as tf
 
 # Global variables
-blocking_file = ""
+lock_file = ""
 graph_edges_file = ""
 legend_edited = False
-colors = ['g','r','b']
 ax_gt = None
 ax_odom = None
 ax_vertices = None
@@ -49,7 +48,7 @@ def rm_ax(ax_id):
 def real_time_plot(gt_file, odom_file, graph_vertices_file):
   """ Function to plot the data saved into the files in real time """
 
-  global blocking_file, legend_edited, colors, ax_gt, ax_odom, ax_vertices, edges_shown, gt_data, plot_dim
+  global lock_file, legend_edited, ax_gt, ax_odom, ax_vertices, edges_shown, gt_data, plot_dim
 
   # Remove the main axes
   rm_ax(ax_gt)
@@ -74,9 +73,9 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
       data = [data]
       data = np.array(data)
     if (plot_dim == 3):
-      ax_gt = ax.plot(data[:,1], data[:,2], data[:,3], colors[0], label='Ground Truth')
+      ax_gt = ax.plot(data[:,1], data[:,2], data[:,3],'k', label='Ground Truth')
     else:
-      ax_gt = ax.plot(data[:,1], data[:,2], colors[0], label='Ground Truth')
+      ax_gt = ax.plot(data[:,1], data[:,2], 'k', label='Ground Truth')
 
   # Load visual odometry data (saved with rostopic echo -p /stereo_odometer/odometry > file.txt)
   if (odom_file != "" and os.path.exists(odom_file) and check_file_len(odom_file)):
@@ -88,27 +87,27 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
     if (len(data.shape) == 1):
       data = np.array([data])
     if (plot_dim == 3):
-      ax_odom = ax.plot(data[:,0], data[:,1], data[:,2], colors[1], label='Visual Odometry')
+      ax_odom = ax.plot(data[:,0], data[:,1], data[:,2], 'c', label='Visual Odometry')
     else:
-      ax_odom = ax.plot(data[:,0], data[:,1], colors[1], label='Visual Odometry')
+      ax_odom = ax.plot(data[:,0], data[:,1], 'c', label='Visual Odometry')
 
   # Load stereo slam vertices (file saved with node stereo_slam)
   if (graph_vertices_file != "" and os.path.exists(graph_vertices_file) and check_file_len(graph_vertices_file)):
 
     # Check if file is blocked
-    while (os.path.exists(blocking_file) and os.path.isfile(blocking_file)):
+    while (os.path.exists(lock_file) and os.path.isfile(lock_file)):
       time.sleep(0.5)
 
     # Read the data
-    data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(0,5,6,7,8,9,10,11))
+    data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(1,2,3,4,5,6,7))
 
     # Plot
     if (len(data.shape) == 1):
       data = np.array([data])
     if (plot_dim == 3):
-      ax_vertices = ax.plot(data[:,1], data[:,2], data[:,3], colors[2], label='Stereo slam', marker='o')
+      ax_vertices = ax.plot(data[:,0], data[:,1], data[:,2], 'b', label='Stereo slam', marker='o', linestyle='None')
     else:
-      ax_vertices = ax.plot(data[:,1], data[:,2], colors[2], label='Stereo slam', marker='o')
+      ax_vertices = ax.plot(data[:,0], data[:,1], 'b', label='Stereo slam', marker='o', linestyle='None')
 
   # Show the edges
   if (edges_shown == True):
@@ -126,7 +125,7 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
 
 def draw_edges():
   """ Draw the edges """
-  global blocking_file, graph_edges_file, ax_edges, edges_shown, plot_dim
+  global lock_file, graph_edges_file, ax_edges, edges_shown, plot_dim
 
   # First, remove previous edges
   remove_edges()
@@ -135,25 +134,49 @@ def draw_edges():
   if (graph_edges_file != "" and os.path.exists(graph_edges_file) and check_file_len(graph_edges_file)):
 
     # Check if file is blocked
-    while (os.path.exists(blocking_file) and os.path.isfile(blocking_file)):
+    while (os.path.exists(lock_file) and os.path.isfile(lock_file)):
       time.sleep(0.5)
 
     # Read the data
-    data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(2,3,4,9,10,11))
+    data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(2,3,4,5,10,11,12))
+
+    # Inliers column
+    inliers = data[:,0]
+    max_inliers = max(inliers)
+    min_inliers = min(inliers)
+
+    # red color
+    m_red = (255) / (min_inliers - max_inliers)
+    n_red = -m_red * max_inliers
+
+    # blue color
+    m_green = (255) / (max_inliers - min_inliers)
+    n_green = -m_green * min_inliers
 
     # Plot current
     if (len(data.shape) == 1):
       data = np.array([data])
     ax_edges = []
     for i in range(len(data)):
+      # Get the color depending on the inlier value
+      red = hex(int(m_red * data[i,0] + n_red))
+      green = hex(int(m_green * data[i,0] + n_green))
+      red = red[2:]
+      green = green[2:]
+      if (len(red) == 1):
+        red += '0'
+      if (len(green) == 1):
+        green += '0'
+      color = '#' + red + green + '00'
+
       vect = []
-      vect.append([data[i,0], data[i,1], data[i,2]])
-      vect.append([data[i,3], data[i,4], data[i,5]])
+      vect.append([data[i,1], data[i,2], data[i,3]])
+      vect.append([data[i,4], data[i,5], data[i,6]])
       vect =  np.array(vect)
       if (plot_dim == 3):
-        ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], colors[2], linestyle='--')
+        ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], color, linestyle='-')
       else:
-        ax_edge = ax.plot(vect[:,0], vect[:,1], colors[2], linestyle='--')
+        ax_edge = ax.plot(vect[:,0], vect[:,1], color, linestyle='-')
       ax_edges.append(ax_edge)
   edges_shown = True
   return
@@ -237,7 +260,7 @@ if __name__ == "__main__":
     ground_truth_file = "none"
 
   # Save blocking file into global
-  blocking_file = os.path.dirname(graph_vertices_file) + "/.lock.txt"
+  lock_file = os.path.dirname(graph_vertices_file) + "/graph.lock"
 
   # Init figure
   fig = pylab.figure(1)

@@ -69,7 +69,9 @@ add_executable(localization
 						src/localization/frame_publisher.cpp
 						src/localization/tracking.cpp
 						src/localization/ldb.cpp
-						src/localization/graph.cpp)
+						src/localization/graph.cpp
+						src/localization/hash.cpp
+						src/localization/loop_closing.cpp)
 target_link_libraries(	localization
 						${eigen_LIBRARIES}
 						${OpenCV_LIBRARIES}

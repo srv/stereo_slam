@@ -20,6 +20,7 @@
 #include <opencv2/opencv.hpp>
 
 #include "frame.h"
+#include "graph.h"
 #include "frame_publisher.h"
 
 using namespace std;
@@ -29,6 +30,7 @@ namespace slam
 {
 
 class FramePublisher;
+class Graph;
 
 class Tracking
 {
@@ -49,9 +51,16 @@ public:
 
   enum trackingState{
     NOT_INITIALIZED   = 0,
-    WORKING           = 1,
-    LOST              = 2
+    INITIALIZING      = 1,
+    WORKING           = 2,
+    LOST              = 3
   };
+
+  /** \brief Class constructor
+   * \param Frame publisher object pointer
+   * \param Graph object pointer
+   */
+  Tracking(FramePublisher* f_pub, Graph* graph);
 
   /** \brief Set class params
    * \param the parameters struct
@@ -63,7 +72,7 @@ public:
   inline Params getParams() const {return params_;}
 
   /** \brief Get current frame
-   */
+  */
   inline Frame getFixedFrame() const {return f_frame_;}
 
   /** \brief Get current frame
@@ -77,10 +86,6 @@ public:
   /** \brief Get tracker inliers
    */
   inline vector<int> getInliers() const {return inliers_;}
-
-  /** \brief Class constructor
-   */
-  Tracking(FramePublisher* f_pub);
 
   /** \brief Starts tracking
    */
@@ -136,6 +141,7 @@ private:
   Frame f_frame_; //!> Fixed frame
   Frame p_frame_; //!> Previous frame
   Frame c_frame_; //!> Current frame
+  Frame last_fixed_frame_before_lost_; //!> The last fixed frame before the system got lost
 
   vector<DMatch> matches_; //!> Vector of matchings between fixed and current frame
   vector<int> inliers_; //!> Vector of inliers between fixed and current frame
@@ -144,7 +150,11 @@ private:
 
   FramePublisher* f_pub_; //!> Frame publisher
 
+  Graph* graph_; //!> Graph
+
   bool reset_fixed_frame_; //!> Will be true on the next iteration after the fixed frame has been reset.
+
+  ros::WallTime lost_time_; //!> Time at which the tracker got lost.
 
   // Topic sync
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,

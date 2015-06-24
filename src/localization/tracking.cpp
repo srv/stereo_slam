@@ -8,7 +8,8 @@ using namespace tools;
 namespace slam
 {
 
-  Tracking::Tracking(FramePublisher *f_pub) : f_pub_(f_pub), reset_fixed_frame_(false)
+  Tracking::Tracking(FramePublisher *f_pub, Graph *graph)
+                    : f_pub_(f_pub), graph_(graph), reset_fixed_frame_(false)
   {}
 
   void Tracking::run()
@@ -60,18 +61,36 @@ namespace slam
       // Camera parameters
       Tools::getCameraModel(*l_info_msg, *r_info_msg, camera_model_, camera_matrix_);
 
+      // Set graph properties
+      graph_->setCamera2Odom(odom2camera_.inverse());
+      graph_->setCameraMatrix(camera_matrix_);
+
       // The initial frame
       f_frame_ = Frame(l_img, r_img, camera_model_);
 
-      state_ = WORKING;
+      // For the first frame, its estimated pose will coincide with odometry
+      tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
+      f_frame_.setEstimatedPose(c_odom_camera);
+      f_frame_.setOdometryPose(c_odom_camera);
+
+      state_ = INITIALIZING;
     }
     else
     {
       // The current frame
       c_frame_ = Frame(l_img, r_img, camera_model_);
 
+      // Set the odometry of this frame
+      tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
+      c_frame_.setOdometryPose(c_odom_camera);
+
+      // Track this frame
       trackCurrentFrame();
+
+      // Frame publisher
       f_pub_->update(this);
+
+      // Check if fixed frame need update
       needNewFixedFrame();
     }
   }
@@ -101,14 +120,20 @@ namespace slam
 
   void Tracking::trackCurrentFrame()
   {
+
     matches_.clear();
     inliers_.clear();
 
+    // Initial estimation (solvePNP and odometry) of the current frame position
+    tf::Transform odom_diff = f_frame_.getOdometryPose().inverse() * c_frame_.getOdometryPose();
+    tf::Transform c_pose = f_frame_.getEstimatedPose() * odom_diff;
+    c_frame_.setEstimatedPose(c_pose);
+
     // Descriptor matching
-    Mat p_desc = f_frame_.getLeftDesc();
+    Mat f_desc = f_frame_.getLeftDesc();
     Mat c_desc = c_frame_.getLeftDesc();
-    vector<KeyPoint> c_kp = c_frame_.getLeftKp();
-    vector<Point3f> p_points_3d = f_frame_.get3D();
+    vector<KeyPoint> f_kp = f_frame_.getLeftKp();
+    vector<Point3f> c_points_3d = c_frame_.get3D();
 
     // Matching
     Mat match_mask;
@@ -117,7 +142,7 @@ namespace slam
     Ptr<DescriptorMatcher> descriptor_matcher;
     descriptor_matcher = DescriptorMatcher::create("BruteForce");
     vector<vector<DMatch> > knn_matches;
-    descriptor_matcher->knnMatch(p_desc, c_desc, knn_matches, knn, match_mask);
+    descriptor_matcher->knnMatch(c_desc, f_desc, knn_matches, knn, match_mask);
     for (uint m=0; m<knn_matches.size(); m++)
     {
       if (knn_matches[m].size() < 2) continue;
@@ -125,50 +150,95 @@ namespace slam
         matches_.push_back(knn_matches[m][0]);
     }
 
-    // Check minimum
-    if (matches_.size() < 50)
-      return;
-
-    vector<Point2f> c_matched_kp;
-    vector<Point3f> p_matched_3d_points;
-    for(int i=0; i<matches_.size(); i++)
+    // Check minimum matches
+    if (matches_.size() < MIN_INLIERS)
     {
-      c_matched_kp.push_back(c_kp[matches_[i].trainIdx].pt);
-      p_matched_3d_points.push_back(p_points_3d[matches_[i].queryIdx]);
+      c_frame_.setInliers(0);
     }
+    else
+    {
+      vector<Point2f> f_matched_kp;
+      vector<Point3f> c_matched_3d_points;
+      for(int i=0; i<matches_.size(); i++)
+      {
+        f_matched_kp.push_back(f_kp[matches_[i].trainIdx].pt);
+        c_matched_3d_points.push_back(c_points_3d[matches_[i].queryIdx]);
+      }
 
-    // Use extrinsic guess when the tracker is not reseting the fixed frame to speed up the process
-    bool use_guess = true;
-    if (reset_fixed_frame_)
-      use_guess = false;
+      // Use extrinsic guess when the tracker is not reseting the fixed frame to speed up the process
+      bool use_guess = true;
+      if (reset_fixed_frame_)
+        use_guess = false;
 
-    // Estimate the motion
-    solvePnPRansac(p_matched_3d_points, c_matched_kp, camera_matrix_,
-                   cv::Mat(), rvec_, tvec_, use_guess,
-                   100, 3.0,
-                   30, inliers_);
+      // Estimate the motion
+      solvePnPRansac(c_matched_3d_points, f_matched_kp, camera_matrix_,
+                     Mat(), rvec_, tvec_, use_guess,
+                     100, 1.3,
+                     MAX_INLIERS, inliers_);
+
+      c_frame_.setInliers(inliers_.size());
+
+      if (inliers_.size() > MIN_INLIERS)
+      {
+        // Estimated pose does not require odometry
+        tf::Transform c_pose = f_frame_.getEstimatedPose() * Tools::buildTransformation(rvec_, tvec_);
+        c_frame_.setEstimatedPose(c_pose);
+      }
+    }
   }
 
   void Tracking::needNewFixedFrame()
   {
-    if (inliers_.size() < 30)
+    // Wait for initialization
+    if (state_ == INITIALIZING)
     {
-      if (reset_fixed_frame_)
+      if (inliers_.size() < MIN_INLIERS)
+      {
+        f_frame_ = c_frame_;
+        return;
+      }
+      else
+        state_ = WORKING;
+    }
+
+    // System is initialized
+    if (inliers_.size() < MIN_INLIERS)
+    {
+      // Is the system lost?
+      if (reset_fixed_frame_ && state_ != LOST)
       {
         // System got lost!
+        state_ = LOST;
+        lost_time_ = ros::WallTime::now();
         ROS_INFO("Tracker got lost!");
+      }
+      else
+      {
+        // Add the frame to graph
+        graph_->addFrameToQueue(f_frame_);
+        last_fixed_frame_before_lost_ = f_frame_;
       }
 
       // New fixed frame needed
       f_frame_ = p_frame_;
-      p_frame_ = c_frame_;
       reset_fixed_frame_ = true;
     }
     else
     {
+      // Re-localization
+      if (state_ == LOST)
+      {
+        ros::WallDuration lost_duration = ros::WallTime::now() - lost_time_;
+        ROS_INFO_STREAM("Tracker found. Lost duration: " << lost_duration.toSec() << " sec.");
+      }
+
+      // Do not reset fixed frame
       reset_fixed_frame_ = false;
-      p_frame_ = c_frame_;
+      state_ = WORKING;
     }
+
+    // Store current frame
+    p_frame_ = c_frame_;
 
   }
 

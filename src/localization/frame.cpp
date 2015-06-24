@@ -6,9 +6,9 @@
 namespace slam
 {
 
-  Frame::Frame(){}
+  Frame::Frame() : id_(-1), inliers_to_fixed_frame_(0) {}
 
-  Frame::Frame(Mat l_img, Mat r_img, image_geometry::StereoCameraModel camera_model)
+  Frame::Frame(Mat l_img, Mat r_img, image_geometry::StereoCameraModel camera_model) : id_(-1), inliers_to_fixed_frame_(0)
   {
     l_img.copyTo(l_img_);
     r_img.copyTo(r_img_);
@@ -50,7 +50,7 @@ namespace slam
     // Filter matches by epipolar
     for (size_t i=0; i<matches.size(); ++i)
     {
-      if (abs(l_kp[matches[i].queryIdx].pt.y - r_kp[matches[i].trainIdx].pt.y) < 3.0)
+      if (abs(l_kp[matches[i].queryIdx].pt.y - r_kp[matches[i].trainIdx].pt.y) < 1.3)
         matches_filtered.push_back(matches[i]);
     }
 
@@ -82,6 +82,19 @@ namespace slam
         points_3d_.push_back(world_point);
       }
     }
+  }
+
+  Mat Frame::computeSift()
+  {
+    Mat sift;
+    if (l_img_.cols == 0)
+      return sift;
+
+    Ptr<DescriptorExtractor> cv_extractor;
+    cv_extractor = DescriptorExtractor::create("SIFT");
+    cv_extractor->compute(l_img_, l_kp_, sift);
+
+    return sift;
   }
 
 } //namespace slam

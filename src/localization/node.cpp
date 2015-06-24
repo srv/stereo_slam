@@ -1,10 +1,15 @@
 #include <ros/ros.h>
 
 #include <boost/thread.hpp>
+#include <boost/filesystem.hpp>
 
+#include "localization/constants.h"
 #include "localization/frame_publisher.h"
 #include "localization/tracking.h"
 #include "localization/graph.h"
+#include "localization/loop_closing.h"
+
+namespace fs  = boost::filesystem;
 
 /** \brief Read the node parameters
   */
@@ -24,11 +29,20 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "stereo_slam");
   ros::start();
 
-  // Frame publisher
-  slam::FramePublisher f_pub;
+  // Execution directory
+  if (fs::is_directory(slam::WORKING_DIRECTORY))
+    fs::remove_all(slam::WORKING_DIRECTORY);
+  fs::path dir(slam::WORKING_DIRECTORY);
+  if (!fs::create_directory(dir))
+    ROS_ERROR("[Localization:] ERROR -> Impossible to create the execution directory.");
 
-  // Tracker
-  slam::Tracking tracker(&f_pub);
+  // For debugging purposes
+  slam::FramePublisher frame_publisher;
+
+  // Threads
+  slam::LoopClosing loop_closing;
+  slam::Graph graph(&loop_closing);
+  slam::Tracking tracker(&frame_publisher, &graph);
 
   // Read parameters
   slam::Tracking::Params tracking_params;
@@ -36,9 +50,12 @@ int main(int argc, char **argv)
 
   // Set the parameters for every object
   tracker.setParams(tracking_params);
+  loop_closing.setGraph(&graph);
 
   // Launch threads
   boost::thread trackingThread(&slam::Tracking::run, &tracker);
+  boost::thread graphThread(&slam::Graph::run, &graph);
+  boost::thread loopClosingThread(&slam::LoopClosing::run, &loop_closing);
 
   // ROS spin
   ros::Rate r(10);
@@ -46,6 +63,9 @@ int main(int argc, char **argv)
   {
     r.sleep();
   }
+
+  // Loop closing object is the only one that needs finalization
+  loop_closing.finalize();
 
   ros::shutdown();
 

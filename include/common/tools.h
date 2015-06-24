@@ -11,7 +11,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <nav_msgs/Odometry.h>
 #include <boost/filesystem.hpp>
-#include "../localization/vertex.h"
+#include <g2o/types/slam3d/vertex_se3.h>
 
 namespace enc = sensor_msgs::image_encodings;
 namespace fs  = boost::filesystem;
@@ -125,7 +125,7 @@ public:
     double qw = odom_msg.pose.pose.orientation.w;
 
     // Sanity check
-    if(qx == 0.0 && qy == 0.0 && qz == 0.0 && qw == 0.0)
+    if(qx == 0.0 && qy == 0.0 && qz == 0.0 && qw == 1.0)
     {
       tf::Transform odom;
       odom.setIdentity();
@@ -203,9 +203,9 @@ public:
 
   /** \brief get the pose of vertex in format tf::Transform
     * @return tf::Transform pose matrix
-    * \param vertex of type Vertex
+    * \param vertex
     */
-  static tf::Transform getVertexPose(slam::Vertex* v)
+  static tf::Transform getVertexPose(g2o::VertexSE3* v)
   {
     Eigen::Isometry3d pose_eigen = v->estimate();
     tf::Transform pose_tf = tools::Tools::isometryToTf(pose_eigen);
@@ -334,6 +334,29 @@ public:
     {
       ROS_ERROR("[StereoSlam:] Error deleting the locking file.");
     }
+  }
+
+  /** \brief compose the transformation matrix using 2 Mat as inputs:
+    * one for rotation and one for translation
+    * @return the transformation matrix
+    * \param rvec cv matrix with the rotation angles
+    * \param tvec cv matrix with the transformation x y z
+    */
+  static tf::Transform buildTransformation(Mat rvec, Mat tvec)
+  {
+    if (rvec.empty() || tvec.empty())
+      return tf::Transform();
+
+    tf::Vector3 axis(rvec.at<double>(0, 0),
+               rvec.at<double>(1, 0),
+                 rvec.at<double>(2, 0));
+    double angle = norm(rvec);
+    tf::Quaternion quaternion(axis, angle);
+
+    tf::Vector3 translation(tvec.at<double>(0, 0), tvec.at<double>(1, 0),
+        tvec.at<double>(2, 0));
+
+    return tf::Transform(quaternion, translation);
   }
 };
 
