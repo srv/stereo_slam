@@ -33,7 +33,7 @@ namespace slam
     // Left/right matching
     Mat match_mask;
     const int knn = 2;
-    const double ratio = 0.8;
+    const double ratio = 0.9;
     vector<DMatch> matches, matches_filtered;
     Ptr<DescriptorMatcher> descriptor_matcher;
     descriptor_matcher = DescriptorMatcher::create("BruteForce");

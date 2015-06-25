@@ -139,7 +139,7 @@ namespace slam
     // Matching
     Mat match_mask;
     const int knn = 2;
-    const double ratio = 0.8;
+    const double ratio = 0.9;
     Ptr<DescriptorMatcher> descriptor_matcher;
     descriptor_matcher = DescriptorMatcher::create("BruteForce-Hamming");
     vector<vector<DMatch> > knn_matches;
@@ -176,7 +176,7 @@ namespace slam
       // Estimate the motion
       solvePnPRansac(c_matched_3d_points, f_matched_kp, camera_matrix_,
                      Mat(), rvec_, tvec_, use_guess,
-                     100, 1.3,
+                     100, 1.1,
                      MAX_INLIERS, inliers_);
 
       c_frame_.setInliers(inliers_.size());

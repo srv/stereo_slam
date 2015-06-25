@@ -64,6 +64,10 @@ protected:
    */
   void processNewFrame();
 
+  /** \brief Searches a loop closing between current and the 2 previous neighbors
+   */
+  void searchInNeighbors();
+
   /** \brief Searches a loop closing between current processed frame and its closest neighbors
    */
   void searchByProximity();
@@ -148,6 +152,10 @@ private:
   string execution_dir_; //!> Execution directory where all image information will be stored
 
   Graph* graph_; //!> Graph pointer
+
+  ros::Publisher pub_num_lc_; //!> Publishes the number of loop closings
+
+  ros::Publisher pub_queue_; //!> Publishes the loop closing queue size
 
 };
 

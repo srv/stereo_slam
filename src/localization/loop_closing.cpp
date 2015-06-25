@@ -1,3 +1,5 @@
+#include <std_msgs/Int32.h>
+
 #include <numeric>
 
 #include <boost/math/distributions.hpp>
@@ -10,7 +12,12 @@ using namespace tools;
 namespace slam
 {
 
-  LoopClosing::LoopClosing() {}
+  LoopClosing::LoopClosing()
+  {
+    ros::NodeHandle nhp("~");
+    pub_num_lc_ = nhp.advertise<std_msgs::Int32>("loop_closings", 2, true);
+    pub_queue_ = nhp.advertise<std_msgs::Int32>("loop_closing_queue", 2, true);
+  }
 
   void LoopClosing::run()
   {
@@ -30,10 +37,28 @@ namespace slam
       {
         processNewFrame();
 
+        searchInNeighbors();
+
         searchByProximity();
 
         searchByHash();
       }
+
+      if (pub_num_lc_.getNumSubscribers() > 0)
+      {
+        std_msgs::Int32 msg;
+        msg.data = lc_found_.size();
+        pub_num_lc_.publish(msg);
+      }
+
+      if (pub_queue_.getNumSubscribers() > 0)
+      {
+        mutex::scoped_lock lock(mutex_frame_queue_);
+        std_msgs::Int32 msg;
+        msg.data = frame_queue_.size();
+        pub_queue_.publish(msg);
+      }
+
       r.sleep();
     }
   }
@@ -78,6 +103,23 @@ namespace slam
     fs.release();
   }
 
+  void LoopClosing::searchInNeighbors()
+  {
+    for (int i=c_frame_.getId()-3; i<c_frame_.getId()-1; i++)
+    {
+      if (i <= 0) continue;
+      int inliers = 0;
+      tf::Transform edge;
+      bool valid = getLoopClosure(c_frame_.getId(), i, edge, inliers);
+      if (valid)
+      {
+        cout << "\033[1;32m[ INFO]: [Localization:] Loop closure (neighbors): " << c_frame_.getId() << " <-> " << i << ".\033[0m\n";
+        graph_->addEdge(c_frame_.getId(), i, edge, inliers);
+        graph_->update();
+      }
+    }
+  }
+
   void LoopClosing::searchByProximity()
   {
     vector<int> neighbors = c_frame_.getGraphNeighbors();
@@ -88,7 +130,7 @@ namespace slam
       bool valid = getLoopClosure(c_frame_.getId(), neighbors[i], edge, inliers);
       if (valid)
       {
-        cout << "\033[1;32m[ INFO]: [Localization:] Loop closure: " << c_frame_.getId() << " <-> " << neighbors[i] << ".\033[0m\n";
+        cout << "\033[1;32m[ INFO]: [Localization:] Loop closure (proximity): " << c_frame_.getId() << " <-> " << neighbors[i] << ".\033[0m\n";
         graph_->addEdge(c_frame_.getId(), neighbors[i], edge, inliers);
         graph_->update();
       }
@@ -110,7 +152,7 @@ namespace slam
       bool valid = getLoopClosure(c_frame_.getId(), hash_matching[i].first, edge, inliers);
       if (valid)
       {
-        cout << "\033[1;32m[ INFO]: [Localization:] Loop closure: " << c_frame_.getId() << " <-> " << hash_matching[i].first << ".\033[0m\n";
+        cout << "\033[1;32m[ INFO]: [Localization:] Loop closure (hash): " << c_frame_.getId() << " <-> " << hash_matching[i].first << ".\033[0m\n";
         graph_->addEdge(c_frame_.getId(), hash_matching[i].first, edge, inliers);
         graph_->update();
       }
@@ -132,7 +174,7 @@ namespace slam
     // Descriptors matching
     Mat match_mask;
     const int knn = 2;
-    const double ratio = 0.8;
+    const double ratio = 0.9;
     vector<DMatch> matches;
     Ptr<DescriptorMatcher> descriptor_matcher;
     descriptor_matcher = DescriptorMatcher::create("BruteForce");
@@ -169,7 +211,7 @@ namespace slam
     solvePnPRansac(candidate_matched_3d_points, query_matched_kp,
                    graph_->getCameraMatrix(),
                    cv::Mat(), rvec, tvec, false,
-                   100, 1.3,
+                   100, 1.1,
                    MAX_INLIERS, inliers_vector);
 
     // Inliers threshold
