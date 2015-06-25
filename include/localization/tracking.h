@@ -125,6 +125,10 @@ protected:
    */
   void needNewFixedFrame();
 
+  /** \brief Publishes the tracking pose
+   */
+  void publishPose();
+
 private:
 
   Params params_; //!> Stores parameters.
@@ -155,6 +159,8 @@ private:
   bool reset_fixed_frame_; //!> Will be true on the next iteration after the fixed frame has been reset.
 
   ros::WallTime lost_time_; //!> Time at which the tracker got lost.
+
+  ros::Publisher pose_pub_; //!> Publisher for the tracking pose
 
   // Topic sync
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,

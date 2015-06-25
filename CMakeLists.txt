@@ -18,10 +18,6 @@ find_package(catkin REQUIRED COMPONENTS
 	cmake_modules
 	tf_conversions)
 
-## Declare ROS messages and services
-add_message_files(FILES SlamInfo.msg SlamVertex.msg SlamEdge.msg Correction.msg GraphData.msg)
-generate_messages(DEPENDENCIES std_msgs)
-
 ####################################################
 # Dependencies:
 find_package(PkgConfig)

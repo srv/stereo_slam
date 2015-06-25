@@ -58,6 +58,18 @@ public:
    */
   vector<int> findClosestNeighbors(int vertex_id);
 
+  /** \brief Add an edge to the graph
+   * \param Index of vertex 1
+   * \param Index of vertex 2
+   * \param Transformation between vertices
+   * \param Number of inliers between these vertices
+   */
+  void addEdge(int i, int j, tf::Transform edge, int inliers);
+
+  /** \brief Optimize the graph
+   */
+  void update();
+
   /** \brief Set the transformation between camera and robot odometry frame
    * \param the transform
    */
@@ -91,18 +103,6 @@ protected:
   int addVertex(tf::Transform pose,
                 int inliers);
 
-  /** \brief Add an edge to the graph
-   * \param Index of vertex 1
-   * \param Index of vertex 2
-   * \param Transformation between vertices
-   * \param Number of inliers between these vertices
-   */
-  void addEdge(int i, int j, tf::Transform edge, int inliers);
-
-  /** \brief Optimize the graph
-   */
-  void update();
-
   /** \brief Save the graph to file
    */
   void saveToFile();
@@ -112,6 +112,8 @@ private:
   g2o::SparseOptimizer graph_optimizer_; //!> G2O graph optimizer
 
   list<Frame> frame_queue_; //!> Frames queue to be inserted into the graph
+
+  mutex mutex_graph_; //!> Mutex for the graph manipulation
 
   mutex mutex_frame_queue_; //!> Mutex for the insertion of new frames into the graph
 

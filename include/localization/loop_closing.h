@@ -73,12 +73,12 @@ protected:
   void searchByHash();
 
   /** \brief Compute the loop closure (if any) between A -> B.
-    * @return true if valid loop closure, false otherwise.
-    * \param reference frame id.
-    * \param candidate frame id.
-    * \param Return the transform between nodes if loop closure is valid.
-    * \param The number of inliers
-    */
+   * @return true if valid loop closure, false otherwise.
+   * \param reference frame id.
+   * \param candidate frame id.
+   * \param Return the transform between nodes if loop closure is valid.
+   * \param The number of inliers
+   */
   bool getLoopClosure(int id_a,
                       int id_b,
                       tf::Transform& trans,
@@ -90,6 +90,45 @@ protected:
    */
   Frame readFrame(string file);
 
+  /** \brief Get the best n_candidates to close loop with the image specified by id.
+   * @return a hash matching vector containing the best image candidates and its likelihood.
+   * \param image id.
+   */
+  void getCandidates(int frame_id, vector< pair<int,float> >& candidates);
+
+  /** \brief Retrieve the best n matchings give a certain image id.
+   * \param Query image id.
+   * \param Number of best matches to retrieve.
+   * \param Stores best n matchings in a vector of pairs <image_id, distance>.
+   */
+   void getBestMatchings(int frame_id, vector< pair<int,float> > &best_matchings);
+
+   /** \brief Compute the likelihood vectors given a certain hash matching set.
+    * \param Hash matching vector in the format <image_id, distance>.
+    * \param Stores the likelihood in the format <image_id, probability>.
+    */
+   void buildLikelihoodVector(vector< pair<int,float> > hash_matchings,
+                              vector< pair<int,float> > &likelihood);
+
+
+   /** \brief Given a vector of matches and the current and previous likelihood vectors, returns the
+    * likelihood for these matches.
+    * \param Hash matching vector in the format <image_id, distance>.
+    * \param Stores the likelihood for the given matching vectors
+    * \param Current vector of likelihood in the format <image_id, probability>.
+    * \param Previous vector of likelihood in the format <image_id, probability>.
+    */
+   void getMatchingsLikelihood(vector< pair<int,float> > matchings,
+                               vector<float> &matchings_likelihood,
+                               vector< pair<int,float> > cur_likelihood,
+                               vector< pair<int,float> > prev_likelihood);
+
+   /** \brief Group the matchings by images with similar id
+    * \param Hash matching vector in the format <image_id, distance>.
+    * \param Stores groups of images
+    */
+   void groupSimilarImages(vector< pair<int,float> > matchings,
+                           vector< vector<int> > &groups);
 private:
 
   Frame c_frame_; //!> Current frame to be processed
@@ -103,6 +142,8 @@ private:
   vector< pair<int, vector<float> > > hash_table_;  //!> Hash table: stores a hash for every image. This is the unique variable that grows with the robot trajectory
 
   vector< pair<int, int > > lc_found_; //!> Stores all the loop closures found in order to do not repeat them
+
+  vector< pair<int,float> > prev_likelihood_; //!> Stores the previous likelihood vector
 
   string execution_dir_; //!> Execution directory where all image information will be stored
 

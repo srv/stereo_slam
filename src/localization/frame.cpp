@@ -20,10 +20,9 @@ namespace slam
 
     // Detect keypoints
     vector<KeyPoint> l_kp, r_kp;
-    Ptr<FeatureDetector> cv_detector;
-    cv_detector = FeatureDetector::create("ORB");
-    cv_detector->detect(l_img_gray, l_kp);
-    cv_detector->detect(r_img_gray, r_kp);
+    ORB orb(1000, 1.2f, 8, 14, 0, 2, 0, 14);
+    orb(l_img_gray, noArray(), l_kp, noArray(), false);
+    orb(r_img_gray, noArray(), r_kp, noArray(), false);
 
     // Extract descriptors
     Mat l_desc, r_desc;
@@ -90,6 +89,7 @@ namespace slam
     if (l_img_.cols == 0)
       return sift;
 
+    initModule_nonfree();
     Ptr<DescriptorExtractor> cv_extractor;
     cv_extractor = DescriptorExtractor::create("SIFT");
     cv_extractor->compute(l_img_, l_kp_, sift);

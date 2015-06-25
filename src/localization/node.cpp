@@ -29,13 +29,6 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "stereo_slam");
   ros::start();
 
-  // Execution directory
-  if (fs::is_directory(slam::WORKING_DIRECTORY))
-    fs::remove_all(slam::WORKING_DIRECTORY);
-  fs::path dir(slam::WORKING_DIRECTORY);
-  if (!fs::create_directory(dir))
-    ROS_ERROR("[Localization:] ERROR -> Impossible to create the execution directory.");
-
   // For debugging purposes
   slam::FramePublisher frame_publisher;
 

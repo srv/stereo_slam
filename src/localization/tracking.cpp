@@ -18,7 +18,10 @@ namespace slam
     state_ = NOT_INITIALIZED;
 
     ros::NodeHandle nh;
+    ros::NodeHandle nhp("~");
+
     image_transport::ImageTransport it(nh);
+    pose_pub_ = nhp.advertise<nav_msgs::Odometry>("odometry", 1);
 
     image_transport::SubscriberFilter left_sub, right_sub;
     message_filters::Subscriber<sensor_msgs::CameraInfo> left_info_sub, right_info_sub;
@@ -86,11 +89,8 @@ namespace slam
 
       // Track this frame
       trackCurrentFrame();
-
-      // Frame publisher
       f_pub_->update(this);
-
-      // Check if fixed frame need update
+      publishPose();
       needNewFixedFrame();
     }
   }
@@ -133,6 +133,7 @@ namespace slam
     Mat f_desc = f_frame_.getLeftDesc();
     Mat c_desc = c_frame_.getLeftDesc();
     vector<KeyPoint> f_kp = f_frame_.getLeftKp();
+    vector<Point3f> f_points_3d = f_frame_.get3D();
     vector<Point3f> c_points_3d = c_frame_.get3D();
 
     // Matching
@@ -140,7 +141,7 @@ namespace slam
     const int knn = 2;
     const double ratio = 0.8;
     Ptr<DescriptorMatcher> descriptor_matcher;
-    descriptor_matcher = DescriptorMatcher::create("BruteForce");
+    descriptor_matcher = DescriptorMatcher::create("BruteForce-Hamming");
     vector<vector<DMatch> > knn_matches;
     descriptor_matcher->knnMatch(c_desc, f_desc, knn_matches, knn, match_mask);
     for (uint m=0; m<knn_matches.size(); m++)
@@ -158,10 +159,12 @@ namespace slam
     else
     {
       vector<Point2f> f_matched_kp;
+      vector<Point3f> f_matched_3d_points;
       vector<Point3f> c_matched_3d_points;
       for(int i=0; i<matches_.size(); i++)
       {
         f_matched_kp.push_back(f_kp[matches_[i].trainIdx].pt);
+        f_matched_3d_points.push_back(f_points_3d[matches_[i].trainIdx]);
         c_matched_3d_points.push_back(c_points_3d[matches_[i].queryIdx]);
       }
 
@@ -185,6 +188,14 @@ namespace slam
         c_frame_.setEstimatedPose(c_pose);
       }
     }
+
+    if (pose_pub_.getNumSubscribers() > 0)
+    {
+      nav_msgs::Odometry pose_msg;
+      pose_msg.header.stamp = ros::Time::now();
+      tf::poseTFToMsg(c_frame_.getEstimatedPose(), pose_msg.pose.pose);
+      pose_pub_.publish(pose_msg);
+    }
   }
 
   void Tracking::needNewFixedFrame()
@@ -201,7 +212,9 @@ namespace slam
         state_ = WORKING;
     }
 
-    // System is initialized
+    // -> System is initialized
+
+    // Reset fixed frame?
     if (inliers_.size() < MIN_INLIERS)
     {
       // Is the system lost?
@@ -212,12 +225,10 @@ namespace slam
         lost_time_ = ros::WallTime::now();
         ROS_INFO("Tracker got lost!");
       }
-      else
-      {
-        // Add the frame to graph
+
+      // Add frames to the graph when not lost
+      if (state_ != LOST)
         graph_->addFrameToQueue(f_frame_);
-        last_fixed_frame_before_lost_ = f_frame_;
-      }
 
       // New fixed frame needed
       f_frame_ = p_frame_;
@@ -230,6 +241,9 @@ namespace slam
       {
         ros::WallDuration lost_duration = ros::WallTime::now() - lost_time_;
         ROS_INFO_STREAM("Tracker found. Lost duration: " << lost_duration.toSec() << " sec.");
+
+        // Set the fixed frame inliers to zero, since its position must be corrected by the graph
+        f_frame_.setInliers(0);
       }
 
       // Do not reset fixed frame
@@ -240,6 +254,17 @@ namespace slam
     // Store current frame
     p_frame_ = c_frame_;
 
+  }
+
+  void Tracking::publishPose()
+  {
+    if (pose_pub_.getNumSubscribers() > 0)
+    {
+      nav_msgs::Odometry pose_msg;
+      pose_msg.header.stamp = ros::Time::now();
+      tf::poseTFToMsg(c_frame_.getEstimatedPose(), pose_msg.pose.pose);
+      pose_pub_.publish(pose_msg);
+    }
   }
 
 } //namespace slam

@@ -233,6 +233,26 @@ public:
     return (d1.second < d2.second);
   }
 
+  /** \brief Sort 2 matchings by value
+    * @return true if matching 1 is smaller than matching 2
+    * \param matching 1
+    * \param matching 2
+    */
+  static bool sortByMatching(const pair<int, float> d1, const pair<int, float> d2)
+  {
+    return (d1.second < d2.second);
+  }
+
+  /** \brief Sort 2 matchings by likelihood
+    * @return true if likelihood 1 is greater than likelihood 2
+    * \param likelihood 1
+    * \param likelihood 2
+    */
+  static bool sortByLikelihood(const pair<int, float> p1, const pair<int, float> p2)
+  {
+    return (p1.second > p2.second);
+  }
+
   /** \brief Convert isometry to string (useful for debugin purposes)
     * @return string containing the isometry
     * \param isometry matrix

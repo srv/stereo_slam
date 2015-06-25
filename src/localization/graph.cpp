@@ -74,6 +74,8 @@ namespace slam
 
   int Graph::addVertex(tf::Transform pose, int inliers)
   {
+    mutex::scoped_lock lock(mutex_graph_);
+
     // Convert pose for graph
     Eigen::Isometry3d vertex_pose = Tools::tfToIsometry(pose);
 
@@ -120,6 +122,8 @@ namespace slam
 
   void Graph::addEdge(int i, int j, tf::Transform edge, int inliers)
   {
+    mutex::scoped_lock lock(mutex_graph_);
+
     // Get the vertices
     g2o::VertexSE3* v_i = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
     g2o::VertexSE3* v_j = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[j]);
@@ -141,6 +145,7 @@ namespace slam
 
   void Graph::update()
   {
+    mutex::scoped_lock lock(mutex_graph_);
     graph_optimizer_.initializeOptimization();
     graph_optimizer_.optimize(20);
     ROS_INFO_STREAM("[Localization:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
@@ -148,6 +153,8 @@ namespace slam
 
   vector<int> Graph::findClosestNeighbors(int vertex_id)
   {
+    mutex::scoped_lock lock(mutex_graph_);
+
     // Init
     vector<int> neighbors;
     const int discart_first_n = 10;
@@ -210,6 +217,8 @@ namespace slam
     // Open to append
     fstream f_vertices(vertices_file.c_str(), ios::out | ios::trunc);
     fstream f_edges(edges_file.c_str(), ios::out | ios::trunc);
+
+    mutex::scoped_lock lock(mutex_graph_);
 
     // Output the vertices file
     for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
