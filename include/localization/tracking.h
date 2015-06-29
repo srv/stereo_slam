@@ -22,6 +22,7 @@
 #include "frame.h"
 #include "graph.h"
 #include "frame_publisher.h"
+#include "map.h"
 
 using namespace std;
 using namespace cv;
@@ -125,10 +126,6 @@ protected:
    */
   void needNewFixedFrame();
 
-  /** \brief Publishes the tracking pose
-   */
-  void publishPose();
-
 private:
 
   Params params_; //!> Stores parameters.
@@ -141,6 +138,8 @@ private:
 
   Mat camera_matrix_; //!> The camera matrix
   image_geometry::StereoCameraModel camera_model_; //!> Stereo camera model
+
+  Map map_; //!> The map of points
 
   Frame f_frame_; //!> Fixed frame
   Frame p_frame_; //!> Previous frame
@@ -159,8 +158,6 @@ private:
   bool reset_fixed_frame_; //!> Will be true on the next iteration after the fixed frame has been reset.
 
   ros::WallTime lost_time_; //!> Time at which the tracker got lost.
-
-  ros::Publisher pose_pub_; //!> Publisher for the tracking pose
 
   // Topic sync
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,

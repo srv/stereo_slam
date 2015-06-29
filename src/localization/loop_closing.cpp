@@ -99,7 +99,7 @@ namespace slam
     write(fs, "id", c_frame_.getId());
     write(fs, "kp", c_frame_.getLeftKp());
     write(fs, "desc", c_frame_.getLeftDesc());
-    write(fs, "threed", c_frame_.get3D());
+    write(fs, "threed", c_frame_.getCameraPoints());
     fs.release();
   }
 
@@ -194,11 +194,11 @@ namespace slam
     // Get the matched keypoints
     vector<KeyPoint> query_kp = frame_a.getLeftKp();
     vector<KeyPoint> candidate_kp = frame_b.getLeftKp();
-    vector<Point3f> candidate_3d = frame_b.get3D();
+    vector<Point3f> candidate_3d = frame_b.getCameraPoints();
     vector<Point2f> query_matched_kp;
     vector<Point2f> candidate_matched_kp;
     vector<Point3f> candidate_matched_3d_points;
-    for(int i=0; i<matches.size(); i++)
+    for(uint i=0; i<matches.size(); i++)
     {
       query_matched_kp.push_back(query_kp[matches[i].trainIdx].pt);
       candidate_matched_kp.push_back(candidate_kp[matches[i].queryIdx].pt);
@@ -324,7 +324,7 @@ namespace slam
 
     // Retrieve the best n matches
     best_matchings.clear();
-    int max_size = 3;
+    uint max_size = 3;
     if (max_size > all_matchings.size()) max_size = all_matchings.size();
     for (uint i=0; i<max_size; i++)
       best_matchings.push_back(all_matchings[i]);
@@ -512,7 +512,7 @@ namespace slam
     frame.setId(id);
     frame.setLeftKp(kp);
     frame.setLeftDesc(desc);
-    frame.set3D(p3d);
+    frame.setCameraPoints(p3d);
 
     return frame;
   }

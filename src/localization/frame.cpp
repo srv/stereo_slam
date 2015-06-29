@@ -1,14 +1,15 @@
 #include <ros/ros.h>
 
 #include "localization/frame.h"
+#include "localization/constants.h"
 #include "localization/ldb.h"
 
 namespace slam
 {
 
-  Frame::Frame() : id_(-1), inliers_to_fixed_frame_(0) {}
+  Frame::Frame() : id_(-1), inliers_to_fixed_frame_(0), world_points_(new Cloud) {}
 
-  Frame::Frame(Mat l_img, Mat r_img, image_geometry::StereoCameraModel camera_model) : id_(-1), inliers_to_fixed_frame_(0)
+  Frame::Frame(Mat l_img, Mat r_img, image_geometry::StereoCameraModel camera_model) : id_(-1), inliers_to_fixed_frame_(0), world_points_(new Cloud)
   {
     l_img.copyTo(l_img_);
     r_img.copyTo(r_img_);
@@ -33,7 +34,7 @@ namespace slam
     // Left/right matching
     Mat match_mask;
     const int knn = 2;
-    const double ratio = 0.9;
+    const double ratio = 0.8;
     vector<DMatch> matches, matches_filtered;
     Ptr<DescriptorMatcher> descriptor_matcher;
     descriptor_matcher = DescriptorMatcher::create("BruteForce");
@@ -49,14 +50,14 @@ namespace slam
     // Filter matches by epipolar
     for (size_t i=0; i<matches.size(); ++i)
     {
-      if (abs(l_kp[matches[i].queryIdx].pt.y - r_kp[matches[i].trainIdx].pt.y) < 1.3)
+      if (abs(l_kp[matches[i].queryIdx].pt.y - r_kp[matches[i].trainIdx].pt.y) < 1.0)
         matches_filtered.push_back(matches[i]);
     }
 
     // Compute 3D points
     l_kp_.clear();
     r_kp_.clear();
-    points_3d_.clear();
+    camera_points_.clear();
     l_desc_.release();
     r_desc_.release();
     for (size_t i=0; i<matches_filtered.size(); ++i)
@@ -78,7 +79,7 @@ namespace slam
         r_kp_.push_back(r_kp[r_idx]);
         l_desc_.push_back(l_desc.row(l_idx));
         r_desc_.push_back(r_desc.row(r_idx));
-        points_3d_.push_back(world_point);
+        camera_points_.push_back(world_point);
       }
     }
   }
@@ -95,6 +96,44 @@ namespace slam
     cv_extractor->compute(l_img_, l_kp_, sift);
 
     return sift;
+  }
+
+  void Frame::computeWorldPoints()
+  {
+    Cloud::Ptr world_points(new Cloud);
+    for (uint i=0; i<camera_points_.size(); i++)
+    {
+      PointXYZ p(camera_points_[i].x, camera_points_[i].y, camera_points_[i].z);
+      world_points->push_back(p);
+    }
+    Eigen::Affine3d tmp;
+    transformTFToEigen(odom_pose_, tmp);
+    transformPointCloud(*world_points, *world_points, tmp);
+    copyPointCloud(*world_points, *world_points_);
+  }
+
+  void Frame::clusterWorldpoints()
+  {
+    clusters_.clear();
+
+    // Normal estimation
+    NormalEstimationOMP<PointXYZ, Normal> ne;
+    PointCloud <Normal>::Ptr normals(new PointCloud <Normal>);
+    search::KdTree<PointXYZ>::Ptr tree(new search::KdTree<PointXYZ>());
+    ne.setInputCloud(world_points_);
+    ne.setSearchMethod(tree);
+    ne.setRadiusSearch(0.1);
+    ne.compute(*normals);
+
+    // Clustering
+    RegionGrowing<PointXYZ, Normal> reg;
+    reg.setMinClusterSize(20);
+    reg.setMaxClusterSize(world_points_->points.size());
+    reg.setSearchMethod(tree);
+    reg.setNumberOfNeighbours(20);
+    reg.setInputCloud(world_points_);
+    reg.setInputNormals(normals);
+    reg.extract(clusters_);
   }
 
 } //namespace slam

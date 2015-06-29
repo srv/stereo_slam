@@ -58,6 +58,9 @@ include_directories(include
 						${PCL_INCLUDE_DIRS}
 						${VTK_INCLUDE_DIRS})
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -march=native")
+
 # Localization node
 add_executable(localization
 						src/localization/node.cpp
@@ -67,7 +70,8 @@ add_executable(localization
 						src/localization/ldb.cpp
 						src/localization/graph.cpp
 						src/localization/hash.cpp
-						src/localization/loop_closing.cpp)
+						src/localization/loop_closing.cpp
+						src/localization/map.cpp)
 target_link_libraries(	localization
 						${eigen_LIBRARIES}
 						${OpenCV_LIBRARIES}

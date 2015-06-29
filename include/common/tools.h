@@ -30,7 +30,6 @@ public:
   typedef pcl::PointXYZRGB        Point;
   typedef pcl::PointCloud<Point>  PointCloud;
 
-
   /** \brief convert a tf::transform to Eigen::Isometry3d
     * @return Eigen::Isometry3d matrix
     * \param in of type tf::transform
@@ -175,7 +174,7 @@ public:
     * \param will contain the output camera model.
     * \param will contain the output camera matrix.
     */
-  static bool getCameraModel(sensor_msgs::CameraInfo l_info_msg,
+  static void getCameraModel(sensor_msgs::CameraInfo l_info_msg,
                              sensor_msgs::CameraInfo r_info_msg,
                              image_geometry::StereoCameraModel &stereo_camera_model,
                              cv::Mat &camera_matrix)
@@ -285,7 +284,7 @@ public:
                     "\n" << r2.x() << ", " << r2.y() << ", " << r2.z() << ", " << tran.z());
   }
 
-  static tf::Transform readPoses(string work_dir, vector< pair<string, tf::Transform> > &cloud_poses)
+  static void readPoses(string work_dir, vector< pair<string, tf::Transform> > &cloud_poses)
   {
     // Init
     cloud_poses.clear();

@@ -53,11 +53,18 @@ public:
                             const vector<DMatch> matches,
                             const vector<int> inliers);
 
+  /** \brief Draw and publish the keypoint clustering
+   * \param The frame containing the clustering information
+   */
+  void drawKeypointsClustering(const Frame frame);
+
 private:
 
   ros::Publisher pub_stereo_matching_; //!> Publisher for the left/right matching.
 
   ros::Publisher pub_tracker_matching_; //!> Publisher for the tracker matching (fixed to current frame).
+
+  ros::Publisher pub_clustering_; //!> Publisher for the tracker matching (fixed to current frame).
 
 };
 

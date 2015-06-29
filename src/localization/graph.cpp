@@ -12,7 +12,7 @@ namespace slam
     init();
   }
 
-  bool Graph::init()
+  void Graph::init()
   {
     // Initialize the g2o graph optimizer
     g2o::BlockSolverX::LinearSolverType * linear_solver_ptr;
@@ -59,7 +59,7 @@ namespace slam
     }
 
     // Add the vertex to the graph
-    int id = addVertex(frame.getEstimatedPose(), frame.getInliers());
+    int id = addVertex(frame.getOdometryPose(), frame.getInliers());
     frame.setId(id);
 
     // Get its N closest neighbors (by distance)
@@ -158,7 +158,7 @@ namespace slam
     // Init
     vector<int> neighbors;
     const int discart_first_n = 10;
-    int best_n = 3;
+    uint best_n = 3;
 
     // Get the vertex pose
     if (vertex_id < 0) return neighbors;
@@ -199,6 +199,8 @@ namespace slam
       if (neighbors.size() == best_n)
         break;
     }
+
+    return neighbors;
   }
 
   void Graph::saveToFile()

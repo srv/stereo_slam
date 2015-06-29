@@ -9,8 +9,9 @@ namespace slam
   FramePublisher::FramePublisher()
   {
     ros::NodeHandle nhp("~");
-    pub_stereo_matching_  = nhp.advertise<sensor_msgs::Image>("stereo_matching",   10, true);
-    pub_tracker_matching_ = nhp.advertise<sensor_msgs::Image>("tracker_matching", 10, true);
+    pub_stereo_matching_  = nhp.advertise<sensor_msgs::Image>("stereo_matching",   2, true);
+    pub_tracker_matching_ = nhp.advertise<sensor_msgs::Image>("tracker_matching", 2, true);
+    pub_clustering_ = nhp.advertise<sensor_msgs::Image>("keypoints_clustering", 2, true);
   }
 
   void FramePublisher::update(Tracking *tracker)
@@ -23,6 +24,9 @@ namespace slam
                            tracker->getCurrentFrame(),
                            tracker->getMatches(),
                            tracker->getInliers());
+
+    if (pub_clustering_.getNumSubscribers() > 0)
+      drawKeypointsClustering(tracker->getFixedFrame());
   }
 
   void FramePublisher::drawStereoMatchings(const Frame frame)
@@ -97,7 +101,7 @@ namespace slam
 
     // Only draw true matchings
     vector<Point2f> f_matched_kp, c_matched_kp;
-    for(int i=0; i<matches.size(); i++)
+    for(uint i=0; i<matches.size(); i++)
     {
       f_matched_kp.push_back(f_kp[matches[i].trainIdx].pt);
       c_matched_kp.push_back(c_kp[matches[i].queryIdx].pt);
@@ -155,6 +159,40 @@ namespace slam
     ros_image.header.stamp = ros::Time::now();
     ros_image.encoding = "bgr8";
     pub_tracker_matching_.publish(ros_image.toImageMsg());
+  }
+
+  void FramePublisher::drawKeypointsClustering(const Frame frame)
+  {
+    vector<PointIndices> clusters = frame.getClusters();
+    if (clusters.size() == 0) return;
+
+    Mat img;
+    frame.getLeftImg().copyTo(img);
+    vector<KeyPoint> kp = frame.getLeftKp();
+    RNG rng(12345);
+    for (uint i=0; i<clusters.size(); i++)
+    {
+      Scalar color = Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
+      for (uint j=0; j<clusters[i].indices.size(); j++)
+        circle(img, kp[clusters[i].indices[j]].pt, 2, color, -1);
+    }
+
+    // Draw text
+    stringstream s;
+    int baseline = 0;
+    s << " Number of clusters: " << clusters.size();
+    Size text_size = getTextSize(s.str(), FONT_HERSHEY_PLAIN, 1, 1, &baseline);
+    Mat im_text = Mat(img.rows + text_size.height + 10, img.cols, img.type());
+    img.copyTo(im_text.rowRange(0, img.rows).colRange(0, img.cols));
+    im_text.rowRange(img.rows, im_text.rows) = Mat::zeros(text_size.height + 10, img.cols, img.type());
+    putText(im_text, s.str(), Point(5, im_text.rows - 5), FONT_HERSHEY_PLAIN, 1, Scalar(255,255,255), 1, 8);
+
+    // Publish
+    cv_bridge::CvImage ros_image;
+    ros_image.image = im_text.clone();
+    ros_image.header.stamp = ros::Time::now();
+    ros_image.encoding = "bgr8";
+    pub_clustering_.publish(ros_image.toImageMsg());
   }
 
 } //namespace slam

@@ -41,7 +41,7 @@ public:
 
   /** \brief Initialize the graph
    */
-  bool init();
+  void init();
 
   /** \brief Starts graph
    */
