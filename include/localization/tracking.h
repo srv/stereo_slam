@@ -21,8 +21,7 @@
 
 #include "frame.h"
 #include "graph.h"
-#include "frame_publisher.h"
-#include "map.h"
+#include "publisher.h"
 
 using namespace std;
 using namespace cv;
@@ -30,7 +29,7 @@ using namespace cv;
 namespace slam
 {
 
-class FramePublisher;
+class Publisher;
 class Graph;
 
 class Tracking
@@ -61,7 +60,7 @@ public:
    * \param Frame publisher object pointer
    * \param Graph object pointer
    */
-  Tracking(FramePublisher* f_pub, Graph* graph);
+  Tracking(Publisher* f_pub, Graph* graph);
 
   /** \brief Set class params
    * \param the parameters struct
@@ -139,8 +138,6 @@ private:
   Mat camera_matrix_; //!> The camera matrix
   image_geometry::StereoCameraModel camera_model_; //!> Stereo camera model
 
-  Map map_; //!> The map of points
-
   Frame f_frame_; //!> Fixed frame
   Frame p_frame_; //!> Previous frame
   Frame c_frame_; //!> Current frame
@@ -151,7 +148,7 @@ private:
 
   Mat rvec_, tvec_; //!> Initial approximations of the rotation and translation vectors for the solvePNPransac
 
-  FramePublisher* f_pub_; //!> Frame publisher
+  Publisher* f_pub_; //!> Frame publisher
 
   Graph* graph_; //!> Graph
 

@@ -4,7 +4,7 @@
 #include <boost/filesystem.hpp>
 
 #include "localization/constants.h"
-#include "localization/frame_publisher.h"
+#include "localization/publisher.h"
 #include "localization/tracking.h"
 #include "localization/graph.h"
 #include "localization/loop_closing.h"
@@ -30,12 +30,12 @@ int main(int argc, char **argv)
   ros::start();
 
   // For debugging purposes
-  slam::FramePublisher frame_publisher;
+  slam::Publisher publisher;
 
   // Threads
   slam::LoopClosing loop_closing;
   slam::Graph graph(&loop_closing);
-  slam::Tracking tracker(&frame_publisher, &graph);
+  slam::Tracking tracker(&publisher, &graph);
 
   // Read parameters
   slam::Tracking::Params tracking_params;

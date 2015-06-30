@@ -89,10 +89,6 @@ public:
    */
   inline vector<Point3f> getCameraPoints() const {return camera_points_;}
 
-  /** \brief Get 3D in world coordinates
-   */
-  inline Cloud getWorldPoints() const {return *world_points_;}
-
   /** \brief Set 3D
    * \param vector of 3D points
    */
@@ -129,20 +125,21 @@ public:
    */
   inline vector<PointIndices> getClusters() const {return clusters_;}
 
+  /** \brief Return the clustering for the current frame
+   */
+  inline vector<Eigen::Vector4f> getClusterCentroids() const {return cluster_centroids_;}
+
   /** \brief Compute sift descriptors
    * @return the matrix of sift descriptors
    */
   Mat computeSift();
 
-  /** \brief Computes the world points
+  /** \brief Cluster the points
    */
-  void computeWorldPoints();
-
-  /** \brief Cluster the world points
-   */
-  void clusterWorldpoints();
+  void regionClustering();
 
 private:
+
 
   int id_; //!> Frame id
 
@@ -152,15 +149,16 @@ private:
   vector<KeyPoint> l_kp_; //!> Left keypoints.
   vector<KeyPoint> r_kp_; //!> Right keypoints.
 
-  Mat l_desc_; //!> Left descriptors.
-  Mat r_desc_; //!> Right descriptors.
+  Mat l_desc_; //!> Left descriptors (orb).
+  Mat r_desc_; //!> Right descriptors (orb).
 
   int inliers_to_fixed_frame_; //!> Number of inliers of this frame to some specific fixed frame
 
-  vector<Point3f> camera_points_; //!> Stereo 3D points in camera frame.
-  Cloud::Ptr world_points_; //!> Stereo 3D in world coordinates.
+  vector<Point3f> camera_points_; //!> Stereo 3D points in camera frame
 
   vector<PointIndices> clusters_; //!> 3D points clustering
+
+  vector<Eigen::Vector4f> cluster_centroids_; //!> Central point for every cluster
 
   tf::Transform odom_pose_; //!> Odometry position for this frame (could not coincide with the camera)
 

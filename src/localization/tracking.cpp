@@ -8,7 +8,7 @@ using namespace tools;
 namespace slam
 {
 
-  Tracking::Tracking(FramePublisher *f_pub, Graph *graph)
+  Tracking::Tracking(Publisher *f_pub, Graph *graph)
                     : f_pub_(f_pub), graph_(graph), reset_fixed_frame_(false)
   {}
 
@@ -186,29 +186,21 @@ namespace slam
       }
       else
       {
-        f_frame_.computeWorldPoints();
-        f_frame_.clusterWorldpoints();
-        map_.addPoints(f_frame_);
+        f_frame_.regionClustering();
+        graph_->addFrameToQueue(f_frame_);
         state_ = WORKING;
       }
     }
 
-    // -> System is initialized
-
     // Reset fixed frame?
+    reset_fixed_frame_ = false;
     if (inliers_.size() < MIN_INLIERS)
     {
       reset_fixed_frame_ = true;
       f_frame_ = c_frame_;
-      f_frame_.computeWorldPoints();
-      f_frame_.clusterWorldpoints();
-      map_.addPoints(f_frame_);
+      f_frame_.regionClustering();
+      graph_->addFrameToQueue(f_frame_);
     }
-    else
-    {
-      reset_fixed_frame_ = false;
-    }
-
   }
 
 } //namespace slam

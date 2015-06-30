@@ -58,18 +58,46 @@ namespace slam
       frame_queue_.pop_front();
     }
 
-    // Add the vertex to the graph
-    int id = addVertex(frame.getOdometryPose(), frame.getInliers());
-    frame.setId(id);
+    // Extract sift
+    Mat sift = frame.computeSift();
 
-    // Get its N closest neighbors (by distance)
-    frame.setGraphNeighbors( findClosestNeighbors(id) );
+    // Loop of frame clusters
+    vector<Eigen::Vector4f> cluster_centroids = frame.getClusterCentroids();
+    vector<PointIndices> clusters = frame.getClusters();
+    vector<Point3f> points = frame.getCameraPoints();
+    vector<KeyPoint> kp = frame.getLeftKp();
+    for (uint i=0; i<clusters.size(); i++)
+    {
+      // Add cluster to graph
+      Eigen::Vector4f centroid = cluster_centroids[i];
+      // TODO: add to graph
 
-    // Send the frame to loop closing thread
-    loop_closing_->addFrameToQueue(frame);
+      // Add cluster to loop_closing
+      Mat c_sift;
+      vector<KeyPoint> c_kp;
+      vector<Point3f> c_points;
+      for (uint j=0; j<clusters[i].indices.size(); j++)
+      {
+        int idx = clusters[i].indices[j];
+        c_kp.push_back(kp[idx]);
+        c_sift.push_back(sift.row(idx));
+        c_points.push_back(points[idx]);
+      }
 
-    // Save graph to file
-    saveToFile();
+      if (c_kp.size() > 10)
+      {
+        // TODO: add to loop_closing
+      }
+    }
+
+    // // Get its N closest neighbors (by distance)
+    // frame.setGraphNeighbors( findClosestNeighbors(id) );
+
+    // // Send the frame to loop closing thread
+    // loop_closing_->addFrameToQueue(frame);
+
+    // // Save graph to file
+    // saveToFile();
   }
 
   int Graph::addVertex(tf::Transform pose, int inliers)

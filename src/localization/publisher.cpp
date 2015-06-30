@@ -1,12 +1,12 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-#include "localization/frame_publisher.h"
+#include "localization/publisher.h"
 
 namespace slam
 {
 
-  FramePublisher::FramePublisher()
+  Publisher::Publisher()
   {
     ros::NodeHandle nhp("~");
     pub_stereo_matching_  = nhp.advertise<sensor_msgs::Image>("stereo_matching",   2, true);
@@ -14,7 +14,7 @@ namespace slam
     pub_clustering_ = nhp.advertise<sensor_msgs::Image>("keypoints_clustering", 2, true);
   }
 
-  void FramePublisher::update(Tracking *tracker)
+  void Publisher::update(Tracking *tracker)
   {
     if (pub_stereo_matching_.getNumSubscribers() > 0)
       drawStereoMatchings(tracker->getCurrentFrame());
@@ -29,7 +29,7 @@ namespace slam
       drawKeypointsClustering(tracker->getFixedFrame());
   }
 
-  void FramePublisher::drawStereoMatchings(const Frame frame)
+  void Publisher::drawStereoMatchings(const Frame frame)
   {
     Mat l_img, r_img;
     frame.getLeftImg().copyTo(l_img);
@@ -85,7 +85,7 @@ namespace slam
     pub_stereo_matching_.publish(ros_image.toImageMsg());
   }
 
-  void FramePublisher::drawTrackerMatchings(const Frame fixed_frame,
+  void Publisher::drawTrackerMatchings(const Frame fixed_frame,
                                             const Frame current_frame,
                                             const vector<DMatch> matches,
                                             const vector<int> inliers)
@@ -161,7 +161,7 @@ namespace slam
     pub_tracker_matching_.publish(ros_image.toImageMsg());
   }
 
-  void FramePublisher::drawKeypointsClustering(const Frame frame)
+  void Publisher::drawKeypointsClustering(const Frame frame)
   {
     vector<PointIndices> clusters = frame.getClusters();
     if (clusters.size() == 0) return;

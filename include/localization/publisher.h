@@ -3,8 +3,8 @@
  * @brief The frame publisher class is responsive to publish the image visualizations for debugging purposes (presentation).
  */
 
-#ifndef FRAME_PUBLISHER_H
-#define FRAME_PUBLISHER_H
+#ifndef PUBLISHER_H
+#define PUBLISHER_H
 
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
@@ -23,14 +23,14 @@ namespace slam
 
 class Tracking;
 
-class FramePublisher
+class Publisher
 {
 
 public:
 
   /** \brief Class constructor
    */
-  FramePublisher();
+  Publisher();
 
   /** \brief Update the image to be published
    * \param The tracker object contains all the information needed to draw the image
@@ -70,4 +70,4 @@ private:
 
 } // namespace
 
-#endif // FRAME_PUBLISHER_H
+#endif // PUBLISHER_H
