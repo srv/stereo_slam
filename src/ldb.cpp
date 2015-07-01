@@ -33,7 +33,7 @@
 #include <set>
 #include <vector>
 
-#include "localization/ldb.h"
+#include "ldb.h"
 
 using namespace std;
 using namespace cv;

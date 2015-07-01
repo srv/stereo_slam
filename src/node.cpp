@@ -3,11 +3,11 @@
 #include <boost/thread.hpp>
 #include <boost/filesystem.hpp>
 
-#include "localization/constants.h"
-#include "localization/publisher.h"
-#include "localization/tracking.h"
-#include "localization/graph.h"
-#include "localization/loop_closing.h"
+#include "constants.h"
+#include "publisher.h"
+#include "tracking.h"
+#include "graph.h"
+#include "loop_closing.h"
 
 namespace fs  = boost::filesystem;
 

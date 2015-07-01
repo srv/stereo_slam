@@ -1,6 +1,9 @@
 #include <ros/ros.h>
-#include "localization/hash.h"
+
+#include <Eigen/Dense>
 #include <opencv2/core/eigen.hpp>
+
+#include "hash.h"
 
 namespace slam
 {
@@ -53,7 +56,7 @@ namespace slam
       for (int n=0; n<desc.cols; n++)
       {
         float desc_sum = 0.0;
-        for (uint m=0; m<desc.rows; m++)
+        for (int m=0; m<desc.rows; m++)
           desc_sum += r_[i][m]*desc.at<float>(m, n);
 
         hash[k] = desc_sum/(float)desc.rows;
@@ -81,7 +84,7 @@ namespace slam
     r_.push_back(unit_vector(r));
 
     // Generate the set of orthogonal vectors
-    for (uint i=1; i<params_.num_proj; i++)
+    for (int i=1; i<params_.num_proj; i++)
     {
       // Generate a random vector of the correct size
       vector<float> new_v = compute_random_vector(seed + i, v_size - i);

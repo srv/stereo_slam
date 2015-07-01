@@ -1,4 +1,4 @@
-#include "localization/cluster.h"
+#include "cluster.h"
 
 namespace slam
 {

@@ -1,7 +1,7 @@
 #include <ros/ros.h>
 
-#include "localization/tracking.h"
-#include "common/tools.h"
+#include "tracking.h"
+#include "tools.h"
 
 using namespace tools;
 

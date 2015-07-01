@@ -2,8 +2,8 @@
 
 #include <numeric>
 
-#include "localization/loop_closing.h"
-#include "common/tools.h"
+#include "loop_closing.h"
+#include "tools.h"
 
 using namespace tools;
 

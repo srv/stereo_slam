@@ -28,9 +28,6 @@ find_package(Eigen REQUIRED)
 # Dependencies - PCL:
 find_package(PCL REQUIRED)
 
-# Dependencies - Libhaloc:
-find_package(libhaloc REQUIRED)
-
 # Dependencies - OpenCV:
 find_package(OpenCV REQUIRED)
 link_directories(${OpenCV_LIBRARY_DIRS})
@@ -46,7 +43,7 @@ find_package(G2O REQUIRED)
 # Dependencies - Vtk
 find_package(VTK REQUIRED)
 
-catkin_package(CATKIN_DEPENDS message_runtime)
+catkin_package()
 
 include_directories(include
 						${catkin_INCLUDE_DIRS}
@@ -63,20 +60,20 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -march=native")
 
 # Localization node
 add_executable(localization
-						src/localization/node.cpp
-						src/localization/frame.cpp
-						src/localization/publisher.cpp
-						src/localization/tracking.cpp
-						src/localization/ldb.cpp
-						src/localization/graph.cpp
-						src/localization/hash.cpp
-						src/localization/loop_closing.cpp
-						src/localization/cluster.cpp)
-target_link_libraries(	localization
-						${eigen_LIBRARIES}
-						${OpenCV_LIBRARIES}
-						${SUITESPARSE_LIBRARIES}
-						${G2O_LIBRARIES}
-						cholmod
-						${catkin_LIBRARIES})
-add_dependencies(localization stereo_slam_gencpp)
+							 src/node.cpp
+							 src/frame.cpp
+							 src/publisher.cpp
+							 src/tracking.cpp
+							 src/ldb.cpp
+							 src/graph.cpp
+							 src/hash.cpp
+							 src/loop_closing.cpp
+							 src/cluster.cpp)
+
+target_link_libraries(localization
+											${eigen_LIBRARIES}
+											${OpenCV_LIBRARIES}
+											${SUITESPARSE_LIBRARIES}
+											${G2O_LIBRARIES}
+											cholmod
+											${catkin_LIBRARIES})

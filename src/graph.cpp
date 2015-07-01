@@ -1,7 +1,7 @@
-#include "localization/constants.h"
-#include "localization/graph.h"
-#include "localization/cluster.h"
-#include "common/tools.h"
+#include "constants.h"
+#include "graph.h"
+#include "cluster.h"
+#include "tools.h"
 
 using namespace tools;
 

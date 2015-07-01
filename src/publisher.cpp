@@ -1,7 +1,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-#include "localization/publisher.h"
+#include "publisher.h"
 
 namespace slam
 {
