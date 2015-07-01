@@ -1,5 +1,6 @@
 #include "localization/constants.h"
 #include "localization/graph.h"
+#include "localization/cluster.h"
 #include "common/tools.h"
 
 using namespace tools;
@@ -59,34 +60,37 @@ namespace slam
     }
 
     // Extract sift
-    Mat sift = frame.computeSift();
+    cv::Mat sift_desc = frame.computeSift();
 
     // Loop of frame clusters
     vector<Eigen::Vector4f> cluster_centroids = frame.getClusterCentroids();
     vector<PointIndices> clusters = frame.getClusters();
-    vector<Point3f> points = frame.getCameraPoints();
-    vector<KeyPoint> kp = frame.getLeftKp();
+    vector<cv::Point3f> points = frame.getCameraPoints();
+    vector<cv::KeyPoint> kp = frame.getLeftKp();
+    cv::Mat orb_desc = frame.getLeftDesc();
     for (uint i=0; i<clusters.size(); i++)
     {
       // Add cluster to graph
       Eigen::Vector4f centroid = cluster_centroids[i];
-      // TODO: add to graph
+      int id = addVertex(centroid);
 
       // Add cluster to loop_closing
-      Mat c_sift;
-      vector<KeyPoint> c_kp;
-      vector<Point3f> c_points;
+      cv::Mat c_desc_orb, c_desc_sift;
+      vector<cv::KeyPoint> c_kp;
+      vector<cv::Point3f> c_points;
       for (uint j=0; j<clusters[i].indices.size(); j++)
       {
         int idx = clusters[i].indices[j];
         c_kp.push_back(kp[idx]);
-        c_sift.push_back(sift.row(idx));
         c_points.push_back(points[idx]);
+        c_desc_orb.push_back(orb_desc.row(idx));
+        c_desc_sift.push_back(sift_desc.row(idx));
       }
 
       if (c_kp.size() > 10)
       {
-        // TODO: add to loop_closing
+        // Add to loop closing
+        Cluster cluster(id, c_kp, c_desc_orb, c_desc_sift, c_points);
       }
     }
 
@@ -100,12 +104,12 @@ namespace slam
     // saveToFile();
   }
 
-  int Graph::addVertex(tf::Transform pose, int inliers)
+  int Graph::addVertex(Eigen::Vector4f pose)
   {
     mutex::scoped_lock lock(mutex_graph_);
 
     // Convert pose for graph
-    Eigen::Isometry3d vertex_pose = Tools::tfToIsometry(pose);
+    Eigen::Isometry3d vertex_pose = Tools::vector4fToIsometry(pose);
 
     // Set node id equal to graph size
     int id = graph_optimizer_.vertices().size();
@@ -118,33 +122,8 @@ namespace slam
     {
       // First time, no edges.
       cur_vertex->setFixed(true);
-      graph_optimizer_.addVertex(cur_vertex);
     }
-    else
-    {
-      // Get last vertex
-      g2o::VertexSE3* prev_vertex = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[id - 1]);
-
-      // Add the vertex
-      graph_optimizer_.addVertex(cur_vertex);
-
-      // When graph has been initialized get the transform between current and previous vertices
-      // and save it as an edge.
-      double sigma = 1e+10;
-      if (inliers > 0)
-        sigma = (double)inliers;
-
-      // Odometry edges
-      g2o::EdgeSE3* e = new g2o::EdgeSE3();
-      Eigen::Matrix<double, 6, 6> information = Eigen::Matrix<double, 6, 6>::Identity();
-      Eigen::Isometry3d t = prev_vertex->estimate().inverse() * cur_vertex->estimate();
-      e->setVertex(0, prev_vertex);
-      e->setVertex(1, cur_vertex);
-      e->setMeasurement(t);
-      e->setInformation(information/sigma);
-      graph_optimizer_.addEdge(e);
-    }
-
+    graph_optimizer_.addVertex(cur_vertex);
     return id;
   }
 
@@ -177,58 +156,6 @@ namespace slam
     graph_optimizer_.initializeOptimization();
     graph_optimizer_.optimize(20);
     ROS_INFO_STREAM("[Localization:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
-  }
-
-  vector<int> Graph::findClosestNeighbors(int vertex_id)
-  {
-    mutex::scoped_lock lock(mutex_graph_);
-
-    // Init
-    vector<int> neighbors;
-    const int discart_first_n = 10;
-    uint best_n = 3;
-
-    // Get the vertex pose
-    if (vertex_id < 0) return neighbors;
-    g2o::VertexSE3* last_vertex =  dynamic_cast<g2o::VertexSE3*>
-          (graph_optimizer_.vertices()[vertex_id]);
-    tf::Transform last_graph_pose = Tools::getVertexPose(last_vertex);
-
-    // Loop thought all the other nodes
-    vector< pair< int,double > > neighbor_distances;
-    for (int i=vertex_id-discart_first_n-1; i>=0; i--)
-    {
-      // Get the node pose
-      g2o::VertexSE3* cur_vertex =  dynamic_cast<g2o::VertexSE3*>
-              (graph_optimizer_.vertices()[i]);
-      tf::Transform cur_pose = Tools::getVertexPose(cur_vertex);
-      double dist = Tools::poseDiff(cur_pose, last_graph_pose);
-      neighbor_distances.push_back(make_pair(i, dist));
-    }
-
-    // Exit if no neighbors
-    if (neighbor_distances.size() == 0) return neighbors;
-
-    // Sort the neighbors
-    sort(neighbor_distances.begin(), neighbor_distances.end(), Tools::sortByDistance);
-
-    // First neighbor
-    neighbors.push_back(neighbor_distances[0].first);
-
-    // Min number
-    if (neighbor_distances.size() < best_n)
-      best_n = neighbor_distances.size();
-
-    // Get the best non-consecutive n nodes
-    for (uint i=1; i<neighbor_distances.size(); i++)
-    {
-      if (abs(neighbor_distances[i-1].first - neighbor_distances[i].first) > 3)
-        neighbors.push_back(neighbor_distances[i].first);
-      if (neighbors.size() == best_n)
-        break;
-    }
-
-    return neighbors;
   }
 
   void Graph::saveToFile()

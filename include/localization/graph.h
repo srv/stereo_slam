@@ -52,12 +52,6 @@ public:
    */
   void addFrameToQueue(Frame frame);
 
-  /** \brief Find the non-consecutive closest neighbors of a given vertex
-   * @return the list of neighbors
-   * \param the vertex id
-   */
-  vector<int> findClosestNeighbors(int vertex_id);
-
   /** \brief Add an edge to the graph
    * \param Index of vertex 1
    * \param Index of vertex 2
@@ -78,11 +72,11 @@ public:
   /** \brief Set camera matrix
    * \param camera matrix
    */
-  inline void setCameraMatrix(const Mat& camera_matrix){camera_matrix_ = camera_matrix;}
+  inline void setCameraMatrix(const cv::Mat& camera_matrix){camera_matrix_ = camera_matrix;}
 
   /** \brief Get camera matrix
    */
-  inline Mat getCameraMatrix() const {return camera_matrix_;}
+  inline cv::Mat getCameraMatrix() const {return camera_matrix_;}
 
 protected:
 
@@ -98,10 +92,8 @@ protected:
   /** \brief Add a vertex to the graph
    * @return the vertex id
    * \param Vertex pose
-   * \param Number of inliers between this vertex and the previous
    */
-  int addVertex(tf::Transform pose,
-                int inliers);
+  int addVertex(Eigen::Vector4f pose);
 
   /** \brief Save the graph to file
    */
@@ -121,7 +113,7 @@ private:
 
   LoopClosing* loop_closing_; //!> Loop closing
 
-  Mat camera_matrix_; //!> The camera matrix
+  cv::Mat camera_matrix_; //!> The camera matrix
 };
 
 } // namespace

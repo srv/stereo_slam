@@ -18,14 +18,10 @@
 #include <opencv2/nonfree/nonfree.hpp>
 
 #include <pcl/point_types.h>
-#include <pcl/search/search.h>
-#include <pcl/search/kdtree.h>
-#include <pcl/features/normal_3d.h>
 #include <pcl/segmentation/region_growing.h>
 #include <pcl/features/normal_3d_omp.h>
 
 using namespace std;
-using namespace cv;
 using namespace pcl;
 
 typedef PointCloud<PointXYZ> Cloud;
@@ -44,73 +40,46 @@ public:
 
   /** \brief Class constructor
    */
-  Frame(Mat l_img, Mat r_img, image_geometry::StereoCameraModel camera_model);
-
-  /** \brief Set id
-   * \param the frame id
-   */
-  inline void setId(const int& id){id_ = id;}
-
-  /** \brief Get the frame id
-   */
-  inline int getId() const {return id_;}
+  Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model);
 
   /** \brief Get left image
    */
-  inline Mat getLeftImg() const {return l_img_;}
+  inline cv::Mat getLeftImg() const {return l_img_;}
 
   /** \brief Get right image
    */
-  inline Mat getRightImg() const {return r_img_;}
+  inline cv::Mat getRightImg() const {return r_img_;}
 
   /** \brief Get left keypoints
    */
-  inline vector<KeyPoint> getLeftKp() const {return l_kp_;}
+  inline vector<cv::KeyPoint> getLeftKp() const {return l_kp_;}
 
   /** \brief Set left keypoints
    * \param vector of keypoints
    */
-  inline void setLeftKp(const vector<KeyPoint>& l_kp){l_kp_ = l_kp;}
+  inline void setLeftKp(const vector<cv::KeyPoint>& l_kp){l_kp_ = l_kp;}
 
   /** \brief Get right keypoints
    */
-  inline vector<KeyPoint> getRightKp() const {return r_kp_;}
+  inline vector<cv::KeyPoint> getRightKp() const {return r_kp_;}
 
   /** \brief Get left descriptors
    */
-  inline Mat getLeftDesc() const {return l_desc_;}
+  inline cv::Mat getLeftDesc() const {return l_desc_;}
 
   /** \brief Set left descriptors
    * \param vector of descriptors
    */
-  inline void setLeftDesc(const Mat& l_desc){l_desc_ = l_desc;}
+  inline void setLeftDesc(const cv::Mat& l_desc){l_desc_ = l_desc;}
 
   /** \brief Get 3D in camera frame
    */
-  inline vector<Point3f> getCameraPoints() const {return camera_points_;}
+  inline vector<cv::Point3f> getCameraPoints() const {return camera_points_;}
 
   /** \brief Set 3D
    * \param vector of 3D points
    */
-  inline void setCameraPoints(const vector<Point3f>& points_3d){camera_points_ = points_3d;}
-
-  /** \brief Set the inliers value
-   * \param number of inliers of this frame to some specific fixed frame
-   */
-  inline void setInliers(const int& inliers){inliers_to_fixed_frame_ = inliers;}
-
-  /** \brief Get the inliers value
-   */
-  inline int getInliers() const {return inliers_to_fixed_frame_;}
-
-  /** \brief Set the frame graph neighbors
-   * \param list of graph neighbors
-   */
-  inline void setGraphNeighbors(const vector<int>& graph_neighbors){graph_neighbors_ = graph_neighbors;}
-
-  /** \brief Get frame graph neighbors
-   */
-  inline vector<int> getGraphNeighbors() const {return graph_neighbors_;}
+  inline void setCameraPoints(const vector<cv::Point3f>& points_3d){camera_points_ = points_3d;}
 
   /** \brief Set odometry camera pose
    * \param camera pose
@@ -132,7 +101,7 @@ public:
   /** \brief Compute sift descriptors
    * @return the matrix of sift descriptors
    */
-  Mat computeSift();
+  cv::Mat computeSift();
 
   /** \brief Cluster the points
    */
@@ -140,29 +109,22 @@ public:
 
 private:
 
+  cv::Mat l_img_; //!> Left image
+  cv::Mat r_img_; //!> Right image
 
-  int id_; //!> Frame id
+  vector<cv::KeyPoint> l_kp_; //!> Left keypoints.
+  vector<cv::KeyPoint> r_kp_; //!> Right keypoints.
 
-  Mat l_img_; //!> Left image
-  Mat r_img_; //!> Right image
+  cv::Mat l_desc_; //!> Left descriptors (orb).
+  cv::Mat r_desc_; //!> Right descriptors (orb).
 
-  vector<KeyPoint> l_kp_; //!> Left keypoints.
-  vector<KeyPoint> r_kp_; //!> Right keypoints.
-
-  Mat l_desc_; //!> Left descriptors (orb).
-  Mat r_desc_; //!> Right descriptors (orb).
-
-  int inliers_to_fixed_frame_; //!> Number of inliers of this frame to some specific fixed frame
-
-  vector<Point3f> camera_points_; //!> Stereo 3D points in camera frame
+  vector<cv::Point3f> camera_points_; //!> Stereo 3D points in camera frame
 
   vector<PointIndices> clusters_; //!> 3D points clustering
 
   vector<Eigen::Vector4f> cluster_centroids_; //!> Central point for every cluster
 
   tf::Transform odom_pose_; //!> Odometry position for this frame (could not coincide with the camera)
-
-  vector<int> graph_neighbors_; //!> Closest graph neighbors
 
 };
 

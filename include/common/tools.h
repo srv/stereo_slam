@@ -34,6 +34,18 @@ public:
     * @return Eigen::Isometry3d matrix
     * \param in of type tf::transform
     */
+  static Eigen::Isometry3d vector4fToIsometry(Eigen::Vector4f in)
+  {
+    Eigen::Vector3d t_out(in[0], in[1], in[2]);
+    Eigen::Isometry3d out = Eigen::Isometry3d::Identity();
+    out.translation() = t_out;
+    return out;
+  }
+
+  /** \brief convert a tf::transform to Eigen::Isometry3d
+    * @return Eigen::Isometry3d matrix
+    * \param in of type tf::transform
+    */
   static Eigen::Isometry3d tfToIsometry(tf::Transform in)
   {
     tf::Vector3 t_in = in.getOrigin();
@@ -50,28 +62,6 @@ public:
     return out;
   }
 
-  /** \brief convert a tf::transform to Eigen::Matrix4f
-    * @return Eigen::Matrix4f matrix
-    * \param in of type tf::transform
-    */
-  static Eigen::Matrix4f tfToMatrix4f(tf::Transform in)
-  {
-    Eigen::Matrix4f out;
-
-    tf::Vector3 t_in  = in.getOrigin();
-    tf::Matrix3x3 rot = in.getBasis();
-    tf::Vector3 r0    = rot.getRow(0);
-    tf::Vector3 r1    = rot.getRow(1);
-    tf::Vector3 r2    = rot.getRow(2);
-
-    out << r0.x(), r0.y(), r0.z(), t_in.x(),
-           r1.x(), r1.y(), r1.z(), t_in.y(),
-           r2.x(), r2.y(), r2.z(), t_in.z(),
-           0,     0,     0,     1;
-
-    return out;
-  }
-
   /** \brief convert a Eigen::Isometry3d to tf::transform
     * @return tf::transform matrix
     * \param in of type Eigen::Isometry3d
@@ -82,26 +72,6 @@ public:
     Eigen::Quaterniond q_in = (Eigen::Quaterniond)in.rotation();
     tf::Vector3 t_out(t_in.x(), t_in.y(), t_in.z());
     tf::Quaternion q_out(q_in.x(), q_in.y(), q_in.z(), q_in.w());
-    tf::Transform out(q_out, t_out);
-    return out;
-  }
-
-  /** \brief convert a Eigen::Matrix4f to tf::transform
-    * @return tf::transform matrix
-    * \param in of type Eigen::Matrix4f
-    */
-  static tf::Transform matrix4fToTf(Eigen::Matrix4f in)
-  {
-    tf::Vector3 t_out;
-    t_out.setValue(static_cast<double>(in(0,3)),static_cast<double>(in(1,3)),static_cast<double>(in(2,3)));
-
-    tf::Matrix3x3 tf3d;
-    tf3d.setValue(static_cast<double>(in(0,0)), static_cast<double>(in(0,1)), static_cast<double>(in(0,2)),
-                  static_cast<double>(in(1,0)), static_cast<double>(in(1,1)), static_cast<double>(in(1,2)),
-                  static_cast<double>(in(2,0)), static_cast<double>(in(2,1)), static_cast<double>(in(2,2)));
-
-    tf::Quaternion q_out;
-    tf3d.getRotation(q_out);
     tf::Transform out(q_out, t_out);
     return out;
   }
@@ -139,7 +109,7 @@ public:
     }
   }
 
-  /** \brief Convert image messages to cv Mat
+  /** \brief Convert image messages to cv cv::Mat
     * \param left image message.
     * \param right image message.
     * \param will contain the output left cv::Mat.
@@ -149,7 +119,7 @@ public:
                           sensor_msgs::Image r_img_msg,
                           cv::Mat &l_img, cv::Mat &r_img)
   {
-    // Convert message to Mat
+    // Convert message to cv::Mat
     cv_bridge::CvImagePtr l_img_ptr, r_img_ptr;
     try
     {
@@ -211,27 +181,6 @@ public:
     return pose_tf;
   }
 
-  /** \brief compute the absolute diference between 2 poses
-    * @return the norm between two poses
-    * \param pose_1 transformation matrix of pose 1
-    * \param pose_2 transformation matrix of pose 2
-    */
-  static double poseDiff(tf::Transform pose_1, tf::Transform pose_2)
-  {
-    tf::Vector3 d = pose_1.getOrigin() - pose_2.getOrigin();
-    return sqrt(d.x()*d.x() + d.y()*d.y() + d.z()*d.z());
-  }
-
-  /** \brief Sort 2 pairs by size
-    * @return true if pair 1 is smaller than pair 2
-    * \param pair 1
-    * \param pair 2
-    */
-  static bool sortByDistance(const pair<int, double> d1, const pair<int, double> d2)
-  {
-    return (d1.second < d2.second);
-  }
-
   /** \brief Sort 2 matchings by value
     * @return true if matching 1 is smaller than matching 2
     * \param matching 1
@@ -242,126 +191,13 @@ public:
     return (d1.second < d2.second);
   }
 
-  /** \brief Sort 2 matchings by likelihood
-    * @return true if likelihood 1 is greater than likelihood 2
-    * \param likelihood 1
-    * \param likelihood 2
-    */
-  static bool sortByLikelihood(const pair<int, float> p1, const pair<int, float> p2)
-  {
-    return (p1.second > p2.second);
-  }
-
-  /** \brief Convert isometry to string (useful for debugin purposes)
-    * @return string containing the isometry
-    * \param isometry matrix
-    */
-  static string isometryToString(Eigen::Isometry3d m)
-  {
-    char result[80];
-    memset(result, 0, sizeof(result));
-    Eigen::Vector3d xyz = m.translation();
-    Eigen::Vector3d rpy = m.rotation().eulerAngles(0, 1, 2);
-    snprintf(result, 79, "%6.2f %6.2f %6.2f %6.2f %6.2f %6.2f",
-        xyz(0), xyz(1), xyz(2),
-        rpy(0) * 180/M_PI, rpy(1) * 180/M_PI, rpy(2) * 180/M_PI);
-    return string(result);
-  }
-
-  /** \brief Show a tf in the console (useful for debugin purposes)
-    * @return
-    * \param tf matrix
-    */
-  static void showTf(tf::Transform input)
-  {
-    tf::Vector3 tran = input.getOrigin();
-    tf::Matrix3x3 rot = input.getBasis();
-    tf::Vector3 r0 = rot.getRow(0);
-    tf::Vector3 r1 = rot.getRow(1);
-    tf::Vector3 r2 = rot.getRow(2);
-    ROS_INFO_STREAM("[StereoSlam:]\n" << r0.x() << ", " << r0.y() << ", " << r0.z() << ", " << tran.x() <<
-                    "\n" << r1.x() << ", " << r1.y() << ", " << r1.z() << ", " << tran.y() <<
-                    "\n" << r2.x() << ", " << r2.y() << ", " << r2.z() << ", " << tran.z());
-  }
-
-  static void readPoses(string work_dir, vector< pair<string, tf::Transform> > &cloud_poses)
-  {
-    // Init
-    cloud_poses.clear();
-
-    string graph_file = work_dir + "graph_vertices.txt";
-    string lock_file = work_dir + ".graph.lock";
-
-    // Wait until poses file is unlocked
-    while(fs::exists(lock_file));
-
-    // Create a locking element
-    fstream f_lock(lock_file.c_str(), ios::out | ios::trunc);
-
-    // Get the pointcloud poses file
-    int line_counter = 0;
-    tf::Transform zero_pose;
-    ifstream poses_file(graph_file.c_str());
-    string line;
-    while (getline(poses_file, line))
-    {
-      int i = 0;
-      string cloud_name, value;
-      double x, y, z, qx, qy, qz, qw;
-      istringstream ss(line);
-      while(getline(ss, value, ','))
-      {
-        if (i == 1)
-          cloud_name = value;
-        else if (i == 5)
-          x = boost::lexical_cast<double>(value);
-        else if (i == 6)
-          y = boost::lexical_cast<double>(value);
-        else if (i == 7)
-          z = boost::lexical_cast<double>(value);
-        else if (i == 8)
-          qx = boost::lexical_cast<double>(value);
-        else if (i == 9)
-          qy = boost::lexical_cast<double>(value);
-        else if (i == 10)
-          qz = boost::lexical_cast<double>(value);
-        else if (i == 11)
-          qw = boost::lexical_cast<double>(value);
-        i++;
-      }
-      // Build the tf
-      tf::Vector3 t(x, y, z);
-      tf::Quaternion q(qx, qy, qz, qw);
-      tf::Transform transf(q, t);
-
-      // Save the first
-      if (line_counter == 0)
-        zero_pose = transf.inverse();
-
-      // Set origin to zero
-      transf = zero_pose * transf;
-
-      // Save
-      cloud_poses.push_back(make_pair(cloud_name, transf));
-      line_counter++;
-    }
-
-    // Un-lock
-    f_lock.close();
-    int ret_code = remove(lock_file.c_str());
-    if (ret_code != 0)
-    {
-      ROS_ERROR("[StereoSlam:] Error deleting the locking file.");
-    }
-  }
-
-  /** \brief compose the transformation matrix using 2 Mat as inputs:
+  /** \brief compose the transformation matrix using 2 cv::Mat as inputs:
     * one for rotation and one for translation
     * @return the transformation matrix
     * \param rvec cv matrix with the rotation angles
     * \param tvec cv matrix with the transformation x y z
     */
-  static tf::Transform buildTransformation(Mat rvec, Mat tvec)
+  static tf::Transform buildTransformation(cv::Mat rvec, cv::Mat tvec)
   {
     if (rvec.empty() || tvec.empty())
       return tf::Transform();

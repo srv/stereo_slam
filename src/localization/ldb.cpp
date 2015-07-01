@@ -92,7 +92,7 @@ static int bit_pattern_256_[selected_bits] =
 	1334, 1336, 1343, 1350, 1351, 1354, 1356, 1373
 };
 
-static float IC_Angle(const Mat& image,
+static float IC_Angle(const cv::Mat& image,
 					  const int half_k,
 					  Point2f pt,
 					  const vector<int> & u_max)
@@ -224,7 +224,7 @@ inline void rotatedIntegralImage(double descriptor_dir,
 								 const cv::KeyPoint& kpt,
 								 const cv::Mat& img,
 								 const int& patch_size,
-								 Mat& win_integral_image)
+								 cv::Mat& win_integral_image)
 {
 
 	//* Nearest neighbour version (faster) */
@@ -232,7 +232,7 @@ inline void rotatedIntegralImage(double descriptor_dir,
 	float sin_dir = sin(descriptor_dir);
 	float cos_dir = cos(descriptor_dir);
 	float win_offset = (int)(patch_size/2);
-	Mat win(patch_size, patch_size, CV_8U);
+	cv::Mat win(patch_size, patch_size, CV_8U);
 	//******************************************************//
 	// faster version: xin yang @ 2012-07-05 11:22am
 	//******************************************************//
@@ -283,7 +283,7 @@ static void computeLdbDescriptor(const cv::KeyPoint& kpt,
 	int sum2by2_size = 4, sum3by3_size = 9, sum4by4_size = 16, sum5by5_size = 25;
 
 	int offset = patch_size/2;
-	Mat win_integral_image(patch_size+1, patch_size+1, CV_32S);
+	cv::Mat win_integral_image(patch_size+1, patch_size+1, CV_32S);
 
 	if(flag == true)
 		rotatedIntegralImage(kpt.angle, kpt, img, patch_size, win_integral_image);
@@ -560,7 +560,7 @@ static void computeLdbDescriptor(const cv::KeyPoint& kpt,
 	}
 }
 
-static void computeOrientation(const Mat& image,
+static void computeOrientation(const cv::Mat& image,
 							   vector<KeyPoint>& keypoints,
 							   int halfPatchSize)
 {
@@ -596,18 +596,18 @@ static void computeOrientation(const Mat& image,
 * @param dsize is size of LDB descriptor (current LDB only support 8bytes)
 * @param flag indicates whether LDB is steered or not
 */
-static void computeDescriptors(const Mat& image,
+static void computeDescriptors(const cv::Mat& image,
 							   const cv::Mat& integral_image,
 							   const int& patchSize,
 							   vector<KeyPoint>& keypoints,
-							   Mat& descriptors,
+							   cv::Mat& descriptors,
 							   int dsize,
 							   bool flag)
 {
 	//convert to grayscale if more than one color
 	CV_Assert(image.type() == CV_8UC1);
 	//create the descriptor mat, keypoints.size() rows, BYTES cols
-	descriptors = Mat::zeros((int)keypoints.size(), dsize, CV_8UC1);
+	descriptors = cv::Mat::zeros((int)keypoints.size(), dsize, CV_8UC1);
 
 	for (size_t i = 0; i < keypoints.size(); i++)
 		computeLdbDescriptor(keypoints[i], image, integral_image, descriptors.ptr((int)i),
@@ -663,9 +663,9 @@ int LDB::descriptorSize() const
         return kBytes;
 }
 
-void LDB::compute( const Mat& _image,
+void LDB::compute( const cv::Mat& _image,
 				   vector<KeyPoint>& _keypoints,
-				   Mat& _descriptors,
+				   cv::Mat& _descriptors,
 				   bool flag) const
 {
 	if(_image.empty() )
@@ -687,13 +687,13 @@ void LDB::compute( const Mat& _image,
     }
 
 	// Pre-compute the scale pyramids
-	vector<Mat> imagePyramid(levelsNum);
+	vector<cv::Mat> imagePyramid(levelsNum);
 	for (int level = 0; level < levelsNum; ++level)
 	{
 		float scale = 1/getScale(level, firstLevel, scaleFactor);
 		Size sz(cvRound(_image.cols*scale), cvRound(_image.rows*scale));
 		Size wholeSize(sz.width + border*2, sz.height + border*2);
-		Mat temp(wholeSize, _image.type()), masktemp;
+		cv::Mat temp(wholeSize, _image.type()), masktemp;
 		imagePyramid[level] = temp(Rect(border, border, sz.width, sz.height));
 
 		// Compute the resized image
@@ -734,13 +734,13 @@ void LDB::compute( const Mat& _image,
 			keypoint->pt *= scale;
 	}
 
-	Mat descriptors;
+	cv::Mat descriptors;
 	vector<Point> pattern;
 
 	int nkeypoints = 0;
 	for (int level = 0; level < levelsNum; ++level){
 		vector<KeyPoint>& keypoints = allKeypoints[level];
-		Mat& workingMat = imagePyramid[level];
+		cv::Mat& workingMat = imagePyramid[level];
 		if(keypoints.size() > 1)
 			KeyPointsFilter::runByImageBorder(keypoints, workingMat.size(), border);
 
@@ -759,7 +759,7 @@ void LDB::compute( const Mat& _image,
 	for (int level = 0; level < levelsNum; ++level)
 	{
 		// preprocess the resized image
-		Mat& workingMat = imagePyramid[level];
+		cv::Mat& workingMat = imagePyramid[level];
 		// Get the features and compute their orientation
 		vector<KeyPoint>& keypoints = allKeypoints[level];
 		if(keypoints.size() > 1)
@@ -767,7 +767,7 @@ void LDB::compute( const Mat& _image,
 		int nkeypoints = (int)keypoints.size();
 
 		// Compute the descriptors
-		Mat desc;
+		cv::Mat desc;
 		if (!descriptors.empty())
 		{
 			desc = descriptors.rowRange(offset, offset + nkeypoints);

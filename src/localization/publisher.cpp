@@ -31,24 +31,24 @@ namespace slam
 
   void Publisher::drawStereoMatchings(const Frame frame)
   {
-    Mat l_img, r_img;
+    cv::Mat l_img, r_img;
     frame.getLeftImg().copyTo(l_img);
     frame.getRightImg().copyTo(r_img);
-    vector<KeyPoint> l_kp = frame.getLeftKp();
-    vector<KeyPoint> r_kp = frame.getRightKp();
+    vector<cv::KeyPoint> l_kp = frame.getLeftKp();
+    vector<cv::KeyPoint> r_kp = frame.getRightKp();
 
     // Sanity check
     if (l_img.rows == 0 || l_img.cols == 0 || r_img.rows == 0 || r_img.cols == 0) return;
 
     // Concat images
-    Mat img;
-    hconcat(l_img, r_img, img);
+    cv::Mat img;
+    cv::hconcat(l_img, r_img, img);
 
     // Draw keypoints
     const float r = 5;
     for (uint i=0; i<l_kp.size(); i++)
     {
-      Point2f l_pt1, l_pt2, r_pt1, r_pt2;
+      cv::Point2f l_pt1, l_pt2, r_pt1, r_pt2;
       l_pt1.x = l_kp[i].pt.x-r;
       l_pt1.y = l_kp[i].pt.y-r;
       l_pt2.x = l_kp[i].pt.x+r;
@@ -58,24 +58,24 @@ namespace slam
       r_pt2.x = l_img.cols+r_kp[i].pt.x+r;
       r_pt2.y = r_kp[i].pt.y+r;
 
-      Point2f rkp(l_img.cols+r_kp[i].pt.x,r_kp[i].pt.y);
+      cv::Point2f rkp(l_img.cols+r_kp[i].pt.x,r_kp[i].pt.y);
 
-      rectangle(img, l_pt1, l_pt2, Scalar(0,255,0));
-      rectangle(img, r_pt1, r_pt2, Scalar(0,255,0));
-      circle(img, l_kp[i].pt, 2, Scalar(0,255,0), -1);
-      circle(img, rkp, 2, Scalar(0,255,0), -1);
-      line(img, l_kp[i].pt, rkp, Scalar(0,255,0), 1, 8, 0);
+      cv::rectangle(img, l_pt1, l_pt2, cv::Scalar(0,255,0));
+      cv::rectangle(img, r_pt1, r_pt2, cv::Scalar(0,255,0));
+      cv::circle(img, l_kp[i].pt, 2, cv::Scalar(0,255,0), -1);
+      cv::circle(img, rkp, 2, cv::Scalar(0,255,0), -1);
+      cv::line(img, l_kp[i].pt, rkp, cv::Scalar(0,255,0), 1, 8, 0);
     }
 
     // Draw text
     stringstream s;
     int baseline = 0;
     s << " Stereo Matches: " << l_kp.size();
-    Size text_size = getTextSize(s.str(), FONT_HERSHEY_PLAIN, 1, 1, &baseline);
-    Mat im_text = Mat(img.rows + text_size.height + 10, img.cols, img.type());
+    cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1, 1, &baseline);
+    cv::Mat im_text = cv::Mat(img.rows + text_size.height + 10, img.cols, img.type());
     img.copyTo(im_text.rowRange(0, img.rows).colRange(0, img.cols));
-    im_text.rowRange(img.rows, im_text.rows) = Mat::zeros(text_size.height + 10, img.cols, img.type());
-    putText(im_text, s.str(), Point(5, im_text.rows - 5), FONT_HERSHEY_PLAIN, 1, Scalar(255,255,255), 1, 8);
+    im_text.rowRange(img.rows, im_text.rows) = cv::Mat::zeros(text_size.height + 10, img.cols, img.type());
+    cv::putText(im_text, s.str(), cv::Point(5, im_text.rows - 5), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(255,255,255), 1, 8);
 
     // Publish
     cv_bridge::CvImage ros_image;
@@ -87,20 +87,20 @@ namespace slam
 
   void Publisher::drawTrackerMatchings(const Frame fixed_frame,
                                             const Frame current_frame,
-                                            const vector<DMatch> matches,
+                                            const vector<cv::DMatch> matches,
                                             const vector<int> inliers)
   {
-    Mat f_img, c_img;
+    cv::Mat f_img, c_img;
     fixed_frame.getLeftImg().copyTo(f_img);
     current_frame.getLeftImg().copyTo(c_img);
-    vector<KeyPoint> f_kp = fixed_frame.getLeftKp();
-    vector<KeyPoint> c_kp = current_frame.getLeftKp();
+    vector<cv::KeyPoint> f_kp = fixed_frame.getLeftKp();
+    vector<cv::KeyPoint> c_kp = current_frame.getLeftKp();
 
     // Sanity check
     if (f_img.rows == 0 || f_img.cols == 0 || c_img.rows == 0 || c_img.cols == 0) return;
 
     // Only draw true matchings
-    vector<Point2f> f_matched_kp, c_matched_kp;
+    vector<cv::Point2f> f_matched_kp, c_matched_kp;
     for(uint i=0; i<matches.size(); i++)
     {
       f_matched_kp.push_back(f_kp[matches[i].trainIdx].pt);
@@ -108,14 +108,14 @@ namespace slam
     }
 
     // Concat images
-    Mat img;
+    cv::Mat img;
     vconcat(c_img, f_img, img);
 
     // Draw keypoints
     const float r = 5;
     for (uint i=0; i<f_matched_kp.size(); i++)
     {
-      Point2f f_pt1, f_pt2, c_pt1, c_pt2;
+      cv::Point2f f_pt1, f_pt2, c_pt1, c_pt2;
       f_pt1.x = f_matched_kp[i].x-r;
       f_pt1.y = c_img.rows+f_matched_kp[i].y-r;
       f_pt2.x = f_matched_kp[i].x+r;
@@ -125,33 +125,33 @@ namespace slam
       c_pt2.x = c_matched_kp[i].x+r;
       c_pt2.y = c_matched_kp[i].y+r;
 
-      Point2f fkp(f_matched_kp[i].x, c_img.rows+f_matched_kp[i].y);
+      cv::Point2f fkp(f_matched_kp[i].x, c_img.rows+f_matched_kp[i].y);
 
       // Is inlier?
-      Scalar color;
+      cv::Scalar color;
       if (find(inliers.begin(), inliers.end(), i) != inliers.end())
       {
-        color = Scalar(0,255,0);
-        line(img, c_matched_kp[i], fkp, color, 1, 8, 0);
+        color = cv::Scalar(0,255,0);
+        cv::line(img, c_matched_kp[i], fkp, color, 1, 8, 0);
       }
       else
-        color = Scalar(255,0,0);
+        color = cv::Scalar(255,0,0);
 
-      rectangle(img, f_pt1, f_pt2, color);
-      rectangle(img, c_pt1, c_pt2, color);
-      circle(img, c_matched_kp[i], 2, color, -1);
-      circle(img, fkp, 2, color, -1);
+      cv::rectangle(img, f_pt1, f_pt2, color);
+      cv::rectangle(img, c_pt1, c_pt2, color);
+      cv::circle(img, c_matched_kp[i], 2, color, -1);
+      cv::circle(img, fkp, 2, color, -1);
     }
 
     // Draw text
     stringstream s;
     int baseline = 0;
     s << " Tracker Matches: " << f_matched_kp.size();
-    Size text_size = getTextSize(s.str(), FONT_HERSHEY_PLAIN, 1, 1, &baseline);
-    Mat im_text = Mat(img.rows + text_size.height + 10, img.cols, img.type());
+    cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1, 1, &baseline);
+    cv::Mat im_text = cv::Mat(img.rows + text_size.height + 10, img.cols, img.type());
     img.copyTo(im_text.rowRange(0, img.rows).colRange(0, img.cols));
-    im_text.rowRange(img.rows, im_text.rows) = Mat::zeros(text_size.height + 10, img.cols, img.type());
-    putText(im_text, s.str(), Point(5, im_text.rows - 5), FONT_HERSHEY_PLAIN, 1, Scalar(255,255,255), 1, 8);
+    im_text.rowRange(img.rows, im_text.rows) = cv::Mat::zeros(text_size.height + 10, img.cols, img.type());
+    cv::putText(im_text, s.str(), cv::Point(5, im_text.rows - 5), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(255,255,255), 1, 8);
 
     // Publish
     cv_bridge::CvImage ros_image;
@@ -166,26 +166,26 @@ namespace slam
     vector<PointIndices> clusters = frame.getClusters();
     if (clusters.size() == 0) return;
 
-    Mat img;
+    cv::Mat img;
     frame.getLeftImg().copyTo(img);
-    vector<KeyPoint> kp = frame.getLeftKp();
-    RNG rng(12345);
+    vector<cv::KeyPoint> kp = frame.getLeftKp();
+    cv::RNG rng(12345);
     for (uint i=0; i<clusters.size(); i++)
     {
-      Scalar color = Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
+      cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
       for (uint j=0; j<clusters[i].indices.size(); j++)
-        circle(img, kp[clusters[i].indices[j]].pt, 2, color, -1);
+        cv::circle(img, kp[clusters[i].indices[j]].pt, 2, color, -1);
     }
 
     // Draw text
     stringstream s;
     int baseline = 0;
     s << " Number of clusters: " << clusters.size();
-    Size text_size = getTextSize(s.str(), FONT_HERSHEY_PLAIN, 1, 1, &baseline);
-    Mat im_text = Mat(img.rows + text_size.height + 10, img.cols, img.type());
+    cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1, 1, &baseline);
+    cv::Mat im_text = cv::Mat(img.rows + text_size.height + 10, img.cols, img.type());
     img.copyTo(im_text.rowRange(0, img.rows).colRange(0, img.cols));
-    im_text.rowRange(img.rows, im_text.rows) = Mat::zeros(text_size.height + 10, img.cols, img.type());
-    putText(im_text, s.str(), Point(5, im_text.rows - 5), FONT_HERSHEY_PLAIN, 1, Scalar(255,255,255), 1, 8);
+    im_text.rowRange(img.rows, im_text.rows) = cv::Mat::zeros(text_size.height + 10, img.cols, img.type());
+    cv::putText(im_text, s.str(), cv::Point(5, im_text.rows - 5), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(255,255,255), 1, 8);
 
     // Publish
     cv_bridge::CvImage ros_image;

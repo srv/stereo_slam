@@ -70,7 +70,8 @@ add_executable(localization
 						src/localization/ldb.cpp
 						src/localization/graph.cpp
 						src/localization/hash.cpp
-						src/localization/loop_closing.cpp)
+						src/localization/loop_closing.cpp
+						src/localization/cluster.cpp)
 target_link_libraries(	localization
 						${eigen_LIBRARIES}
 						${OpenCV_LIBRARIES}

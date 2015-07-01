@@ -48,7 +48,7 @@ namespace slam
 
     tf::Transform c_odom_robot = Tools::odomTotf(*odom_msg);
 
-    Mat l_img, r_img;
+    cv::Mat l_img, r_img;
     Tools::imgMsgToMat(*l_img_msg, *r_img_msg, l_img, r_img);
 
     if (state_ == NOT_INITIALIZED)
@@ -121,19 +121,19 @@ namespace slam
     inliers_.clear();
 
     // Descriptor matching
-    Mat f_desc = f_frame_.getLeftDesc();
-    Mat c_desc = c_frame_.getLeftDesc();
-    vector<KeyPoint> f_kp = f_frame_.getLeftKp();
-    vector<Point3f> f_points_3d = f_frame_.getCameraPoints();
-    vector<Point3f> c_points_3d = c_frame_.getCameraPoints();
+    cv::Mat f_desc = f_frame_.getLeftDesc();
+    cv::Mat c_desc = c_frame_.getLeftDesc();
+    vector<cv::KeyPoint> f_kp = f_frame_.getLeftKp();
+    vector<cv::Point3f> f_points_3d = f_frame_.getCameraPoints();
+    vector<cv::Point3f> c_points_3d = c_frame_.getCameraPoints();
 
     // Matching
-    Mat match_mask;
+    cv::Mat match_mask;
     const int knn = 2;
     const double ratio = 0.9;
-    Ptr<DescriptorMatcher> descriptor_matcher;
-    descriptor_matcher = DescriptorMatcher::create("BruteForce-Hamming");
-    vector<vector<DMatch> > knn_matches;
+    cv::Ptr<cv::DescriptorMatcher> descriptor_matcher;
+    descriptor_matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
+    vector<vector<cv::DMatch> > knn_matches;
     descriptor_matcher->knnMatch(c_desc, f_desc, knn_matches, knn, match_mask);
     for (uint m=0; m<knn_matches.size(); m++)
     {
@@ -143,15 +143,11 @@ namespace slam
     }
 
     // Check minimum matches
-    if (matches_.size() < MIN_INLIERS)
+    if (matches_.size() >= MIN_INLIERS)
     {
-      c_frame_.setInliers(0);
-    }
-    else
-    {
-      vector<Point2f> f_matched_kp;
-      vector<Point3f> f_matched_3d_points;
-      vector<Point3f> c_matched_3d_points;
+      vector<cv::Point2f> f_matched_kp;
+      vector<cv::Point3f> f_matched_3d_points;
+      vector<cv::Point3f> c_matched_3d_points;
       for(uint i=0; i<matches_.size(); i++)
       {
         f_matched_kp.push_back(f_kp[matches_[i].trainIdx].pt);
@@ -166,11 +162,9 @@ namespace slam
 
       // Estimate the motion
       solvePnPRansac(c_matched_3d_points, f_matched_kp, camera_matrix_,
-                     Mat(), rvec_, tvec_, use_guess,
+                     cv::Mat(), rvec_, tvec_, use_guess,
                      100, 1.3,
                      MAX_INLIERS, inliers_);
-
-      c_frame_.setInliers(inliers_.size());
     }
   }
 

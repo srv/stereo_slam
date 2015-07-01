@@ -16,7 +16,6 @@
 #include "frame.h"
 
 using namespace std;
-using namespace cv;
 
 namespace slam
 {
@@ -50,7 +49,7 @@ public:
    */
   void drawTrackerMatchings(const Frame fixed_frame,
                             const Frame current_frame,
-                            const vector<DMatch> matches,
+                            const vector<cv::DMatch> matches,
                             const vector<int> inliers);
 
   /** \brief Draw and publish the keypoint clustering

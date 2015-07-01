@@ -7,38 +7,38 @@
 namespace slam
 {
 
-  Frame::Frame() : id_(-1), inliers_to_fixed_frame_(0) {}
+  Frame::Frame() {}
 
-  Frame::Frame(Mat l_img, Mat r_img, image_geometry::StereoCameraModel camera_model) : id_(-1), inliers_to_fixed_frame_(0)
+  Frame::Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model)
   {
     l_img.copyTo(l_img_);
     r_img.copyTo(r_img_);
 
     // Convert images to grayscale
-    Mat l_img_gray, r_img_gray;
-    cvtColor(l_img, l_img_gray, CV_RGB2GRAY);
-    cvtColor(r_img, r_img_gray, CV_RGB2GRAY);
+    cv::Mat l_img_gray, r_img_gray;
+    cv::cvtColor(l_img, l_img_gray, CV_RGB2GRAY);
+    cv::cvtColor(r_img, r_img_gray, CV_RGB2GRAY);
 
     // Detect keypoints
-    vector<KeyPoint> l_kp, r_kp;
-    ORB orb(1000, 1.2f, 8, 14, 0, 2, 0, 14);
+    vector<cv::KeyPoint> l_kp, r_kp;
+    cv::ORB orb(1000, 1.2f, 8, 14, 0, 2, 0, 14);
     orb(l_img_gray, noArray(), l_kp, noArray(), false);
     orb(r_img_gray, noArray(), r_kp, noArray(), false);
 
     // Extract descriptors
-    Mat l_desc, r_desc;
+    cv::Mat l_desc, r_desc;
     LDB extractor_;
     extractor_.compute(l_img_gray, l_kp, l_desc, 0);
     extractor_.compute(r_img_gray, r_kp, r_desc, 0);
 
     // Left/right matching
-    Mat match_mask;
+    cv::Mat match_mask;
     const int knn = 2;
     const double ratio = 0.8;
-    vector<DMatch> matches, matches_filtered;
+    vector<cv::DMatch> matches, matches_filtered;
     Ptr<DescriptorMatcher> descriptor_matcher;
     descriptor_matcher = DescriptorMatcher::create("BruteForce");
-    vector<vector<DMatch> > knn_matches;
+    vector<vector<cv::DMatch> > knn_matches;
     descriptor_matcher->knnMatch(l_desc, r_desc, knn_matches, knn, match_mask);
     for (uint m=0; m<knn_matches.size(); m++)
     {
@@ -62,12 +62,12 @@ namespace slam
     r_desc_.release();
     for (size_t i=0; i<matches_filtered.size(); ++i)
     {
-      Point3d world_point;
+      cv::Point3d world_point;
       int l_idx = matches_filtered[i].queryIdx;
       int r_idx = matches_filtered[i].trainIdx;
 
-      Point2d l_point = l_kp[l_idx].pt;
-      Point2d r_point = r_kp[r_idx].pt;
+      cv::Point2d l_point = l_kp[l_idx].pt;
+      cv::Point2d r_point = r_kp[r_idx].pt;
 
       double disparity = l_point.x - r_point.x;
       camera_model.projectDisparityTo3d(l_point, disparity, world_point);
@@ -84,15 +84,15 @@ namespace slam
     }
   }
 
-  Mat Frame::computeSift()
+  cv::Mat Frame::computeSift()
   {
-    Mat sift;
+    cv::Mat sift;
     if (l_img_.cols == 0)
       return sift;
 
-    initModule_nonfree();
-    Ptr<DescriptorExtractor> cv_extractor;
-    cv_extractor = DescriptorExtractor::create("SIFT");
+    cv::initModule_nonfree();
+    cv::Ptr<cv::DescriptorExtractor> cv_extractor;
+    cv_extractor = cv::DescriptorExtractor::create("SIFT");
     cv_extractor->compute(l_img_, l_kp_, sift);
 
     return sift;
@@ -110,7 +110,7 @@ namespace slam
 
     // Normal estimation
     NormalEstimationOMP<PointXYZ, Normal> ne;
-    PointCloud <Normal>::Ptr normals(new PointCloud <Normal>);
+    PointCloud<Normal>::Ptr normals(new PointCloud<Normal>);
     search::KdTree<PointXYZ>::Ptr tree(new search::KdTree<PointXYZ>());
     ne.setInputCloud(world_points);
     ne.setSearchMethod(tree);
@@ -133,7 +133,7 @@ namespace slam
     for (uint i=0; clusters_.size(); i++)
     {
       Cloud::Ptr region(new Cloud);
-      pcl::copyPointCloud(*world_points, clusters_[i], *region);
+      copyPointCloud(*world_points, clusters_[i], *region);
       Eigen::Vector4f centroid;
       compute3DCentroid(*region, centroid);
       cluster_centroids_.push_back(centroid);

@@ -19,9 +19,7 @@ namespace slam
 
   static const int MAX_INLIERS = 80;
 
-  static const int LC_NEIGHBORS = 15;
-
-  static const int LC_GROUP_RANGE = 5;
+  static const int LC_NEIGHBORS = 10;
 
 } // namespace
 

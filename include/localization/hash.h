@@ -7,7 +7,6 @@
 #include <Eigen/Dense>
 
 using namespace std;
-using namespace cv;
 using namespace Eigen;
 
 namespace slam
@@ -52,13 +51,13 @@ public:
   /** \brief Initialize hash
    * \param sample descriptors matrix
    */
-  void init(Mat desc);
+  void init(cv::Mat desc);
 
   /** \brief Compute the hash
    * @return hash vector
    * \param cvMat containing the descriptors of the image
    */
-  vector<float> getHash(Mat desc);
+  vector<float> getHash(cv::Mat desc);
 
   /** \brief Compute the distance between 2 hashes
    * @return the distance

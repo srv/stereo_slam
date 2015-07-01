@@ -24,7 +24,6 @@
 #include "publisher.h"
 
 using namespace std;
-using namespace cv;
 
 namespace slam
 {
@@ -81,7 +80,7 @@ public:
 
   /** \brief Get tracker matchings
    */
-  inline vector<DMatch> getMatches() const {return matches_;}
+  inline vector<cv::DMatch> getMatches() const {return matches_;}
 
   /** \brief Get tracker inliers
    */
@@ -135,7 +134,7 @@ private:
 
   tf::TransformListener tf_listener_; //!> Listen for tf between robot and camera.
 
-  Mat camera_matrix_; //!> The camera matrix
+  cv::Mat camera_matrix_; //!> The camera matrix
   image_geometry::StereoCameraModel camera_model_; //!> Stereo camera model
 
   Frame f_frame_; //!> Fixed frame
@@ -143,10 +142,10 @@ private:
   Frame c_frame_; //!> Current frame
   Frame last_fixed_frame_before_lost_; //!> The last fixed frame before the system got lost
 
-  vector<DMatch> matches_; //!> Vector of matchings between fixed and current frame
+  vector<cv::DMatch> matches_; //!> Vector of matchings between fixed and current frame
   vector<int> inliers_; //!> Vector of inliers between fixed and current frame
 
-  Mat rvec_, tvec_; //!> Initial approximations of the rotation and translation vectors for the solvePNPransac
+  cv::Mat rvec_, tvec_; //!> Initial approximations of the rotation and translation vectors for the solvePNPransac
 
   Publisher* f_pub_; //!> Frame publisher
 

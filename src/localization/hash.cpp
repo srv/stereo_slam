@@ -26,7 +26,7 @@ namespace slam
     params_ = params;
   }
 
-  void Hash::init(Mat desc)
+  void Hash::init(cv::Mat desc)
   {
     // Create the random projections vectors
     initProjections(desc.rows);
@@ -38,7 +38,7 @@ namespace slam
     initialized_ = true;
   }
 
-  vector<float> Hash::getHash(Mat desc)
+  vector<float> Hash::getHash(cv::Mat desc)
   {
     // Initialize the histogram with 0's
     vector<float> hash(h_size_, 0.0);
