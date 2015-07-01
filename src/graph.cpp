@@ -8,7 +8,7 @@ using namespace tools;
 namespace slam
 {
 
-  Graph::Graph(LoopClosing* loop_closing) : loop_closing_(loop_closing)
+  Graph::Graph(LoopClosing* loop_closing) : frames_counter_(0), loop_closing_(loop_closing)
   {
     init();
   }
@@ -59,6 +59,9 @@ namespace slam
       frame_queue_.pop_front();
     }
 
+    // Increase the counter
+    frames_counter_++;
+
     // Extract sift
     cv::Mat sift_desc = frame.computeSift();
 
@@ -67,6 +70,7 @@ namespace slam
     vector<PointIndices> clusters = frame.getClusters();
     vector<cv::Point3f> points = frame.getCameraPoints();
     vector<cv::KeyPoint> kp = frame.getLeftKp();
+    tf::Transform camera_pose = frame.getPose();
     cv::Mat orb_desc = frame.getLeftDesc();
     for (uint i=0; i<clusters.size(); i++)
     {
@@ -90,7 +94,8 @@ namespace slam
       if (c_kp.size() > 10)
       {
         // Add to loop closing
-        Cluster cluster(id, c_kp, c_desc_orb, c_desc_sift, c_points);
+        Cluster cluster(id, frames_counter_, camera_pose, c_kp, c_desc_orb, c_desc_sift, c_points);
+        loop_closing_->addClusterToQueue(cluster);
       }
     }
 

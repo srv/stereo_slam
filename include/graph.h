@@ -105,6 +105,8 @@ private:
 
   list<Frame> frame_queue_; //!> Frames queue to be inserted into the graph
 
+  int frames_counter_; //!> Processed frames counter
+
   mutex mutex_graph_; //!> Mutex for the graph manipulation
 
   mutex mutex_frame_queue_; //!> Mutex for the insertion of new frames into the graph

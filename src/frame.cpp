@@ -2,7 +2,10 @@
 
 #include "frame.h"
 #include "constants.h"
+#include "tools.h"
 #include "ldb.h"
+
+using namespace tools;
 
 namespace slam
 {
@@ -32,20 +35,8 @@ namespace slam
     extractor_.compute(r_img_gray, r_kp, r_desc, 0);
 
     // Left/right matching
-    cv::Mat match_mask;
-    const int knn = 2;
-    const double ratio = 0.8;
     vector<cv::DMatch> matches, matches_filtered;
-    Ptr<DescriptorMatcher> descriptor_matcher;
-    descriptor_matcher = DescriptorMatcher::create("BruteForce");
-    vector<vector<cv::DMatch> > knn_matches;
-    descriptor_matcher->knnMatch(l_desc, r_desc, knn_matches, knn, match_mask);
-    for (uint m=0; m<knn_matches.size(); m++)
-    {
-      if (knn_matches[m].size() < 2) continue;
-      if (knn_matches[m][0].distance <= knn_matches[m][1].distance * ratio)
-        matches.push_back(knn_matches[m][0]);
-    }
+    Tools::ratioMatching(l_desc, r_desc, 0.8, matches);
 
     // Filter matches by epipolar
     for (size_t i=0; i<matches.size(); ++i)
@@ -130,7 +121,7 @@ namespace slam
 
     // Extract the cluster center
     cluster_centroids_.clear();
-    for (uint i=0; clusters_.size(); i++)
+    for (uint i=0; i<clusters_.size(); i++)
     {
       Cloud::Ptr region(new Cloud);
       copyPointCloud(*world_points, clusters_[i], *region);

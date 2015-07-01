@@ -213,6 +213,80 @@ public:
 
     return tf::Transform(quaternion, translation);
   }
+
+  /** \brief convert tf::Transform to cv::Mat
+    * @return the transformation matrix in cv::Mat format
+    * \param input tf::Transform
+    */
+  static cv::Mat transformToMat(tf::Transform in)
+  {
+    cv::Mat out(4,4,CV_32FC1);
+    tf::Matrix3x3 rot = in.getBasis();
+    tf::Vector3 trans = in.getOrigin();
+    out.at<double>(0,0) = rot[0][0];
+    out.at<double>(0,1) = rot[0][1];
+    out.at<double>(0,2) = rot[0][2];
+    out.at<double>(0,3) = trans.x();
+    out.at<double>(1,0) = rot[1][0];
+    out.at<double>(1,1) = rot[1][1];
+    out.at<double>(1,2) = rot[1][2];
+    out.at<double>(1,3) = trans.y();
+    out.at<double>(2,0) = rot[2][0];
+    out.at<double>(2,1) = rot[2][1];
+    out.at<double>(2,2) = rot[2][2];
+    out.at<double>(2,3) = trans.z();
+    out.at<double>(2,0) = 0.0;
+    out.at<double>(2,1) = 0.0;
+    out.at<double>(2,2) = 0.0;
+    out.at<double>(2,3) = 1.0;
+    return out;
+  }
+
+  /** \brief convert cv::Mat to tf::Transform
+    * @return the transformation matrix in tf::Transform format
+    * \param input cv::Mat
+    */
+  static tf::Transform matToTransform(cv::Mat in)
+  {
+    tf::Matrix3x3 rot;
+    rot[0][0] = in.at<double>(0,0);
+    rot[0][1] = in.at<double>(0,1);
+    rot[0][2] = in.at<double>(0,2);
+    rot[1][0] = in.at<double>(1,0);
+    rot[1][1] = in.at<double>(1,1);
+    rot[1][2] = in.at<double>(1,2);
+    rot[2][0] = in.at<double>(2,0);
+    rot[2][1] = in.at<double>(2,1);
+    rot[2][2] = in.at<double>(2,2);
+    tf::Vector3 trans(in.at<double>(0,3),
+                      in.at<double>(1,3),
+                      in.at<double>(2,3));
+    tf::Transform out(rot, trans);
+    return out;
+  }
+
+  /** \brief Ration matching between descriptors
+    * \param Descriptors of image 1
+    * \param Descriptors of image 2
+    * \param ratio value (0.6/0.9)
+    * \param output matching
+    */
+  static void ratioMatching(cv::Mat desc_1, cv::Mat desc_2, double ratio, vector<cv::DMatch> &matches)
+  {
+    matches.clear();
+    cv::Mat match_mask;
+    const int knn = 2;
+    cv::Ptr<cv::DescriptorMatcher> descriptor_matcher;
+    descriptor_matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
+    vector<vector<cv::DMatch> > knn_matches;
+    descriptor_matcher->knnMatch(desc_1, desc_2, knn_matches, knn, match_mask);
+    for (uint m=0; m<knn_matches.size(); m++)
+    {
+      if (knn_matches[m].size() < 2) continue;
+      if (knn_matches[m][0].distance <= knn_matches[m][1].distance * ratio)
+        matches.push_back(knn_matches[m][0]);
+    }
+  }
 };
 
 } // namespace

@@ -81,14 +81,14 @@ public:
    */
   inline void setCameraPoints(const vector<cv::Point3f>& points_3d){camera_points_ = points_3d;}
 
-  /** \brief Set odometry camera pose
+  /** \brief Set camera pose
    * \param camera pose
    */
-  inline void setOdometryPose(const tf::Transform& odom_pose){odom_pose_ = odom_pose;}
+  inline void setPose(const tf::Transform& pose){pose_ = pose;}
 
-  /** \brief Get odometry camera pose
+  /** \brief Get camera pose
    */
-  inline tf::Transform getOdometryPose() const {return odom_pose_;}
+  inline tf::Transform getPose() const {return pose_;}
 
   /** \brief Return the clustering for the current frame
    */
@@ -124,7 +124,7 @@ private:
 
   vector<Eigen::Vector4f> cluster_centroids_; //!> Central point for every cluster
 
-  tf::Transform odom_pose_; //!> Odometry position for this frame (could not coincide with the camera)
+  tf::Transform pose_; //!> Camera world position for this frame
 
 };
 

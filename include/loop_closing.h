@@ -80,9 +80,9 @@ protected:
 
   /** \brief Read cluster data from file
    * @return The cluster
-   * \param Cluster file identifier
+   * \param Cluster identifier
    */
-  Cluster readCluster(string file);
+  Cluster readCluster(int id);
 
 private:
 

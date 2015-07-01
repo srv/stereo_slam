@@ -80,7 +80,6 @@ namespace slam
       cluster_queue_.pop_front();
     }
 
-
     // Initialize hash
     if (!hash_.isInitialized())
       hash_.init(c_cluster_.getSift());
@@ -90,7 +89,8 @@ namespace slam
 
     // Store
     cv::FileStorage fs(execution_dir_+"/"+lexical_cast<string>(c_cluster_.getId())+".yml", cv::FileStorage::WRITE);
-    write(fs, "id", c_cluster_.getId());
+    write(fs, "frame_id", c_cluster_.getFrameId());
+    write(fs, "pose", Tools::transformToMat(c_cluster_.getPose()) );
     write(fs, "kp", c_cluster_.getKp());
     write(fs, "desc", c_cluster_.getOrb());
     write(fs, "threed", c_cluster_.getPoints());
@@ -99,12 +99,64 @@ namespace slam
 
   void LoopClosing::searchInNeigborhood()
   {
+    // Init
     int id = c_cluster_.getId();
-    for (int i=id-1; i>id-LC_NEIGHBORS; i--)
-    {
-      if (i < 0) break;
+    int current_frame_id = c_cluster_.getFrameId();
+    int processed_neighbors = 0;
+    int neighbor_id = id - 1;
+    vector<cv::KeyPoint> kp = c_cluster_.getKp();
 
+    // Store matchings
+    vector<cv::Point2f> matched_kp;
+    vector<cv::Point3f> matched_points;
+
+    // Loop over neighbors of different frames
+    while (processed_neighbors < LC_NEIGHBORS && neighbor_id >= 0)
+    {
+      // Extract the neighbor
+      Cluster neighbor = readCluster(neighbor_id);
+      vector<cv::Point3f> neighbor_points = neighbor.getPoints();
+
+
+      if (neighbor.getFrameId() != current_frame_id)
+      {
+        vector<cv::DMatch> matches;
+        Tools::ratioMatching(c_cluster_.getOrb(), neighbor.getOrb(), 0.8, matches);
+
+        // Compute the percentage of matchings
+        int size_c = c_cluster_.getOrb().rows;
+        int size_n = neighbor.getOrb().rows;
+        int m_percentage = round(100.0 * (float) matches.size() / (float) min(size_c, size_n) );
+
+        // Only consider clusters with high number of matchings
+        if (m_percentage > 50)
+        {
+          for(uint i=0; i<matches.size(); i++)
+          {
+            matched_kp.push_back(kp[matches[i].queryIdx].pt);
+
+            // Transform camera point to world coordinates
+            cv::Point3f p = neighbor_points[matches[i].trainIdx];
+            tf::Vector3 p_tf(p.x, p.y, p.z);
+            tf::Vector3 p_tf_world = neighbor.getPose() * p_tf;
+            cv::Point3f p_world(p_tf_world.x(), p_tf_world.y(), p_tf_world.z());
+            matched_points.push_back(p_world);
+          }
+        }
+        processed_neighbors++;
+      }
+      neighbor_id--;
     }
+
+    // Estimate the motion
+    vector<int> inliers;
+    cv::Mat rvec, tvec;
+    solvePnPRansac(matched_points, matched_kp, graph_->getCameraMatrix(),
+                   cv::Mat(), rvec, tvec, false,
+                   100, 1.3, MAX_INLIERS, inliers);
+
+    ROS_INFO_STREAM("KKK: " << processed_neighbors << " | " << matched_points.size() << ", " << inliers.size());
+
   }
 
 
@@ -168,8 +220,9 @@ namespace slam
       candidates.push_back(all_matchings[i]);
   }
 
-  Cluster LoopClosing::readCluster(string file)
+  Cluster LoopClosing::readCluster(int id)
   {
+    string file = execution_dir_+"/"+lexical_cast<string>(id)+".yml";
     Cluster cluster;
 
     // Sanity check
@@ -179,11 +232,12 @@ namespace slam
     fs.open(file, cv::FileStorage::READ);
     if (!fs.isOpened()) return cluster;
 
-    int id;
+    int frame_id;
     vector<cv::KeyPoint> kp;
-    cv::Mat desc, empty;
+    cv::Mat desc, pose, empty;
     vector<cv::Point3f> points;
-    fs["id"] >> id;
+    fs["frame_id"] >> frame_id;
+    fs["pose"] >> pose;
     fs["desc"] >> desc;
     fs["threed"] >> points;
     cv::FileNode kp_node = fs["kp"];
@@ -191,7 +245,7 @@ namespace slam
     fs.release();
 
     // Set the properties of the cluster
-    Cluster cluster_tmp(id, kp, desc, empty, points);
+    Cluster cluster_tmp(id, frame_id, Tools::matToTransform(pose), kp, desc, empty, points);
     cluster = cluster_tmp;
 
     return cluster;

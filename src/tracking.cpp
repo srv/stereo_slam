@@ -72,7 +72,7 @@ namespace slam
 
       // For the first frame, its estimated pose will coincide with odometry
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
-      f_frame_.setOdometryPose(c_odom_camera);
+      f_frame_.setPose(c_odom_camera);
 
       state_ = INITIALIZING;
     }
@@ -83,7 +83,7 @@ namespace slam
 
       // Set the odometry of this frame
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
-      c_frame_.setOdometryPose(c_odom_camera);
+      c_frame_.setPose(c_odom_camera);
 
       trackCurrentFrame();
       f_pub_->update(this);
@@ -128,30 +128,16 @@ namespace slam
     vector<cv::Point3f> c_points_3d = c_frame_.getCameraPoints();
 
     // Matching
-    cv::Mat match_mask;
-    const int knn = 2;
-    const double ratio = 0.9;
-    cv::Ptr<cv::DescriptorMatcher> descriptor_matcher;
-    descriptor_matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
-    vector<vector<cv::DMatch> > knn_matches;
-    descriptor_matcher->knnMatch(c_desc, f_desc, knn_matches, knn, match_mask);
-    for (uint m=0; m<knn_matches.size(); m++)
-    {
-      if (knn_matches[m].size() < 2) continue;
-      if (knn_matches[m][0].distance <= knn_matches[m][1].distance * ratio)
-        matches_.push_back(knn_matches[m][0]);
-    }
+    Tools::ratioMatching(c_desc, f_desc, 0.9, matches_);
 
     // Check minimum matches
     if (matches_.size() >= MIN_INLIERS)
     {
       vector<cv::Point2f> f_matched_kp;
-      vector<cv::Point3f> f_matched_3d_points;
       vector<cv::Point3f> c_matched_3d_points;
       for(uint i=0; i<matches_.size(); i++)
       {
         f_matched_kp.push_back(f_kp[matches_[i].trainIdx].pt);
-        f_matched_3d_points.push_back(f_points_3d[matches_[i].trainIdx]);
         c_matched_3d_points.push_back(c_points_3d[matches_[i].queryIdx]);
       }
 

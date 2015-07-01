@@ -7,6 +7,7 @@
 #define CLUSTER_H
 
 #include <ros/ros.h>
+#include <tf/transform_datatypes.h>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/features2d/features2d.hpp>
@@ -27,11 +28,15 @@ public:
 
   /** \brief Class constructor
    */
-  Cluster(int id, vector<cv::KeyPoint> kp, cv::Mat orb_desc, cv::Mat sift_desc, vector<cv::Point3f> points);
+  Cluster(int id, int frame_id, tf::Transform pose, vector<cv::KeyPoint> kp, cv::Mat orb_desc, cv::Mat sift_desc, vector<cv::Point3f> points);
+
+  /** \brief Get the cluster id
+   */
+  inline int getId() const {return id_;}
 
   /** \brief Get the frame id
    */
-  inline int getId() const {return id_;}
+  inline int getFrameId() const {return frame_id_;}
 
   /** \brief Get cv::KeyPoints
    */
@@ -49,11 +54,18 @@ public:
    */
   inline vector<cv::Point3f> getPoints() const {return points_;}
 
+  /** \brief Get camera pose
+   */
+  inline tf::Transform getPose() const {return pose_;}
 
 private:
 
 
   int id_; //!> Cluster id
+
+  int frame_id_; //!> Corresponding frame id
+
+  tf::Transform pose_; //!> Camera world position
 
   vector<cv::KeyPoint> kp_; //!> cv::KeyPoints.
 
