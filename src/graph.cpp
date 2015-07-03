@@ -71,15 +71,16 @@ namespace slam
     vector<cv::Point3f> points = frame.getCameraPoints();
     vector<cv::KeyPoint> kp = frame.getLeftKp();
     tf::Transform camera_pose = frame.getPose();
-    cv::Mat orb_desc = frame.getLeftDesc();
+    cv::Mat ldb_desc = frame.getLeftDesc();
     for (uint i=0; i<clusters.size(); i++)
     {
       // Add cluster to graph
       Eigen::Vector4f centroid = cluster_centroids[i];
       int id = addVertex(centroid);
+      cluster_frame_.push_back( make_pair(id, frames_counter_) );
 
       // Add cluster to loop_closing
-      cv::Mat c_desc_orb, c_desc_sift;
+      cv::Mat c_desc_ldb, c_desc_sift;
       vector<cv::KeyPoint> c_kp;
       vector<cv::Point3f> c_points;
       for (uint j=0; j<clusters[i].indices.size(); j++)
@@ -87,14 +88,14 @@ namespace slam
         int idx = clusters[i].indices[j];
         c_kp.push_back(kp[idx]);
         c_points.push_back(points[idx]);
-        c_desc_orb.push_back(orb_desc.row(idx));
+        c_desc_ldb.push_back(ldb_desc.row(idx));
         c_desc_sift.push_back(sift_desc.row(idx));
       }
 
       if (c_kp.size() > 10)
       {
         // Add to loop closing
-        Cluster cluster(id, frames_counter_, camera_pose, c_kp, c_desc_orb, c_desc_sift, c_points);
+        Cluster cluster(id, frames_counter_, camera_pose, c_kp, c_desc_ldb, c_desc_sift, c_points);
         loop_closing_->addClusterToQueue(cluster);
       }
     }
@@ -161,6 +162,54 @@ namespace slam
     graph_optimizer_.initializeOptimization();
     graph_optimizer_.optimize(20);
     ROS_INFO_STREAM("[Localization:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
+  }
+
+  void Graph::findClosestVertices(int vertex_id, int window_center, int window, int best_n, vector<int> &neighbors)
+  {
+    // Init
+    neighbors.clear();
+
+    g2o::VertexSE3* vertex =  dynamic_cast<g2o::VertexSE3*>
+              (graph_optimizer_.vertices()[vertex_id]);
+    tf::Transform vertex_pose = Tools::getVertexPose(vertex);
+
+    // Loop thought all the other nodes
+    vector< pair< int,double > > neighbor_distances;
+    for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
+    {
+      if ( (int)i == vertex_id ) continue;
+      if ((int)i > window_center-window && (int)i < window_center+window) continue;
+
+      // Get the node pose
+      g2o::VertexSE3* cur_vertex =  dynamic_cast<g2o::VertexSE3*>
+              (graph_optimizer_.vertices()[i]);
+      tf::Transform cur_pose = Tools::getVertexPose(cur_vertex);
+      double dist = Tools::poseDiff(cur_pose, vertex_pose);
+      neighbor_distances.push_back(make_pair(i, dist));
+    }
+
+    // Exit if no neighbors
+    if (neighbor_distances.size() == 0) return;
+
+    // Sort the neighbors
+    sort(neighbor_distances.begin(), neighbor_distances.end(), Tools::sortByDistance);
+
+    // Min number
+    if ((int)neighbor_distances.size() < best_n)
+      best_n = neighbor_distances.size();
+
+    for (int i=0; i<best_n; i++)
+      neighbors.push_back(neighbor_distances[i].first);
+  }
+
+  void Graph::getFrameVertices(int frame_id, vector<int> &vertices)
+  {
+    vertices.clear();
+    for (uint i=0; i<cluster_frame_.size(); i++)
+    {
+      if (cluster_frame_[i].second == frame_id)
+        vertices.push_back(cluster_frame_[i].first);
+    }
   }
 
   void Graph::saveToFile()

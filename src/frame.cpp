@@ -91,14 +91,6 @@ namespace slam
 
   void Frame::regionClustering()
   {
-    // Convert camera points to pointcloud
-    Cloud::Ptr world_points(new Cloud);
-    for (uint i=0; i<camera_points_.size(); i++)
-    {
-      PointXYZ p(camera_points_[i].x, camera_points_[i].y, camera_points_[i].z);
-      world_points->push_back(p);
-    }
-
     // Normal estimation
     NormalEstimationOMP<PointXYZ, Normal> ne;
     PointCloud<Normal>::Ptr normals(new PointCloud<Normal>);

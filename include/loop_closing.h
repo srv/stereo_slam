@@ -66,11 +66,31 @@ protected:
 
   /** \brief Searches a loop closing between current cluster and its precedent neighbors
    */
-  void searchInNeigborhood();
+  void searchInPreviousNeighors();
 
   /** \brief Searches a loop closing between current cluster and all other clusters using the hash
    */
   void searchByHash();
+
+  /** \brief Check if point is in frustum
+   * @return true if point is in camera frustum
+   * \param 3d world point
+   * \param camera pose
+   */
+  bool isInFrustum(cv::Point3f point, tf::Transform camera_pose);
+
+  /** \brief Remove descriptors and 3D points that are not in the camera frustum
+   * \param input descriptors
+   * \param input world points
+   * \param camera pose where point will be projected
+   * \param output descriptors
+   * \param output world points
+   */
+  void filterByFrustum(cv::Mat desc,
+                       vector<cv::Point3f> points,
+                       tf::Transform camera_pose,
+                       cv::Mat& out_desc,
+                       vector<cv::Point3f>& out_points);
 
   /** \brief Get the best candidates to close a loop by hash
    * \param Cluster identifier
@@ -105,6 +125,8 @@ private:
   ros::Publisher pub_num_lc_; //!> Publishes the number of loop closings
 
   ros::Publisher pub_queue_; //!> Publishes the loop closing queue size
+
+  image_geometry::PinholeCameraModel camera_model_; //!> Camera model (left)
 
 };
 

@@ -21,6 +21,8 @@ namespace slam
 
   static const int LC_NEIGHBORS = 10;
 
+  static const int LC_DISCARD_WINDOW = 30;
+
 } // namespace
 
 #endif // CONSTANTS_H

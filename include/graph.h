@@ -8,6 +8,8 @@
 
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
+#include <image_geometry/pinhole_camera_model.h>
+
 #include <g2o/core/sparse_optimizer.h>
 #include <g2o/core/block_solver.h>
 #include <g2o/types/slam3d/edge_se3.h>
@@ -64,6 +66,21 @@ public:
    */
   void update();
 
+  /** \brief Get the closest neighbors by distance
+   * \param The vertex id to retrieve its neighbors
+   * \param The vertex where discard window will be centered.
+   * \param Window size of discarded vertices.
+   * \param Number of neighbors to be retrieved.
+   * \param Will contain the list of best neighbors by distance.
+   */
+  void findClosestVertices(int vertex_id, int window_center, int window, int best_n, vector<int> &neighbors);
+
+  /** \brief Retrieve the list of the vertices of a corresponding frame
+   * \param The frame id
+   * \param Will contain the list of vertices for this frame.
+   */
+  void getFrameVertices(int frame_id, vector<int> &vertices);
+
   /** \brief Set the transformation between camera and robot odometry frame
    * \param the transform
    */
@@ -77,6 +94,15 @@ public:
   /** \brief Get camera matrix
    */
   inline cv::Mat getCameraMatrix() const {return camera_matrix_;}
+
+  /** \brief Set camera model
+   * \param camera matrix
+   */
+  inline void setCameraModel(const image_geometry::PinholeCameraModel& camera_model){camera_model_ = camera_model;}
+
+  /** \brief Get camera model
+   */
+  inline image_geometry::PinholeCameraModel getCameraModel() const {return camera_model_;}
 
 protected:
 
@@ -107,6 +133,8 @@ private:
 
   int frames_counter_; //!> Processed frames counter
 
+  vector< pair< int,int > > cluster_frame_; //!> Stores the cluster/frame relation (cluster_id, frame_id)
+
   mutex mutex_graph_; //!> Mutex for the graph manipulation
 
   mutex mutex_frame_queue_; //!> Mutex for the insertion of new frames into the graph
@@ -116,6 +144,8 @@ private:
   LoopClosing* loop_closing_; //!> Loop closing
 
   cv::Mat camera_matrix_; //!> The camera matrix
+
+  image_geometry::PinholeCameraModel camera_model_; //!> Pinhole left camera model
 };
 
 } // namespace

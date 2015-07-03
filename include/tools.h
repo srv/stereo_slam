@@ -181,6 +181,17 @@ public:
     return pose_tf;
   }
 
+  /** \brief compute the absolute diference between 2 poses
+    * @return the norm between two poses
+    * \param pose_1 transformation matrix of pose 1
+    * \param pose_2 transformation matrix of pose 2
+    */
+  static double poseDiff(tf::Transform pose_1, tf::Transform pose_2)
+  {
+    tf::Vector3 d = pose_1.getOrigin() - pose_2.getOrigin();
+    return sqrt(d.x()*d.x() + d.y()*d.y() + d.z()*d.z());
+  }
+
   /** \brief Sort 2 matchings by value
     * @return true if matching 1 is smaller than matching 2
     * \param matching 1
@@ -190,6 +201,16 @@ public:
   {
     return (d1.second < d2.second);
   }
+
+  /** \brief Sort 2 pairs by size
+   * @return true if pair 1 is smaller than pair 2
+   * \param pair 1
+   * \param pair 2
+   */
+ static bool sortByDistance(const pair<int, double> d1, const pair<int, double> d2)
+ {
+   return (d1.second < d2.second);
+ }
 
   /** \brief compose the transformation matrix using 2 cv::Mat as inputs:
     * one for rotation and one for translation
@@ -220,25 +241,22 @@ public:
     */
   static cv::Mat transformToMat(tf::Transform in)
   {
-    cv::Mat out(4,4,CV_32FC1);
+    //cv::Mat out(4,4,CV_32FC1);
+    cv::Mat out = cv::Mat::eye(4,4,CV_32FC1);
     tf::Matrix3x3 rot = in.getBasis();
     tf::Vector3 trans = in.getOrigin();
-    out.at<double>(0,0) = rot[0][0];
-    out.at<double>(0,1) = rot[0][1];
-    out.at<double>(0,2) = rot[0][2];
-    out.at<double>(0,3) = trans.x();
-    out.at<double>(1,0) = rot[1][0];
-    out.at<double>(1,1) = rot[1][1];
-    out.at<double>(1,2) = rot[1][2];
-    out.at<double>(1,3) = trans.y();
-    out.at<double>(2,0) = rot[2][0];
-    out.at<double>(2,1) = rot[2][1];
-    out.at<double>(2,2) = rot[2][2];
-    out.at<double>(2,3) = trans.z();
-    out.at<double>(2,0) = 0.0;
-    out.at<double>(2,1) = 0.0;
-    out.at<double>(2,2) = 0.0;
-    out.at<double>(2,3) = 1.0;
+    out.at<float>(0,0) = (float)rot[0][0];
+    out.at<float>(0,1) = (float)rot[0][1];
+    out.at<float>(0,2) = (float)rot[0][2];
+    out.at<float>(0,3) = (float)trans.x();
+    out.at<float>(1,0) = (float)rot[1][0];
+    out.at<float>(1,1) = (float)rot[1][1];
+    out.at<float>(1,2) = (float)rot[1][2];
+    out.at<float>(1,3) = (float)trans.y();
+    out.at<float>(2,0) = (float)rot[2][0];
+    out.at<float>(2,1) = (float)rot[2][1];
+    out.at<float>(2,2) = (float)rot[2][2];
+    out.at<float>(2,3) = (float)trans.z();
     return out;
   }
 
@@ -249,20 +267,28 @@ public:
   static tf::Transform matToTransform(cv::Mat in)
   {
     tf::Matrix3x3 rot;
-    rot[0][0] = in.at<double>(0,0);
-    rot[0][1] = in.at<double>(0,1);
-    rot[0][2] = in.at<double>(0,2);
-    rot[1][0] = in.at<double>(1,0);
-    rot[1][1] = in.at<double>(1,1);
-    rot[1][2] = in.at<double>(1,2);
-    rot[2][0] = in.at<double>(2,0);
-    rot[2][1] = in.at<double>(2,1);
-    rot[2][2] = in.at<double>(2,2);
-    tf::Vector3 trans(in.at<double>(0,3),
-                      in.at<double>(1,3),
-                      in.at<double>(2,3));
+    rot[0][0] = in.at<float>(0,0);
+    rot[0][1] = in.at<float>(0,1);
+    rot[0][2] = in.at<float>(0,2);
+    rot[1][0] = in.at<float>(1,0);
+    rot[1][1] = in.at<float>(1,1);
+    rot[1][2] = in.at<float>(1,2);
+    rot[2][0] = in.at<float>(2,0);
+    rot[2][1] = in.at<float>(2,1);
+    rot[2][2] = in.at<float>(2,2);
+    tf::Vector3 trans(in.at<float>(0,3),
+                      in.at<float>(1,3),
+                      in.at<float>(2,3));
     tf::Transform out(rot, trans);
     return out;
+  }
+
+  static cv::Point3f transformPoint(cv::Point3f point, tf::Transform base)
+  {
+    tf::Vector3 p_tf(point.x, point.y, point.z);
+    tf::Vector3 p_tf_world = base * p_tf;
+    cv::Point3f new_point(p_tf_world.x(), p_tf_world.y(), p_tf_world.z());
+    return new_point;
   }
 
   /** \brief Ration matching between descriptors

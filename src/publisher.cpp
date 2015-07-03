@@ -109,7 +109,7 @@ namespace slam
 
     // Concat images
     cv::Mat img;
-    vconcat(c_img, f_img, img);
+    cv::vconcat(c_img, f_img, img);
 
     // Draw keypoints
     const float r = 5;

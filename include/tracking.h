@@ -124,6 +124,11 @@ protected:
    */
   void needNewFixedFrame();
 
+  /** \brief Add a frame to the graph if enough inliers
+   * \param The frame
+   */
+  void addFrameToMap(Frame frame);
+
 private:
 
   Params params_; //!> Stores parameters.

@@ -66,6 +66,7 @@ namespace slam
       // Set graph properties
       graph_->setCamera2Odom(odom2camera_.inverse());
       graph_->setCameraMatrix(camera_matrix_);
+      graph_->setCameraModel(camera_model_.left());
 
       // The initial frame
       f_frame_ = Frame(l_img, r_img, camera_model_);
@@ -166,8 +167,7 @@ namespace slam
       }
       else
       {
-        f_frame_.regionClustering();
-        graph_->addFrameToQueue(f_frame_);
+        addFrameToMap(f_frame_);
         state_ = WORKING;
       }
     }
@@ -178,8 +178,16 @@ namespace slam
     {
       reset_fixed_frame_ = true;
       f_frame_ = c_frame_;
-      f_frame_.regionClustering();
-      graph_->addFrameToQueue(f_frame_);
+      addFrameToMap(f_frame_);
+    }
+  }
+
+  void Tracking::addFrameToMap(Frame frame)
+  {
+    if (frame.getLeftKp().size() > MIN_INLIERS)
+    {
+      frame.regionClustering();
+      graph_->addFrameToQueue(frame);
     }
   }
 
