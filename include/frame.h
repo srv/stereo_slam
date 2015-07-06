@@ -18,8 +18,6 @@
 #include <opencv2/nonfree/nonfree.hpp>
 
 #include <pcl/point_types.h>
-#include <pcl/segmentation/region_growing.h>
-#include <pcl/features/normal_3d_omp.h>
 
 using namespace std;
 using namespace pcl;
@@ -92,7 +90,7 @@ public:
 
   /** \brief Return the clustering for the current frame
    */
-  inline vector<PointIndices> getClusters() const {return clusters_;}
+  inline vector< vector<int> > getClusters() const {return clusters_;}
 
   /** \brief Return the clustering for the current frame
    */
@@ -107,6 +105,16 @@ public:
    */
   void regionClustering();
 
+protected:
+
+  /** \brief Search keypoints into region
+   * @return the list of keypoints into a certain region
+   * \param list of keypoints
+   * \param query keypoint
+   * \param maximum distance to considerate a keypoint into the region
+   */
+  vector<int> regionQuery(vector<cv::KeyPoint> *keypoints, cv::KeyPoint *keypoint, float eps);
+
 private:
 
   cv::Mat l_img_; //!> Left image
@@ -120,7 +128,7 @@ private:
 
   vector<cv::Point3f> camera_points_; //!> Stereo 3D points in camera frame
 
-  vector<PointIndices> clusters_; //!> 3D points clustering
+  vector< vector<int> > clusters_; //!> Keypoints clustering
 
   vector<Eigen::Vector4f> cluster_centroids_; //!> Central point for every cluster
 

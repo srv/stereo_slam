@@ -14,7 +14,7 @@ namespace slam
     pub_clustering_ = nhp.advertise<sensor_msgs::Image>("keypoints_clustering", 2, true);
   }
 
-  void Publisher::update(Tracking *tracker)
+  void Publisher::publishTracking(Tracking *tracker)
   {
     if (pub_stereo_matching_.getNumSubscribers() > 0)
       drawStereoMatchings(tracker->getCurrentFrame());
@@ -24,9 +24,12 @@ namespace slam
                            tracker->getCurrentFrame(),
                            tracker->getMatches(),
                            tracker->getInliers());
+  }
 
+  void Publisher::publishClustering(const Frame frame)
+  {
     if (pub_clustering_.getNumSubscribers() > 0)
-      drawKeypointsClustering(tracker->getFixedFrame());
+      drawKeypointsClustering(frame);
   }
 
   void Publisher::drawStereoMatchings(const Frame frame)
@@ -163,7 +166,7 @@ namespace slam
 
   void Publisher::drawKeypointsClustering(const Frame frame)
   {
-    vector<PointIndices> clusters = frame.getClusters();
+    vector< vector<int> > clusters = frame.getClusters();
     if (clusters.size() == 0) return;
 
     cv::Mat img;
@@ -173,8 +176,8 @@ namespace slam
     for (uint i=0; i<clusters.size(); i++)
     {
       cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
-      for (uint j=0; j<clusters[i].indices.size(); j++)
-        cv::circle(img, kp[clusters[i].indices[j]].pt, 2, color, -1);
+      for (uint j=0; j<clusters[i].size(); j++)
+        cv::circle(img, kp[clusters[i][j]].pt, 2, color, -1);
     }
 
     // Draw text

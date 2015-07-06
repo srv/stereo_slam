@@ -31,10 +31,17 @@ public:
    */
   Publisher();
 
-  /** \brief Update the image to be published
+  /** \brief Publish the tracking debug images
    * \param The tracker object contains all the information needed to draw the image
    */
-  void update(Tracking *tracker);
+  void publishTracking(Tracking *tracker);
+
+  /** \brief Publish the clustering debug images
+   * \param The tracker object contains all the information needed to draw the image
+   */
+  void publishClustering(const Frame frame);
+
+protected:
 
   /** \brief Draw and publish stereo matchings
    * \param The frame containing the stereo information

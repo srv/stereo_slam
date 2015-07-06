@@ -194,15 +194,19 @@ namespace slam
         // Init accumulated data
         cv::Mat all_candidate_desc;
         vector<cv::Point3f> all_candidate_points;
+        vector<int> cluster_neightbor_list;
         cv::Mat all_frame_desc = c_cluster_.getLdb();
         vector<cv::KeyPoint> all_frame_kp = c_cluster_.getKp();
 
         // Check if 3D points of the candidate are in camera frustum
         filterByFrustum(candidate.getLdb(), candidate.getWorldPoints(), c_cluster_.getPose(), all_candidate_desc, all_candidate_points);
 
+        for (uint j=0; j<all_candidate_points.size(); j++)
+          cluster_neightbor_list.push_back(candidate.getId());
+
         // Increase the probability to close loop by extracting the candidate neighbors
         vector<int> candidate_neighbors;
-        graph_->findClosestVertices(candidate_id, c_cluster_.getId(), LC_DISCARD_WINDOW, 4, candidate_neighbors);
+        graph_->findClosestVertices(candidate_id, c_cluster_.getId(), LC_DISCARD_WINDOW, 5, candidate_neighbors);
         for (uint j=0; j<candidate_neighbors.size(); j++)
         {
           Cluster candidate_neighbor = readCluster(candidate_neighbors[j]);
@@ -216,11 +220,13 @@ namespace slam
           cv::Mat desc_tmp;
           vector<cv::Point3f> points_tmp;
           filterByFrustum(c_n_desc, candidate_neighbor.getWorldPoints(), c_cluster_.getPose(), desc_tmp, points_tmp);
-          ROS_INFO_STREAM("KK: " << candidate_neighbor.getWorldPoints().size() << " | " << points_tmp.size());
 
           // Concatenate descriptors and points
           cv::vconcat(all_candidate_desc, desc_tmp, all_candidate_desc);
           all_candidate_points.insert(all_candidate_points.end(), points_tmp.begin(), points_tmp.end());
+
+          for (uint n=0; n<points_tmp.size(); n++)
+            cluster_neightbor_list.push_back(candidate_neighbor.getId());
         }
 
         // Extract all the clusters corresponding to the current cluster frame
@@ -245,17 +251,29 @@ namespace slam
         vector<cv::DMatch> matches_2;
         Tools::ratioMatching(all_frame_desc, all_candidate_desc, 0.8, matches_2);
 
-        ROS_INFO_STREAM("TMP " << c_cluster_.getId() << " <-> [" << cluster_list << "] Matches: " << matches_2.size());
-
-        if (matches_2.size() > 10)
+        if (matches_2.size() > 5)
         {
           // Store matchings
+          vector<int> cluster_matchings;
           vector<cv::Point2f> matched_kp;
           vector<cv::Point3f> matched_points;
           for(uint j=0; j<matches_2.size(); j++)
           {
             matched_kp.push_back(all_frame_kp[matches_2[j].queryIdx].pt);
             matched_points.push_back(all_candidate_points[matches_2[j].trainIdx]);
+            cluster_matchings.push_back(cluster_neightbor_list[matches_2[j].trainIdx]);
+          }
+
+          // Get the list of affected clusters
+          string c_matchings = "";
+          vector<int> cluster_matchings_unique = cluster_matchings;;
+          sort(cluster_matchings_unique.begin(), cluster_matchings_unique.end());
+          vector<int>::iterator last = unique(cluster_matchings_unique.begin(), cluster_matchings_unique.end());
+          cluster_matchings_unique.erase(last, cluster_matchings_unique.end());
+          for (uint j=0; j<cluster_matchings_unique.size(); j++)
+          {
+            int matchings = count(cluster_matchings.begin(), cluster_matchings.end(), cluster_matchings_unique[j]);
+            c_matchings += boost::lexical_cast<string>(cluster_matchings_unique[j]) + " -> " + boost::lexical_cast<string>(matchings) + ", ";
           }
 
           // Estimate the motion
@@ -270,8 +288,9 @@ namespace slam
             tf::Transform pose = Tools::buildTransformation(rvec, tvec);
             pose = pose.inverse();
 
-            ROS_INFO_STREAM("LOOP! " << c_cluster_.getFrameId() << " <-> [" << frame_list << "] Matches: " << matches_2.size() << ", Inliers: " << inliers.size());
-            ROS_INFO_STREAM("LOOP! " << c_cluster_.getId() << " <-> [" << cluster_list << "] Matches: " << matches_2.size() << ", Inliers: " << inliers.size());
+            ROS_INFO_STREAM("LOOP! " << c_cluster_.getFrameId() << " <-> [Frames: " << frame_list << "] Matches: " << matches_2.size() << ", Inliers: " << inliers.size());
+            ROS_INFO_STREAM("LOOP! " << c_cluster_.getId() << " <-> [Clusters: " << cluster_list << "] Matches: " << matches_2.size() << ", Inliers: " << inliers.size());
+            ROS_INFO_STREAM("MATCHES PER CLUSTER: " << c_matchings);
             ROS_INFO_STREAM("ODOM: " << c_cluster_.getPose().getOrigin().x() << ", " << c_cluster_.getPose().getOrigin().y() << ", " << c_cluster_.getPose().getOrigin().z());
             ROS_INFO_STREAM("SPNP: " << pose.getOrigin().x() << ", " << pose.getOrigin().y() << ", " << pose.getOrigin().z());
             cout << endl;

@@ -67,7 +67,7 @@ namespace slam
 
     // Loop of frame clusters
     vector<Eigen::Vector4f> cluster_centroids = frame.getClusterCentroids();
-    vector<PointIndices> clusters = frame.getClusters();
+    vector< vector<int> > clusters = frame.getClusters();
     vector<cv::Point3f> points = frame.getCameraPoints();
     vector<cv::KeyPoint> kp = frame.getLeftKp();
     tf::Transform camera_pose = frame.getPose();
@@ -75,17 +75,16 @@ namespace slam
     for (uint i=0; i<clusters.size(); i++)
     {
       // Add cluster to graph
-      Eigen::Vector4f centroid = cluster_centroids[i];
-      int id = addVertex(centroid);
+      int id = addVertex(cluster_centroids[i]);
       cluster_frame_.push_back( make_pair(id, frames_counter_) );
 
       // Add cluster to loop_closing
       cv::Mat c_desc_ldb, c_desc_sift;
       vector<cv::KeyPoint> c_kp;
       vector<cv::Point3f> c_points;
-      for (uint j=0; j<clusters[i].indices.size(); j++)
+      for (uint j=0; j<clusters[i].size(); j++)
       {
-        int idx = clusters[i].indices[j];
+        int idx = clusters[i][j];
         c_kp.push_back(kp[idx]);
         c_points.push_back(points[idx]);
         c_desc_ldb.push_back(ldb_desc.row(idx));

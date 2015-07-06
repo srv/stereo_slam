@@ -89,38 +89,169 @@ namespace slam
     return sift;
   }
 
+  // FROM: http://codereview.stackexchange.com/questions/23966/density-based-clustering-of-image-keypoints
   void Frame::regionClustering()
   {
-    // Normal estimation
-    NormalEstimationOMP<PointXYZ, Normal> ne;
-    PointCloud<Normal>::Ptr normals(new PointCloud<Normal>);
-    search::KdTree<PointXYZ>::Ptr tree(new search::KdTree<PointXYZ>());
-    ne.setInputCloud(world_points);
-    ne.setSearchMethod(tree);
-    ne.setRadiusSearch(0.1);
-    ne.compute(*normals);
-
-    // Clustering
     clusters_.clear();
-    RegionGrowing<PointXYZ, Normal> reg;
-    reg.setMinClusterSize(20);
-    reg.setMaxClusterSize(world_points->points.size());
-    reg.setSearchMethod(tree);
-    reg.setNumberOfNeighbours(20);
-    reg.setInputCloud(world_points);
-    reg.setInputNormals(normals);
-    reg.extract(clusters_);
+    vector< vector<int> > clusters;
+    const float eps = 50.0;
+    const int min_pts = 30;
+    vector<bool> clustered;
+    vector<int> noise;
+    vector<bool> visited;
+    vector<int> neighbor_pts;
+    vector<int> neighbor_pts_;
+    int c;
 
-    // Extract the cluster center
-    cluster_centroids_.clear();
+    uint no_keys = l_kp_.size();
+
+    //init clustered and visited
+    for(uint k=0; k<no_keys; k++)
+    {
+      clustered.push_back(false);
+      visited.push_back(false);
+    }
+
+    c = -1;
+
+    //for each unvisited point P in dataset keypoints
+    for(uint i=0; i<no_keys; i++)
+    {
+      if(!visited[i])
+      {
+        // Mark P as visited
+        visited[i] = true;
+        neighbor_pts = regionQuery(&l_kp_, &l_kp_.at(i), eps);
+        if(neighbor_pts.size() < min_pts)
+        {
+          // Mark P as Noise
+          noise.push_back(i);
+          clustered[i] = true;
+        }
+        else
+        {
+          clusters.push_back(vector<int>());
+          c++;
+
+          // expand cluster
+          // add P to cluster c
+          clusters[c].push_back(i);
+          clustered[i] = true;
+
+          // for each point P' in neighbor_pts
+          for(uint j=0; j<neighbor_pts.size(); j++)
+          {
+            // if P' is not visited
+            if(!visited[neighbor_pts[j]])
+            {
+              // Mark P' as visited
+              visited[neighbor_pts[j]] = true;
+              neighbor_pts_ = regionQuery(&l_kp_, &l_kp_.at(neighbor_pts[j]), eps);
+              if(neighbor_pts_.size() >= min_pts)
+              {
+                neighbor_pts.insert(neighbor_pts.end(), neighbor_pts_.begin(), neighbor_pts_.end());
+              }
+            }
+            // if P' is not yet a member of any cluster
+            // add P' to cluster c
+            if(!clustered[neighbor_pts[j]])
+            {
+              clusters[c].push_back(neighbor_pts[j]);
+              clustered[neighbor_pts[j]] = true;
+            }
+          }
+        }
+      }
+    }
+
+    // Discard small clusters
+    for (uint i=0; i<clusters.size(); i++)
+    {
+      if (clusters[i].size() >= min_pts)
+        clusters_.push_back(clusters[i]);
+      else
+      {
+        for (uint j=0; j<clusters[i].size(); j++)
+          noise.push_back(clusters[i][j]);
+      }
+    }
+
+    // Refine points treated as noise
+    bool iterate = true;
+    while (iterate && noise.size() > 0)
+    {
+      uint size_a = noise.size();
+      vector<int> noise_tmp;
+      for (uint n=0; n<noise.size(); n++)
+      {
+        int idx = -1;
+        bool found = false;
+        KeyPoint p_n = l_kp_.at(noise[n]);
+        for (uint i=0; i<clusters_.size(); i++)
+        {
+          for (uint j=0; j<clusters_[i].size(); j++)
+          {
+            KeyPoint p_c = l_kp_.at(clusters_[i][j]);
+            float dist = sqrt(pow((p_c.pt.x - p_n.pt.x),2)+pow((p_c.pt.y - p_n.pt.y),2));
+            if(dist <= eps && dist != 0.0)
+            {
+              idx = i;
+              found = true;
+              break;
+            }
+          }
+          if (found)
+            break;
+        }
+
+        if (found && idx >= 0)
+          clusters_[idx].push_back(noise[n]);
+        else
+          noise_tmp.push_back(noise[n]);
+      }
+
+      if (noise_tmp.size() == 0 || noise_tmp.size() == size_a)
+        iterate = false;
+
+      noise = noise_tmp;
+    }
+
+    // Treat noise as a cluster if enough points
+    if (noise.size() >= min_pts)
+      clusters_.push_back(noise);
+
+    // Compute the clusters centroids
     for (uint i=0; i<clusters_.size(); i++)
     {
-      Cloud::Ptr region(new Cloud);
-      copyPointCloud(*world_points, clusters_[i], *region);
+      Cloud::Ptr cluster_points(new Cloud);
+      for (uint j=0; j<clusters_[i].size(); j++)
+      {
+        int idx = clusters_[i][j];
+        cv::Point3f p_cv = camera_points_[idx];
+        PointXYZ p(p_cv.x, p_cv.y, p_cv.z);
+        cluster_points->push_back(p);
+      }
+
       Eigen::Vector4f centroid;
-      compute3DCentroid(*region, centroid);
+      compute3DCentroid(*cluster_points, centroid);
+      centroid = Tools::vector4fToIsometry(centroid, pose_);
       cluster_centroids_.push_back(centroid);
     }
+  }
+
+  vector<int> Frame::regionQuery(vector<cv::KeyPoint> *keypoints, cv::KeyPoint *keypoint, float eps)
+  {
+    float dist;
+    vector<int> ret_keys;
+    for(uint i=0; i<keypoints->size(); i++)
+    {
+      dist = sqrt(pow((keypoint->pt.x - keypoints->at(i).pt.x),2)+pow((keypoint->pt.y - keypoints->at(i).pt.y),2));
+      if(dist <= eps && dist != 0.0)
+      {
+        ret_keys.push_back(i);
+      }
+    }
+    return ret_keys;
   }
 
 } //namespace slam

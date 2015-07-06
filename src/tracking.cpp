@@ -87,7 +87,6 @@ namespace slam
       c_frame_.setPose(c_odom_camera);
 
       trackCurrentFrame();
-      f_pub_->update(this);
       needNewFixedFrame();
     }
   }
@@ -153,6 +152,9 @@ namespace slam
                      100, 1.3,
                      MAX_INLIERS, inliers_);
     }
+
+    // Publish
+    f_pub_->publishTracking(this);
   }
 
   void Tracking::needNewFixedFrame()
@@ -187,6 +189,7 @@ namespace slam
     if (frame.getLeftKp().size() > MIN_INLIERS)
     {
       frame.regionClustering();
+      f_pub_->publishClustering(frame);
       graph_->addFrameToQueue(frame);
     }
   }

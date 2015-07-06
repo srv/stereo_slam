@@ -42,6 +42,19 @@ public:
     return out;
   }
 
+  /** \brief Transform vector4f
+    * @return transformed Eigen::Vector4f
+    * \param input Eigen::Vector4f
+    * \param input transformation
+    */
+  static Eigen::Vector4f vector4fToIsometry(Eigen::Vector4f in, tf::Transform transform)
+  {
+    tf::Vector3 t_in(in[0], in[1], in[2]);
+    tf::Vector3 t_out = transform * t_in;
+    Eigen::Vector4f out(t_out.x(), t_out.y(), t_out.z(), 1.0);
+    return out;
+  }
+
   /** \brief convert a tf::transform to Eigen::Isometry3d
     * @return Eigen::Isometry3d matrix
     * \param in of type tf::transform
