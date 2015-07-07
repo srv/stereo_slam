@@ -8,7 +8,7 @@ using namespace tools;
 namespace slam
 {
 
-  Graph::Graph(LoopClosing* loop_closing) : frames_counter_(0), loop_closing_(loop_closing)
+  Graph::Graph(LoopClosing* loop_closing) : frame_id_(0), loop_closing_(loop_closing)
   {
     init();
   }
@@ -22,6 +22,11 @@ namespace slam
     g2o::OptimizationAlgorithmLevenberg * solver =
       new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
     graph_optimizer_.setAlgorithm(solver);
+
+    // Remove locking file if exists
+    string lock_file = WORKING_DIRECTORY + ".graph.lock";
+    if (fs::exists(lock_file))
+      remove(lock_file.c_str());
   }
 
   void Graph::run()
@@ -60,12 +65,13 @@ namespace slam
     }
 
     // Increase the counter
-    frames_counter_++;
+    frame_id_++;
 
     // Extract sift
     cv::Mat sift_desc = frame.computeSift();
 
     // Loop of frame clusters
+    vector<int> vertex_ids;
     vector<Eigen::Vector4f> cluster_centroids = frame.getClusterCentroids();
     vector< vector<int> > clusters = frame.getClusters();
     vector<cv::Point3f> points = frame.getCameraPoints();
@@ -75,8 +81,10 @@ namespace slam
     for (uint i=0; i<clusters.size(); i++)
     {
       // Add cluster to graph
-      int id = addVertex(cluster_centroids[i]);
-      cluster_frame_.push_back( make_pair(id, frames_counter_) );
+      int id = addVertex( Tools::transformVector4f(cluster_centroids[i], camera_pose) );
+      cluster_frame_.push_back( make_pair(id, frame_id_) );
+      cluster_poses_.push_back( Tools::vector4fToTransform(cluster_centroids[i]) );
+      vertex_ids.push_back(id);
 
       // Add cluster to loop_closing
       cv::Mat c_desc_ldb, c_desc_sift;
@@ -91,30 +99,102 @@ namespace slam
         c_desc_sift.push_back(sift_desc.row(idx));
       }
 
-      if (c_kp.size() > 10)
+      // Add to loop closing
+      Cluster cluster(id, frame_id_, camera_pose, c_kp, c_desc_ldb, c_desc_sift, c_points);
+      loop_closing_->addClusterToQueue(cluster);
+    }
+
+    // Add edges between clusters of the same frame
+    if (clusters.size() > 1)
+    {
+      // Retrieve all possible combinations
+      vector< vector<int> > combinations = createComb(vertex_ids);
+
+      for (uint i=0; i<combinations.size(); i++)
       {
-        // Add to loop closing
-        Cluster cluster(id, frames_counter_, camera_pose, c_kp, c_desc_ldb, c_desc_sift, c_points);
-        loop_closing_->addClusterToQueue(cluster);
+        int id_a = vertex_ids[combinations[i][0]];
+        int id_b = vertex_ids[combinations[i][1]];
+
+        tf::Transform pose_a = getVertexPose(id_a);
+        tf::Transform pose_b = getVertexPose(id_b);
+
+        tf::Transform edge = pose_a.inverse() * pose_b;
+        addEdge(id_a, id_b, edge);
       }
     }
 
-    // // Get its N closest neighbors (by distance)
-    // frame.setGraphNeighbors( findClosestNeighbors(id) );
+    // Connect this frame with the previous
+    if (frame_id_ > 1)
+    {
+      vector<int> prev_frame_vertices;
+      getFrameVertices(frame_id_ - 1, prev_frame_vertices);
 
-    // // Send the frame to loop closing thread
-    // loop_closing_->addFrameToQueue(frame);
+      // Connect only the closest vertices between the two frames
+      double min_dist = DBL_MAX;
+      vector<int> closest_vertices;
+      vector<tf::Transform> closest_poses;
+      for (uint i=0; i<vertex_ids.size(); i++)
+      {
+        // The pose of this vertex
+        tf::Transform cur_vertex_pose = getVertexPose(vertex_ids[i]);
 
-    // // Save graph to file
-    // saveToFile();
+        for (uint j=0; j<prev_frame_vertices.size(); j++)
+        {
+          tf::Transform prev_vertex_pose = getVertexPose(prev_frame_vertices[j]);
+
+          double dist = Tools::poseDiff(cur_vertex_pose, prev_vertex_pose);
+          if (dist < min_dist)
+          {
+            closest_vertices.clear();
+            closest_vertices.push_back(vertex_ids[i]);
+            closest_vertices.push_back(prev_frame_vertices[j]);
+
+            closest_poses.clear();
+            closest_poses.push_back(cur_vertex_pose);
+            closest_poses.push_back(prev_vertex_pose);
+            min_dist = dist;
+          }
+        }
+      }
+
+      if (closest_vertices.size() > 0)
+      {
+        tf::Transform edge = closest_poses[0].inverse() * closest_poses[1];
+        addEdge(closest_vertices[0], closest_vertices[1], edge);
+      }
+      else
+        ROS_ERROR("[Localization:] Impossible to connect current and previous frame. Graph will have non-connected parts!");
+    }
+
+    // Save graph to file
+    saveToFile();
   }
 
-  int Graph::addVertex(Eigen::Vector4f pose)
+  vector< vector<int> > Graph::createComb(vector<int> cluster_ids)
+  {
+    string bitmask(2, 1);
+    bitmask.resize(cluster_ids.size(), 0);
+
+    vector<int> comb;
+    vector< vector<int> > combinations;
+    do {
+      for (uint i = 0; i < cluster_ids.size(); ++i)
+      {
+        if (bitmask[i]) comb.push_back(i);
+      }
+      combinations.push_back(comb);
+      comb.clear();
+    } while (prev_permutation(bitmask.begin(), bitmask.end()));
+
+    return combinations;
+  }
+
+  int Graph::addVertex(tf::Transform pose)
   {
     mutex::scoped_lock lock(mutex_graph_);
 
     // Convert pose for graph
-    Eigen::Isometry3d vertex_pose = Tools::vector4fToIsometry(pose);
+    Eigen::Isometry3d vertex_pose = Tools::tfToIsometry(pose);
 
     // Set node id equal to graph size
     int id = graph_optimizer_.vertices().size();
@@ -132,7 +212,7 @@ namespace slam
     return id;
   }
 
-  void Graph::addEdge(int i, int j, tf::Transform edge, int inliers)
+  void Graph::addEdge(int i, int j, tf::Transform edge)
   {
     mutex::scoped_lock lock(mutex_graph_);
 
@@ -140,10 +220,8 @@ namespace slam
     g2o::VertexSE3* v_i = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
     g2o::VertexSE3* v_j = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[j]);
 
-    Eigen::Matrix<double, 6, 6> information = Eigen::Matrix<double, 6, 6>::Identity();
-    double sigma = 1e+10;
-    if (inliers > 0)
-      sigma = (double)inliers;
+    // Eigen::Matrix<double, 6, 6> information = Eigen::Matrix<double, 6, 6>::Identity();
+    // double sigma = 1e+10;
 
     // Add the new edge to graph
     g2o::EdgeSE3* e = new g2o::EdgeSE3();
@@ -151,7 +229,7 @@ namespace slam
     e->setVertex(0, v_i);
     e->setVertex(1, v_j);
     e->setMeasurement(t);
-    e->setInformation(information/sigma);
+    //e->setInformation(information/sigma);
     graph_optimizer_.addEdge(e);
   }
 
@@ -167,10 +245,7 @@ namespace slam
   {
     // Init
     neighbors.clear();
-
-    g2o::VertexSE3* vertex =  dynamic_cast<g2o::VertexSE3*>
-              (graph_optimizer_.vertices()[vertex_id]);
-    tf::Transform vertex_pose = Tools::getVertexPose(vertex);
+    tf::Transform vertex_pose = getVertexPose(vertex_id);
 
     // Loop thought all the other nodes
     vector< pair< int,double > > neighbor_distances;
@@ -180,9 +255,7 @@ namespace slam
       if ((int)i > window_center-window && (int)i < window_center+window) continue;
 
       // Get the node pose
-      g2o::VertexSE3* cur_vertex =  dynamic_cast<g2o::VertexSE3*>
-              (graph_optimizer_.vertices()[i]);
-      tf::Transform cur_pose = Tools::getVertexPose(cur_vertex);
+      tf::Transform cur_pose = getVertexPose(i);
       double dist = Tools::poseDiff(cur_pose, vertex_pose);
       neighbor_distances.push_back(make_pair(i, dist));
     }
@@ -211,6 +284,21 @@ namespace slam
     }
   }
 
+  tf::Transform Graph::getVertexPose(int id, bool lock)
+  {
+    if (lock)
+      mutex::scoped_lock lock(mutex_graph_);
+
+    g2o::VertexSE3* vertex =  dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[id]);
+    return Tools::getVertexPose(vertex);
+  }
+
+  tf::Transform Graph::getVertexCameraPose(int id)
+  {
+    tf::Transform vertex_pose = getVertexPose(id);
+    return vertex_pose * cluster_poses_[id].inverse();
+  }
+
   void Graph::saveToFile()
   {
     string lock_file, vertices_file, edges_file;
@@ -233,8 +321,7 @@ namespace slam
     // Output the vertices file
     for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
     {
-      g2o::VertexSE3* v = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
-      tf::Transform pose = Tools::getVertexPose(v)*camera2odom_;
+      tf::Transform pose = getVertexPose(i, false)*camera2odom_;
       f_vertices << fixed <<
             setprecision(6) <<
             i << "," <<
@@ -255,10 +342,8 @@ namespace slam
       g2o::EdgeSE3* e = dynamic_cast<g2o::EdgeSE3*> (*it);
       if (e)
       {
-        g2o::VertexSE3* v_0 = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[e->vertices()[0]->id()]);
-        g2o::VertexSE3* v_1 = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[e->vertices()[1]->id()]);
-        tf::Transform pose_0 = Tools::getVertexPose(v_0)*camera2odom_;
-        tf::Transform pose_1 = Tools::getVertexPose(v_1)*camera2odom_;
+        tf::Transform pose_0 = getVertexPose(e->vertices()[0]->id(), false)*camera2odom_;
+        tf::Transform pose_1 = getVertexPose(e->vertices()[1]->id(), false)*camera2odom_;
 
         // Extract the inliers
         Eigen::Matrix<double, 6, 6> information = e->information();

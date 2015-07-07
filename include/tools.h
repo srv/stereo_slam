@@ -30,15 +30,17 @@ public:
   typedef pcl::PointXYZRGB        Point;
   typedef pcl::PointCloud<Point>  PointCloud;
 
-  /** \brief convert a tf::transform to Eigen::Isometry3d
-    * @return Eigen::Isometry3d matrix
-    * \param in of type tf::transform
+
+  /** \brief convert a Eigen::Vector4f to tf::Transform
+    * @return tf::Transform matrix
+    * \param in of type Eigen::Vector4f
     */
-  static Eigen::Isometry3d vector4fToIsometry(Eigen::Vector4f in)
+  static tf::Transform vector4fToTransform(Eigen::Vector4f in)
   {
-    Eigen::Vector3d t_out(in[0], in[1], in[2]);
-    Eigen::Isometry3d out = Eigen::Isometry3d::Identity();
-    out.translation() = t_out;
+    tf::Transform out;
+    out.setIdentity();
+    tf::Vector3 t_out(in[0], in[1], in[2]);
+    out.setOrigin(t_out);
     return out;
   }
 
@@ -47,12 +49,10 @@ public:
     * \param input Eigen::Vector4f
     * \param input transformation
     */
-  static Eigen::Vector4f vector4fToIsometry(Eigen::Vector4f in, tf::Transform transform)
+  static tf::Transform transformVector4f(Eigen::Vector4f in, tf::Transform transform)
   {
-    tf::Vector3 t_in(in[0], in[1], in[2]);
-    tf::Vector3 t_out = transform * t_in;
-    Eigen::Vector4f out(t_out.x(), t_out.y(), t_out.z(), 1.0);
-    return out;
+    tf::Transform in_tf = vector4fToTransform(in);
+    return transform * in_tf;
   }
 
   /** \brief convert a tf::transform to Eigen::Isometry3d

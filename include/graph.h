@@ -58,9 +58,8 @@ public:
    * \param Index of vertex 1
    * \param Index of vertex 2
    * \param Transformation between vertices
-   * \param Number of inliers between these vertices
    */
-  void addEdge(int i, int j, tf::Transform edge, int inliers);
+  void addEdge(int i, int j, tf::Transform edge);
 
   /** \brief Optimize the graph
    */
@@ -80,6 +79,19 @@ public:
    * \param Will contain the list of vertices for this frame.
    */
   void getFrameVertices(int frame_id, vector<int> &vertices);
+
+  /** \brief Get the graph vertex pose
+   * @return graph vertex pose
+   * \param vertex id
+   * \param set to true to lock the graph
+   */
+  tf::Transform getVertexPose(int id, bool lock = true);
+
+  /** \brief Get the graph vertex pose relative to camera frame
+   * @return graph vertex pose relative to camera frame
+   * \param vertex id
+   */
+  tf::Transform getVertexCameraPose(int id);
 
   /** \brief Set the transformation between camera and robot odometry frame
    * \param the transform
@@ -106,6 +118,12 @@ public:
 
 protected:
 
+  /** \brief Return all possible combinations of 2 elements of the input vector
+   * @return the list of combinations
+   * \param Input vector with all values
+   */
+  vector< vector<int> > createComb(vector<int> cluster_ids);
+
   /** \brief Check if there are frames in the queue to be inserted into the graph
    * @return true if frames queue is not empty.
    */
@@ -119,7 +137,7 @@ protected:
    * @return the vertex id
    * \param Vertex pose
    */
-  int addVertex(Eigen::Vector4f pose);
+  int addVertex(tf::Transform pose);
 
   /** \brief Save the graph to file
    */
@@ -131,9 +149,11 @@ private:
 
   list<Frame> frame_queue_; //!> Frames queue to be inserted into the graph
 
-  int frames_counter_; //!> Processed frames counter
+  int frame_id_; //!> Processed frames counter
 
   vector< pair< int,int > > cluster_frame_; //!> Stores the cluster/frame relation (cluster_id, frame_id)
+
+  vector<tf::Transform> cluster_poses_; //!> Stores the cluster poses relative to camera frame
 
   mutex mutex_graph_; //!> Mutex for the graph manipulation
 

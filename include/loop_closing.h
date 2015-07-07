@@ -64,9 +64,9 @@ protected:
    */
   void processNewCluster();
 
-  /** \brief Searches a loop closing between current cluster and its precedent neighbors
+  /** \brief Searches a loop closing between current cluster and its closest neighbors
    */
-  void searchInPreviousNeighors();
+  void searchByProximity();
 
   /** \brief Searches a loop closing between current cluster and all other clusters using the hash
    */
@@ -91,6 +91,12 @@ protected:
                        tf::Transform camera_pose,
                        cv::Mat& out_desc,
                        vector<cv::Point3f>& out_points);
+
+  /** \brief Tries to close a loop between two clusters
+   * @return true if loop closing
+   * \param Candidate cluster
+   */
+  bool closeLoopWithCluster(Cluster candidate);
 
   /** \brief Get the best candidates to close a loop by hash
    * \param Cluster identifier

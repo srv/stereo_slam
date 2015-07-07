@@ -131,7 +131,7 @@ namespace slam
     Tools::ratioMatching(c_desc, f_desc, 0.9, matches_);
 
     // Check minimum matches
-    if (matches_.size() >= MIN_INLIERS)
+    if (matches_.size() >= MIN_INLIERS_TRACKING)
     {
       vector<cv::Point2f> f_matched_kp;
       vector<cv::Point3f> c_matched_3d_points;
@@ -149,8 +149,7 @@ namespace slam
       // Estimate the motion
       solvePnPRansac(c_matched_3d_points, f_matched_kp, camera_matrix_,
                      cv::Mat(), rvec_, tvec_, use_guess,
-                     100, 1.3,
-                     MAX_INLIERS, inliers_);
+                     100, 1.3, MAX_INLIERS_TRACKING, inliers_);
     }
 
     // Publish
@@ -162,7 +161,7 @@ namespace slam
     // Wait for initialization
     if (state_ == INITIALIZING)
     {
-      if (inliers_.size() < MIN_INLIERS)
+      if (inliers_.size() < MIN_INLIERS_TRACKING)
       {
         f_frame_ = c_frame_;
         return;
@@ -176,7 +175,7 @@ namespace slam
 
     // Reset fixed frame?
     reset_fixed_frame_ = false;
-    if (inliers_.size() < MIN_INLIERS)
+    if (inliers_.size() < MIN_INLIERS_TRACKING)
     {
       reset_fixed_frame_ = true;
       f_frame_ = c_frame_;
@@ -186,7 +185,7 @@ namespace slam
 
   void Tracking::addFrameToMap(Frame frame)
   {
-    if (frame.getLeftKp().size() > MIN_INLIERS)
+    if (frame.getLeftKp().size() > MIN_INLIERS_TRACKING)
     {
       frame.regionClustering();
       f_pub_->publishClustering(frame);

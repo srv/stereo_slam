@@ -217,8 +217,9 @@ namespace slam
     }
 
     // Treat noise as a cluster if enough points
-    if (noise.size() >= min_pts)
-      clusters_.push_back(noise);
+    // TODO: revise if it is needed or not!
+    // if (noise.size() >= min_pts)
+    //   clusters_.push_back(noise);
 
     // Compute the clusters centroids
     for (uint i=0; i<clusters_.size(); i++)
@@ -234,7 +235,6 @@ namespace slam
 
       Eigen::Vector4f centroid;
       compute3DCentroid(*cluster_points, centroid);
-      centroid = Tools::vector4fToIsometry(centroid, pose_);
       cluster_centroids_.push_back(centroid);
     }
   }
