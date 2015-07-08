@@ -22,11 +22,16 @@ namespace slam
     g2o::OptimizationAlgorithmLevenberg * solver =
       new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
     graph_optimizer_.setAlgorithm(solver);
+    graph_acc_tf_.setIdentity();
 
     // Remove locking file if exists
     string lock_file = WORKING_DIRECTORY + ".graph.lock";
     if (fs::exists(lock_file))
       remove(lock_file.c_str());
+
+    // Advertise topics
+    ros::NodeHandle nhp("~");
+    pose_pub_ = nhp.advertise<nav_msgs::Odometry>("graph_camera_odometry", 1);
   }
 
   void Graph::run()
@@ -72,21 +77,25 @@ namespace slam
 
     // Loop of frame clusters
     vector<int> vertex_ids;
+    vector<Cluster> clusters_to_close_loop;
     vector<Eigen::Vector4f> cluster_centroids = frame.getClusterCentroids();
     vector< vector<int> > clusters = frame.getClusters();
     vector<cv::Point3f> points = frame.getCameraPoints();
     vector<cv::KeyPoint> kp = frame.getLeftKp();
-    tf::Transform camera_pose = frame.getPose();
+    tf::Transform camera_pose = frame.getCameraPose() * graph_acc_tf_;
     cv::Mat ldb_desc = frame.getLeftDesc();
     for (uint i=0; i<clusters.size(); i++)
     {
       // Add cluster to graph
-      int id = addVertex( Tools::transformVector4f(cluster_centroids[i], camera_pose) );
-      cluster_frame_.push_back( make_pair(id, frame_id_) );
-      cluster_poses_.push_back( Tools::vector4fToTransform(cluster_centroids[i]) );
+      tf::Transform cluster_pose = Tools::transformVector4f(cluster_centroids[i], camera_pose);
+      int id = addVertex(cluster_pose);
+
+      // Store information
+      cluster_frame_relation_.push_back( make_pair(id, frame_id_) );
+      local_cluster_poses_.push_back( Tools::vector4fToTransform(cluster_centroids[i]) );
       vertex_ids.push_back(id);
 
-      // Add cluster to loop_closing
+      // Build cluster
       cv::Mat c_desc_ldb, c_desc_sift;
       vector<cv::KeyPoint> c_kp;
       vector<cv::Point3f> c_points;
@@ -98,11 +107,13 @@ namespace slam
         c_desc_ldb.push_back(ldb_desc.row(idx));
         c_desc_sift.push_back(sift_desc.row(idx));
       }
-
-      // Add to loop closing
       Cluster cluster(id, frame_id_, camera_pose, c_kp, c_desc_ldb, c_desc_sift, c_points);
-      loop_closing_->addClusterToQueue(cluster);
+      clusters_to_close_loop.push_back(cluster);
     }
+
+    // Send the new clusters to the loop closing thread
+    for (uint i=0; i<clusters_to_close_loop.size(); i++)
+      loop_closing_->addClusterToQueue(clusters_to_close_loop[i]);
 
     // Add edges between clusters of the same frame
     if (clusters.size() > 1)
@@ -119,7 +130,7 @@ namespace slam
         tf::Transform pose_b = getVertexPose(id_b);
 
         tf::Transform edge = pose_a.inverse() * pose_b;
-        addEdge(id_a, id_b, edge);
+        addEdge(id_a, id_b, edge, MAX_INLIERS_LC);
       }
     }
 
@@ -160,7 +171,7 @@ namespace slam
       if (closest_vertices.size() > 0)
       {
         tf::Transform edge = closest_poses[0].inverse() * closest_poses[1];
-        addEdge(closest_vertices[0], closest_vertices[1], edge);
+        addEdge(closest_vertices[0], closest_vertices[1], edge, MAX_INLIERS_LC);
       }
       else
         ROS_ERROR("[Localization:] Impossible to connect current and previous frame. Graph will have non-connected parts!");
@@ -168,6 +179,9 @@ namespace slam
 
     // Save graph to file
     saveToFile();
+
+    // Publish camera pose
+    publishCameraPose(camera_pose);
   }
 
   vector< vector<int> > Graph::createComb(vector<int> cluster_ids)
@@ -212,7 +226,7 @@ namespace slam
     return id;
   }
 
-  void Graph::addEdge(int i, int j, tf::Transform edge)
+  void Graph::addEdge(int i, int j, tf::Transform edge, int sigma)
   {
     mutex::scoped_lock lock(mutex_graph_);
 
@@ -220,8 +234,7 @@ namespace slam
     g2o::VertexSE3* v_i = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
     g2o::VertexSE3* v_j = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[j]);
 
-    // Eigen::Matrix<double, 6, 6> information = Eigen::Matrix<double, 6, 6>::Identity();
-    // double sigma = 1e+10;
+    Eigen::Matrix<double, 6, 6> information = Eigen::Matrix<double, 6, 6>::Identity() * (double)sigma;
 
     // Add the new edge to graph
     g2o::EdgeSE3* e = new g2o::EdgeSE3();
@@ -229,15 +242,32 @@ namespace slam
     e->setVertex(0, v_i);
     e->setVertex(1, v_j);
     e->setMeasurement(t);
-    //e->setInformation(information/sigma);
+    e->setInformation(information);
     graph_optimizer_.addEdge(e);
   }
 
   void Graph::update()
   {
     mutex::scoped_lock lock(mutex_graph_);
+
+    // Store the last cluster transformation
+    int last_idx = graph_optimizer_.vertices().size() - 1;
+    tf::Transform prev_tf;
+    prev_tf.setIdentity();
+    if (last_idx >= 0)
+      prev_tf = getVertexPose(last_idx, false);
+
+    // Optimize!
     graph_optimizer_.initializeOptimization();
     graph_optimizer_.optimize(20);
+
+    // Accumulate the optimization modifications
+    tf::Transform final_tf;
+    final_tf.setIdentity();
+    if (last_idx >= 0)
+      final_tf = getVertexPose(last_idx, false);
+    graph_acc_tf_ = graph_acc_tf_ * prev_tf.inverse() * final_tf;
+
     ROS_INFO_STREAM("[Localization:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
   }
 
@@ -277,11 +307,25 @@ namespace slam
   void Graph::getFrameVertices(int frame_id, vector<int> &vertices)
   {
     vertices.clear();
-    for (uint i=0; i<cluster_frame_.size(); i++)
+    for (uint i=0; i<cluster_frame_relation_.size(); i++)
     {
-      if (cluster_frame_[i].second == frame_id)
-        vertices.push_back(cluster_frame_[i].first);
+      if (cluster_frame_relation_[i].second == frame_id)
+        vertices.push_back(cluster_frame_relation_[i].first);
     }
+  }
+
+  int Graph::getVertexFrameId(int id)
+  {
+    int frame_id = -1;
+    for (uint i=0; i<cluster_frame_relation_.size(); i++)
+    {
+      if (cluster_frame_relation_[i].first == id)
+      {
+        frame_id = cluster_frame_relation_[i].second;
+        break;
+      }
+    }
+    return frame_id;
   }
 
   tf::Transform Graph::getVertexPose(int id, bool lock)
@@ -293,10 +337,15 @@ namespace slam
     return Tools::getVertexPose(vertex);
   }
 
+  tf::Transform Graph::getVertexPoseRelativeToCamera(int id)
+  {
+    return local_cluster_poses_[id];
+  }
+
   tf::Transform Graph::getVertexCameraPose(int id)
   {
     tf::Transform vertex_pose = getVertexPose(id);
-    return vertex_pose * cluster_poses_[id].inverse();
+    return vertex_pose * local_cluster_poses_[id].inverse();
   }
 
   void Graph::saveToFile()
@@ -349,7 +398,7 @@ namespace slam
         Eigen::Matrix<double, 6, 6> information = e->information();
         int inliers = 0;
         if (information(0,0) > 0.0001)
-          inliers = (int)(1/information(0,0));
+          inliers = (int)information(0,0);
 
         // Write
         f_edges <<
@@ -380,6 +429,17 @@ namespace slam
     int ret_code = remove(lock_file.c_str());
     if (ret_code != 0)
       ROS_ERROR("[Localization:] Error deleting the locking file.");
+  }
+
+  void Graph::publishCameraPose(tf::Transform camera_pose)
+  {
+    if (pose_pub_.getNumSubscribers() > 0)
+    {
+      nav_msgs::Odometry pose_msg;
+      pose_msg.header.stamp = ros::Time::now();
+      tf::poseTFToMsg(camera_pose, pose_msg.pose.pose);
+      pose_pub_.publish(pose_msg);
+    }
   }
 
 } //namespace slam

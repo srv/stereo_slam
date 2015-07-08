@@ -73,7 +73,7 @@ namespace slam
 
       // For the first frame, its estimated pose will coincide with odometry
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
-      f_frame_.setPose(c_odom_camera);
+      f_frame_.setCameraPose(c_odom_camera);
 
       state_ = INITIALIZING;
     }
@@ -84,7 +84,7 @@ namespace slam
 
       // Set the odometry of this frame
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
-      c_frame_.setPose(c_odom_camera);
+      c_frame_.setCameraPose(c_odom_camera);
 
       trackCurrentFrame();
       needNewFixedFrame();

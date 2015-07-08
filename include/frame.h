@@ -82,11 +82,11 @@ public:
   /** \brief Set camera pose
    * \param camera pose
    */
-  inline void setPose(const tf::Transform& pose){pose_ = pose;}
+  inline void setCameraPose(const tf::Transform& camera_pose){camera_pose_ = camera_pose;}
 
   /** \brief Get camera pose
    */
-  inline tf::Transform getPose() const {return pose_;}
+  inline tf::Transform getCameraPose() const {return camera_pose_;}
 
   /** \brief Return the clustering for the current frame
    */
@@ -132,7 +132,7 @@ private:
 
   vector<Eigen::Vector4f> cluster_centroids_; //!> Central point for every cluster
 
-  tf::Transform pose_; //!> Camera world position for this frame
+  tf::Transform camera_pose_; //!> Camera world position for this frame
 
 };
 

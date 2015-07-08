@@ -9,6 +9,7 @@
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
 #include <image_geometry/pinhole_camera_model.h>
+#include <nav_msgs/Odometry.h>
 
 #include <g2o/core/sparse_optimizer.h>
 #include <g2o/core/block_solver.h>
@@ -58,8 +59,9 @@ public:
    * \param Index of vertex 1
    * \param Index of vertex 2
    * \param Transformation between vertices
+   * \param Sigma information
    */
-  void addEdge(int i, int j, tf::Transform edge);
+  void addEdge(int i, int j, tf::Transform edge, int sigma);
 
   /** \brief Optimize the graph
    */
@@ -80,6 +82,12 @@ public:
    */
   void getFrameVertices(int frame_id, vector<int> &vertices);
 
+  /** \brief Get the frame id of some specific vertex
+   * @return the frame id
+   * \param vertex id
+   */
+  int getVertexFrameId(int id);
+
   /** \brief Get the graph vertex pose
    * @return graph vertex pose
    * \param vertex id
@@ -87,8 +95,14 @@ public:
    */
   tf::Transform getVertexPose(int id, bool lock = true);
 
-  /** \brief Get the graph vertex pose relative to camera frame
-   * @return graph vertex pose relative to camera frame
+  /** \brief Get the graph vertex pose relative to camera
+   * @return graph vertex pose relative to camera
+   * \param vertex id
+   */
+  tf::Transform getVertexPoseRelativeToCamera(int id);
+
+  /** \brief Get the camera pose of some specific vertex
+   * @return graph vertex camera pose
    * \param vertex id
    */
   tf::Transform getVertexCameraPose(int id);
@@ -143,6 +157,11 @@ protected:
    */
   void saveToFile();
 
+  /** \brief Publishes the graph camera pose
+   * \param Camera pose
+   */
+  void publishCameraPose(tf::Transform camera_pose);
+
 private:
 
   g2o::SparseOptimizer graph_optimizer_; //!> G2O graph optimizer
@@ -151,9 +170,11 @@ private:
 
   int frame_id_; //!> Processed frames counter
 
-  vector< pair< int,int > > cluster_frame_; //!> Stores the cluster/frame relation (cluster_id, frame_id)
+  vector< pair< int,int > > cluster_frame_relation_; //!> Stores the cluster/frame relation (cluster_id, frame_id)
 
-  vector<tf::Transform> cluster_poses_; //!> Stores the cluster poses relative to camera frame
+  vector<tf::Transform> local_cluster_poses_; //!> Stores the cluster poses relative to camera frame
+
+  tf::Transform graph_acc_tf_; //!> Stores the accumulative transformation of the graph when an update is performed.
 
   mutex mutex_graph_; //!> Mutex for the graph manipulation
 
@@ -166,6 +187,8 @@ private:
   cv::Mat camera_matrix_; //!> The camera matrix
 
   image_geometry::PinholeCameraModel camera_model_; //!> Pinhole left camera model
+
+  ros::Publisher pose_pub_; //!> Camera pose publisher
 };
 
 } // namespace

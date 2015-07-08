@@ -28,7 +28,7 @@ public:
 
   /** \brief Class constructor
    */
-  Cluster(int id, int frame_id, tf::Transform pose, vector<cv::KeyPoint> kp, cv::Mat ldb_desc, cv::Mat sift_desc, vector<cv::Point3f> points);
+  Cluster(int id, int frame_id, tf::Transform camera_pose, vector<cv::KeyPoint> kp, cv::Mat ldb_desc, cv::Mat sift_desc, vector<cv::Point3f> points);
 
   /** \brief Computes and returns the 3D points in world coordinates
    * @return the 3D points in world coordinates
@@ -61,7 +61,7 @@ public:
 
   /** \brief Get camera pose
    */
-  inline tf::Transform getPose() const {return pose_;}
+  inline tf::Transform getCameraPose() const {return camera_pose_;}
 
 private:
 
@@ -70,7 +70,7 @@ private:
 
   int frame_id_; //!> Corresponding frame id
 
-  tf::Transform pose_; //!> Camera world position
+  tf::Transform camera_pose_; //!> Camera world position
 
   vector<cv::KeyPoint> kp_; //!> cv::KeyPoints.
 

@@ -140,35 +140,43 @@ def draw_edges():
     # Read the data
     data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(2,3,4,5,10,11,12))
 
-    # # Inliers column
-    # inliers = data[:,0]
-    # max_inliers = max(inliers)
-    # min_inliers = min(inliers)
+    # Inliers column
+    inliers = data[:,0]
+    max_inliers = max(inliers)
+    min_inliers = min(inliers)
 
-    # # red color
-    # m_red = (255) / (min_inliers - max_inliers)
-    # n_red = -m_red * max_inliers
+    valid_color = True
+    if (min_inliers - max_inliers == 0):
+      valid_color = False
 
-    # # blue color
-    # m_green = (255) / (max_inliers - min_inliers)
-    # n_green = -m_green * min_inliers
+    if (valid_color):
+      # red color
+      m_red = (255) / (min_inliers - max_inliers)
+      n_red = -m_red * max_inliers
+
+      # blue color
+      m_blue = (255) / (max_inliers - min_inliers)
+      n_blue = -m_blue * min_inliers
 
     # Plot current
     if (len(data.shape) == 1):
       data = np.array([data])
     ax_edges = []
     for i in range(len(data)):
-      # # Get the color depending on the inlier value
-      # red = hex(int(m_red * data[i,0] + n_red))
-      # green = hex(int(m_green * data[i,0] + n_green))
-      # red = red[2:]
-      # green = green[2:]
-      # if (len(red) == 1):
-      #   red += '0'
-      # if (len(green) == 1):
-      #   green += '0'
-      # color = '#' + red + green + '00'
-      color = 'b';
+
+      # Get the color depending on the inlier value
+      if (valid_color):
+        red = hex(int(m_red * data[i,0] + n_red))
+        blue = hex(int(m_blue * data[i,0] + n_blue))
+        red = red[2:]
+        blue = blue[2:]
+        if (len(red) == 1):
+          red += '0'
+        if (len(blue) == 1):
+          blue += '0'
+        color = '#' + red + '00' + blue
+      else:
+        color = 'b';
 
       vect = []
       vect.append([data[i,1], data[i,2], data[i,3]])

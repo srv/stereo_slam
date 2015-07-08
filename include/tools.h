@@ -194,7 +194,7 @@ public:
     return pose_tf;
   }
 
-  /** \brief compute the absolute diference between 2 poses
+  /** \brief compute the absolute diference between 2 poses (omitting z)
     * @return the norm between two poses
     * \param pose_1 transformation matrix of pose 1
     * \param pose_2 transformation matrix of pose 2
@@ -202,7 +202,7 @@ public:
   static double poseDiff(tf::Transform pose_1, tf::Transform pose_2)
   {
     tf::Vector3 d = pose_1.getOrigin() - pose_2.getOrigin();
-    return sqrt(d.x()*d.x() + d.y()*d.y() + d.z()*d.z());
+    return sqrt(d.x()*d.x() + d.y()*d.y());
   }
 
   /** \brief Sort 2 matchings by value
@@ -313,6 +313,8 @@ public:
   static void ratioMatching(cv::Mat desc_1, cv::Mat desc_2, double ratio, vector<cv::DMatch> &matches)
   {
     matches.clear();
+    if (desc_1.rows < 10 || desc_2.rows < 10) return;
+
     cv::Mat match_mask;
     const int knn = 2;
     cv::Ptr<cv::DescriptorMatcher> descriptor_matcher;

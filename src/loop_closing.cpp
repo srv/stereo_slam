@@ -107,9 +107,12 @@ namespace slam
     graph_->findClosestVertices(c_cluster_.getId(), c_cluster_.getId(), LC_DISCARD_WINDOW, 1, candidate_neighbors);
     for (uint i=0; i<candidate_neighbors.size(); i++)
     {
-      // Try to close the loop between current cluster and the candidate
       Cluster candidate = readCluster(candidate_neighbors[i]);
+      if (candidate.getLdb().rows == 0)
+        continue;
+
       bool valid = closeLoopWithCluster(candidate);
+
       if (valid)
         ROS_INFO("By proximity");
     }
@@ -125,9 +128,12 @@ namespace slam
     // Loop over candidates
     for (uint i=0; i<hash_matching.size(); i++)
     {
-      // Try to close the loop between current cluster and the candidate
       Cluster candidate = readCluster(hash_matching[i].first);
+      if (candidate.getLdb().rows == 0)
+        continue;
+
       bool valid = closeLoopWithCluster(candidate);
+
       if (valid)
         ROS_INFO("By hash");
     }
@@ -189,7 +195,7 @@ namespace slam
       vector<cv::KeyPoint> all_frame_kp = c_cluster_.getKp();
 
       // Check if 3D points of the candidate are in camera frustum
-      filterByFrustum(candidate.getLdb(), candidate.getWorldPoints(), c_cluster_.getPose(), all_candidate_desc, all_candidate_points);
+      filterByFrustum(candidate.getLdb(), candidate.getWorldPoints(), c_cluster_.getCameraPose(), all_candidate_desc, all_candidate_points);
 
       // Init the cluster candidate list
       for (uint j=0; j<all_candidate_points.size(); j++)
@@ -207,7 +213,7 @@ namespace slam
         // Delete points outside of frustum
         cv::Mat desc_tmp;
         vector<cv::Point3f> points_tmp;
-        filterByFrustum(c_n_desc, candidate_neighbor.getWorldPoints(), c_cluster_.getPose(), desc_tmp, points_tmp);
+        filterByFrustum(c_n_desc, candidate_neighbor.getWorldPoints(), c_cluster_.getCameraPose(), desc_tmp, points_tmp);
 
         // Concatenate descriptors and points
         cv::vconcat(all_candidate_desc, desc_tmp, all_candidate_desc);
@@ -252,7 +258,7 @@ namespace slam
       {
         // Store matchings
         vector<int> frame_matchings;
-        vector<int> cluster_matchings;
+        vector<int> candidate_matchings;
         vector<cv::Point2f> matched_kp;
         vector<cv::Point3f> matched_points;
         for(uint j=0; j<matches_2.size(); j++)
@@ -260,7 +266,7 @@ namespace slam
           matched_kp.push_back(all_frame_kp[matches_2[j].queryIdx].pt);
           matched_points.push_back(all_candidate_points[matches_2[j].trainIdx]);
           frame_matchings.push_back(cluster_frame_list[matches_2[j].queryIdx]);
-          cluster_matchings.push_back(cluster_candidate_list[matches_2[j].trainIdx]);
+          candidate_matchings.push_back(cluster_candidate_list[matches_2[j].trainIdx]);
         }
 
         // Estimate the motion
@@ -268,12 +274,12 @@ namespace slam
         cv::Mat rvec, tvec;
         solvePnPRansac(matched_points, matched_kp, graph_->getCameraMatrix(),
                        cv::Mat(), rvec, tvec, false,
-                       100, 1.3, MAX_INLIERS_LC, inliers);
+                       100, 1.5, MAX_INLIERS_LC, inliers);
 
         if (inliers.size() > MIN_INLIERS_LC)
         {
-          tf::Transform pose = Tools::buildTransformation(rvec, tvec);
-          pose = pose.inverse();
+          tf::Transform estimated_transform = Tools::buildTransformation(rvec, tvec);
+          estimated_transform = estimated_transform.inverse();
 
           // Get the inliers per cluster pair
           vector< vector<int> > cluster_pairs;
@@ -281,7 +287,7 @@ namespace slam
           for (uint i=0; i<inliers.size(); i++)
           {
             int frame_cluster = frame_matchings[inliers[i]];
-            int candidate_cluster = cluster_matchings[inliers[i]];
+            int candidate_cluster = candidate_matchings[inliers[i]];
 
             // Search if this pair already exists
             bool found = false;
@@ -308,14 +314,42 @@ namespace slam
             }
           }
 
+          // Add the corresponding edges
+          for (uint i=0; i<inliers_per_pair.size(); i++)
+          {
+            if (inliers_per_pair[i] >= 5)
+            {
+              tf::Transform candidate_cluster_pose = graph_->getVertexPose(cluster_pairs[i][1]);
+              tf::Transform frame_cluster_pose_relative_to_camera = graph_->getVertexPoseRelativeToCamera(cluster_pairs[i][0]);
+              tf::Transform edge_1 = candidate_cluster_pose.inverse() * estimated_transform * frame_cluster_pose_relative_to_camera;
+
+              tf::Transform frame_cluster_pose = graph_->getVertexPose(cluster_pairs[i][0]);
+              tf::Transform camera_diff = c_cluster_.getCameraPose().inverse() * estimated_transform;
+              tf::Transform new_frame_cluster_pose = frame_cluster_pose * camera_diff;
+              tf::Transform edge_2 = candidate_cluster_pose.inverse() * new_frame_cluster_pose;
+
+              tf::Transform tmp = candidate_cluster_pose.inverse() * frame_cluster_pose;
+              ROS_INFO_STREAM("INITIAL EDGE: " << tmp.getOrigin().x() << ", " << tmp.getOrigin().y() << ", " << tmp.getOrigin().z());
+              ROS_INFO_STREAM("FINAL EDGE 1: " << edge_1.getOrigin().x() << ", " << edge_1.getOrigin().y() << ", " << edge_1.getOrigin().z());
+              ROS_INFO_STREAM("FINAL EDGE 2: " << edge_2.getOrigin().x() << ", " << edge_2.getOrigin().y() << ", " << edge_2.getOrigin().z());
+
+              // Check if this edge already exists!!!
+              graph_->addEdge(cluster_pairs[i][0], cluster_pairs[i][1], edge_2, inliers_per_pair[i]);
+              lc_found_.push_back(make_pair(cluster_pairs[i][0], cluster_pairs[i][1]));
+            }
+          }
+
+          // Update the graph with the new edges
+          graph_->update();
+
           ROS_INFO_STREAM("LOOP: " << c_cluster_.getFrameId() << " <-> " << candidate.getFrameId() << " Matches: " << matches_2.size() << ". Inliers: " << inliers.size());
           ROS_INFO_STREAM("INLIERS:");
           for (uint i=0; i<inliers_per_pair.size(); i++)
           {
-            cout << cluster_pairs[i][0] << " <-> " << cluster_pairs[i][1] << ": " << inliers_per_pair[i] << endl;
+            cout << cluster_pairs[i][0] << " <-> " << cluster_pairs[i][1] << " (frame: " << graph_->getVertexFrameId(cluster_pairs[i][1]) << ") Inliers: " << inliers_per_pair[i] << endl;
           }
-          ROS_INFO_STREAM("ODOM: " << c_cluster_.getPose().getOrigin().x() << ", " << c_cluster_.getPose().getOrigin().y() << ", " << c_cluster_.getPose().getOrigin().z());
-          ROS_INFO_STREAM("SPNP: " << pose.getOrigin().x() << ", " << pose.getOrigin().y() << ", " << pose.getOrigin().z());
+          ROS_INFO_STREAM("ODOM: " << c_cluster_.getCameraPose().getOrigin().x() << ", " << c_cluster_.getCameraPose().getOrigin().y() << ", " << c_cluster_.getCameraPose().getOrigin().z());
+          ROS_INFO_STREAM("SPNP: " << estimated_transform.getOrigin().x() << ", " << estimated_transform.getOrigin().y() << ", " << estimated_transform.getOrigin().z());
 
           return true;
         }
