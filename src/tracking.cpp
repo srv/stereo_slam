@@ -16,6 +16,7 @@ namespace slam
   {
     // Init
     state_ = NOT_INITIALIZED;
+    last_fixed_frame_pose_.setIdentity();
 
     ros::NodeHandle nh;
     ros::NodeHandle nhp("~");
@@ -29,8 +30,8 @@ namespace slam
     // Message sync
     boost::shared_ptr<Sync> sync;
     odom_sub      .subscribe(nh, params_.odom_topic, 20);
-    left_sub      .subscribe(it, params_.camera_topic+"/left/image_rect", 3);
-    right_sub     .subscribe(it, params_.camera_topic+"/right/image_rect", 3);
+    left_sub      .subscribe(it, params_.camera_topic+"/left/image_rect_color", 3);
+    right_sub     .subscribe(it, params_.camera_topic+"/right/image_rect_color", 3);
     left_info_sub .subscribe(nh, params_.camera_topic+"/left/camera_info",  3);
     right_info_sub.subscribe(nh, params_.camera_topic+"/right/camera_info", 3);
     sync.reset(new Sync(SyncPolicy(5), odom_sub, left_sub, right_sub, left_info_sub, right_info_sub) );
@@ -187,6 +188,10 @@ namespace slam
   {
     if (frame.getLeftKp().size() > MIN_INLIERS_TRACKING)
     {
+      // Do not add very close frames
+      double pose_diff = Tools::poseDiff(last_fixed_frame_pose_, frame.getCameraPose());
+      if (state_ == WORKING && pose_diff < 0.1) return;
+
       frame.regionClustering();
       f_pub_->publishClustering(frame);
       graph_->addFrameToQueue(frame);

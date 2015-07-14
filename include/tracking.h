@@ -160,6 +160,8 @@ private:
 
   ros::WallTime lost_time_; //!> Time at which the tracker got lost.
 
+  tf::Transform last_fixed_frame_pose_; //!> Stores the last fixed frame pose
+
   // Topic sync
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,
                                                           sensor_msgs::Image,
@@ -167,7 +169,6 @@ private:
                                                           sensor_msgs::CameraInfo,
                                                           sensor_msgs::CameraInfo> SyncPolicy;
   typedef message_filters::Synchronizer<SyncPolicy> Sync;
-
 
 };
 

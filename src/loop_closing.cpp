@@ -279,7 +279,6 @@ namespace slam
         if (inliers.size() > MIN_INLIERS_LC)
         {
           tf::Transform estimated_transform = Tools::buildTransformation(rvec, tvec);
-          estimated_transform = estimated_transform.inverse();
 
           // Get the inliers per cluster pair
           vector< vector<int> > cluster_pairs;
@@ -324,23 +323,15 @@ namespace slam
               tf::Transform edge_1 = candidate_cluster_pose.inverse() * estimated_transform * frame_cluster_pose_relative_to_camera;
 
               tf::Transform frame_cluster_pose = graph_->getVertexPose(cluster_pairs[i][0]);
-              tf::Transform camera_diff = c_cluster_.getCameraPose().inverse() * estimated_transform;
-              tf::Transform new_frame_cluster_pose = frame_cluster_pose * camera_diff;
-              tf::Transform edge_2 = candidate_cluster_pose.inverse() * new_frame_cluster_pose;
-
               tf::Transform tmp = candidate_cluster_pose.inverse() * frame_cluster_pose;
               ROS_INFO_STREAM("INITIAL EDGE: " << tmp.getOrigin().x() << ", " << tmp.getOrigin().y() << ", " << tmp.getOrigin().z());
-              ROS_INFO_STREAM("FINAL EDGE 1: " << edge_1.getOrigin().x() << ", " << edge_1.getOrigin().y() << ", " << edge_1.getOrigin().z());
-              ROS_INFO_STREAM("FINAL EDGE 2: " << edge_2.getOrigin().x() << ", " << edge_2.getOrigin().y() << ", " << edge_2.getOrigin().z());
+              ROS_INFO_STREAM("FINAL EDGE: " << edge_1.getOrigin().x() << ", " << edge_1.getOrigin().y() << ", " << edge_1.getOrigin().z());
 
-              // Check if this edge already exists!!!
-              graph_->addEdge(cluster_pairs[i][0], cluster_pairs[i][1], edge_2, inliers_per_pair[i]);
+              // TODO: Check if this edge already exists!!!
+              graph_->addEdge(cluster_pairs[i][1], cluster_pairs[i][0], edge_1, inliers_per_pair[i]);
               lc_found_.push_back(make_pair(cluster_pairs[i][0], cluster_pairs[i][1]));
             }
           }
-
-          // Update the graph with the new edges
-          graph_->update();
 
           ROS_INFO_STREAM("LOOP: " << c_cluster_.getFrameId() << " <-> " << candidate.getFrameId() << " Matches: " << matches_2.size() << ". Inliers: " << inliers.size());
           ROS_INFO_STREAM("INLIERS:");
@@ -348,8 +339,18 @@ namespace slam
           {
             cout << cluster_pairs[i][0] << " <-> " << cluster_pairs[i][1] << " (frame: " << graph_->getVertexFrameId(cluster_pairs[i][1]) << ") Inliers: " << inliers_per_pair[i] << endl;
           }
+
+          double roll_odom, roll_spnp, pitch_odom, pitch_spnp, yaw_odom, yaw_spnp;
+          c_cluster_.getCameraPose().getBasis().getRPY(roll_odom, pitch_odom, yaw_odom);
+          estimated_transform.getBasis().getRPY(roll_spnp, pitch_spnp, yaw_spnp);
+
           ROS_INFO_STREAM("ODOM: " << c_cluster_.getCameraPose().getOrigin().x() << ", " << c_cluster_.getCameraPose().getOrigin().y() << ", " << c_cluster_.getCameraPose().getOrigin().z());
           ROS_INFO_STREAM("SPNP: " << estimated_transform.getOrigin().x() << ", " << estimated_transform.getOrigin().y() << ", " << estimated_transform.getOrigin().z());
+          ROS_INFO_STREAM("ODOM: " << roll_odom * 180/M_PI << ", " << pitch_odom * 180/M_PI << ", " << yaw_odom * 180/M_PI);
+          ROS_INFO_STREAM("SPNP: " << roll_spnp * 180/M_PI << ", " << pitch_spnp * 180/M_PI << ", " << yaw_spnp * 180/M_PI);
+
+          // Update the graph with the new edges
+          graph_->update();
 
           return true;
         }

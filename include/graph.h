@@ -132,6 +132,12 @@ public:
 
 protected:
 
+  /** \brief Correct the pose with the information of the updated graph
+   * @return the corrected pose
+   * \param The pose to be corrected
+   */
+  tf::Transform correctPose(tf::Transform initial_pose);
+
   /** \brief Return all possible combinations of 2 elements of the input vector
    * @return the list of combinations
    * \param Input vector with all values
@@ -174,7 +180,7 @@ private:
 
   vector<tf::Transform> local_cluster_poses_; //!> Stores the cluster poses relative to camera frame
 
-  tf::Transform graph_acc_tf_; //!> Stores the accumulative transformation of the graph when an update is performed.
+  vector<tf::Transform> initial_pose_history_; //!> Stores the initial cluster poses, before graph update.
 
   mutex mutex_graph_; //!> Mutex for the graph manipulation
 

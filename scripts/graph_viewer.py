@@ -140,6 +140,9 @@ def draw_edges():
     # Read the data
     data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(2,3,4,5,10,11,12))
 
+    if (len(data) < 2):
+      return;
+
     # Inliers column
     inliers = data[:,0]
     max_inliers = max(inliers)

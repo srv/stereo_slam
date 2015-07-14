@@ -123,8 +123,8 @@ private:
   vector<cv::KeyPoint> l_kp_; //!> Left keypoints.
   vector<cv::KeyPoint> r_kp_; //!> Right keypoints.
 
-  cv::Mat l_desc_; //!> Left descriptors (orb).
-  cv::Mat r_desc_; //!> Right descriptors (orb).
+  cv::Mat l_desc_; //!> Left descriptors.
+  cv::Mat r_desc_; //!> Right descriptors.
 
   vector<cv::Point3f> camera_points_; //!> Stereo 3D points in camera frame
 

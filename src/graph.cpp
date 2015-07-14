@@ -22,7 +22,6 @@ namespace slam
     g2o::OptimizationAlgorithmLevenberg * solver =
       new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
     graph_optimizer_.setAlgorithm(solver);
-    graph_acc_tf_.setIdentity();
 
     // Remove locking file if exists
     string lock_file = WORKING_DIRECTORY + ".graph.lock";
@@ -69,6 +68,10 @@ namespace slam
       frame_queue_.pop_front();
     }
 
+    // The clusters of this frame
+    vector< vector<int> > clusters = frame.getClusters();
+    if (clusters.size() == 0) return;
+
     // Increase the counter
     frame_id_++;
 
@@ -79,16 +82,19 @@ namespace slam
     vector<int> vertex_ids;
     vector<Cluster> clusters_to_close_loop;
     vector<Eigen::Vector4f> cluster_centroids = frame.getClusterCentroids();
-    vector< vector<int> > clusters = frame.getClusters();
     vector<cv::Point3f> points = frame.getCameraPoints();
     vector<cv::KeyPoint> kp = frame.getLeftKp();
-    tf::Transform camera_pose = frame.getCameraPose() * graph_acc_tf_;
+    tf::Transform camera_pose = frame.getCameraPose();
     cv::Mat ldb_desc = frame.getLeftDesc();
     for (uint i=0; i<clusters.size(); i++)
     {
-      // Add cluster to graph
+      // Correct cluster pose with the last graph update
       tf::Transform cluster_pose = Tools::transformVector4f(cluster_centroids[i], camera_pose);
-      int id = addVertex(cluster_pose);
+      tf::Transform corrected_cluster_pose = correctPose(cluster_pose);
+      initial_pose_history_.push_back(cluster_pose);
+
+      // Add cluster to the graph
+      int id = addVertex(corrected_cluster_pose);
 
       // Store information
       cluster_frame_relation_.push_back( make_pair(id, frame_id_) );
@@ -181,7 +187,35 @@ namespace slam
     saveToFile();
 
     // Publish camera pose
-    publishCameraPose(camera_pose);
+    int last_idx = -1;
+    {
+      mutex::scoped_lock lock(mutex_graph_);
+      last_idx = graph_optimizer_.vertices().size() - 1;
+    }
+    tf::Transform updated_camera_pose = getVertexCameraPose(last_idx);
+    publishCameraPose(updated_camera_pose);
+  }
+
+  tf::Transform Graph::correctPose(tf::Transform initial_pose)
+  {
+    // Get last
+    int last_idx = -1;
+    {
+      mutex::scoped_lock lock(mutex_graph_);
+      last_idx = graph_optimizer_.vertices().size() - 1;
+    }
+
+    if (initial_pose_history_.size() > 0 && last_idx >= 0)
+    {
+      tf::Transform last_graph_pose = getVertexPose(last_idx);
+      tf::Transform last_graph_initial = initial_pose_history_.at(last_idx);
+      tf::Transform odom_diff = last_graph_initial.inverse() * initial_pose;
+
+      // Compute the corrected pose
+      return last_graph_pose * odom_diff;
+    }
+    else
+      return initial_pose;
   }
 
   vector< vector<int> > Graph::createComb(vector<int> cluster_ids)
@@ -230,6 +264,10 @@ namespace slam
   {
     mutex::scoped_lock lock(mutex_graph_);
 
+    // Sanity check
+    if (sigma > MAX_INLIERS_LC)
+      sigma = MAX_INLIERS_LC;
+
     // Get the vertices
     g2o::VertexSE3* v_i = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
     g2o::VertexSE3* v_j = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[j]);
@@ -250,23 +288,9 @@ namespace slam
   {
     mutex::scoped_lock lock(mutex_graph_);
 
-    // Store the last cluster transformation
-    int last_idx = graph_optimizer_.vertices().size() - 1;
-    tf::Transform prev_tf;
-    prev_tf.setIdentity();
-    if (last_idx >= 0)
-      prev_tf = getVertexPose(last_idx, false);
-
     // Optimize!
     graph_optimizer_.initializeOptimization();
     graph_optimizer_.optimize(20);
-
-    // Accumulate the optimization modifications
-    tf::Transform final_tf;
-    final_tf.setIdentity();
-    if (last_idx >= 0)
-      final_tf = getVertexPose(last_idx, false);
-    graph_acc_tf_ = graph_acc_tf_ * prev_tf.inverse() * final_tf;
 
     ROS_INFO_STREAM("[Localization:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
   }
@@ -333,8 +357,17 @@ namespace slam
     if (lock)
       mutex::scoped_lock lock(mutex_graph_);
 
-    g2o::VertexSE3* vertex =  dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[id]);
-    return Tools::getVertexPose(vertex);
+    if( id >= 0)
+    {
+      g2o::VertexSE3* vertex =  dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[id]);
+      return Tools::getVertexPose(vertex);
+    }
+    else
+    {
+      tf::Transform tmp;
+      tmp.setIdentity();
+      return tmp;
+    }
   }
 
   tf::Transform Graph::getVertexPoseRelativeToCamera(int id)

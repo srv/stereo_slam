@@ -24,9 +24,13 @@ namespace slam
 
     // Detect keypoints
     vector<cv::KeyPoint> l_kp, r_kp;
-    cv::ORB orb(1000, 1.2f, 8, 14, 0, 2, 0, 14);
+    cv::ORB orb(1000, 1.2, 8, 14, 0, 2, 0, 14);
     orb(l_img_gray, noArray(), l_kp, noArray(), false);
     orb(r_img_gray, noArray(), r_kp, noArray(), false);
+    // Ptr<FeatureDetector> cv_detector;
+    // cv_detector = FeatureDetector::create("FAST");
+    // cv_detector->detect(l_img_gray, l_kp);
+    // cv_detector->detect(r_img_gray, r_kp);
 
     // Extract descriptors
     cv::Mat l_desc, r_desc;
@@ -63,9 +67,9 @@ namespace slam
       double disparity = l_point.x - r_point.x;
       camera_model.projectDisparityTo3d(l_point, disparity, world_point);
 
-      // Save
       if ( isfinite(world_point.x) && isfinite(world_point.y) && isfinite(world_point.z) && world_point.z > 0)
       {
+        // Save
         l_kp_.push_back(l_kp[l_idx]);
         r_kp_.push_back(r_kp[r_idx]);
         l_desc_.push_back(l_desc.row(l_idx));
