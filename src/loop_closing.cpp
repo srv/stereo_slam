@@ -104,7 +104,7 @@ namespace slam
   void LoopClosing::searchByProximity()
   {
     vector<int> candidate_neighbors;
-    graph_->findClosestVertices(c_cluster_.getId(), c_cluster_.getId(), LC_DISCARD_WINDOW, 1, candidate_neighbors);
+    graph_->findClosestVertices(c_cluster_.getId(), c_cluster_.getId(), LC_DISCARD_WINDOW, 3, candidate_neighbors);
     for (uint i=0; i<candidate_neighbors.size(); i++)
     {
       Cluster candidate = readCluster(candidate_neighbors[i]);
@@ -172,7 +172,7 @@ namespace slam
   bool LoopClosing::closeLoopWithCluster(Cluster candidate)
   {
     // Init
-    const float matching_th = 0.88;
+    const float matching_th = 0.8;
 
     // Descriptor matching
     vector<cv::DMatch> matches_1;
@@ -274,11 +274,12 @@ namespace slam
         cv::Mat rvec, tvec;
         solvePnPRansac(matched_points, matched_kp, graph_->getCameraMatrix(),
                        cv::Mat(), rvec, tvec, false,
-                       100, 1.5, MAX_INLIERS_LC, inliers);
+                       100, 1.3, MAX_INLIERS_LC, inliers);
 
         if (inliers.size() > MIN_INLIERS_LC)
         {
           tf::Transform estimated_transform = Tools::buildTransformation(rvec, tvec);
+          estimated_transform = estimated_transform.inverse();
 
           // Get the inliers per cluster pair
           vector< vector<int> > cluster_pairs;
@@ -337,7 +338,7 @@ namespace slam
           ROS_INFO_STREAM("INLIERS:");
           for (uint i=0; i<inliers_per_pair.size(); i++)
           {
-            cout << cluster_pairs[i][0] << " <-> " << cluster_pairs[i][1] << " (frame: " << graph_->getVertexFrameId(cluster_pairs[i][1]) << ") Inliers: " << inliers_per_pair[i] << endl;
+            cout << cluster_pairs[i][0] << " (frame: " << graph_->getVertexFrameId(cluster_pairs[i][0]) << ") <-> " << cluster_pairs[i][1] << " (frame: " << graph_->getVertexFrameId(cluster_pairs[i][1]) << ") Inliers: " << inliers_per_pair[i] << endl;
           }
 
           double roll_odom, roll_spnp, pitch_odom, pitch_spnp, yaw_odom, yaw_spnp;

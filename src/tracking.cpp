@@ -9,7 +9,7 @@ namespace slam
 {
 
   Tracking::Tracking(Publisher *f_pub, Graph *graph)
-                    : f_pub_(f_pub), graph_(graph), reset_fixed_frame_(false)
+                    : f_pub_(f_pub), graph_(graph)
   {}
 
   void Tracking::run()
@@ -62,19 +62,20 @@ namespace slam
       }
 
       // Camera parameters
-      Tools::getCameraModel(*l_info_msg, *r_info_msg, camera_model_, camera_matrix_);
+      cv::Mat camera_matrix;
+      Tools::getCameraModel(*l_info_msg, *r_info_msg, camera_model_, camera_matrix);
 
       // Set graph properties
       graph_->setCamera2Odom(odom2camera_.inverse());
-      graph_->setCameraMatrix(camera_matrix_);
+      graph_->setCameraMatrix(camera_matrix);
       graph_->setCameraModel(camera_model_.left());
 
       // The initial frame
-      f_frame_ = Frame(l_img, r_img, camera_model_);
+      c_frame_ = Frame(l_img, r_img, camera_model_);
 
       // For the first frame, its estimated pose will coincide with odometry
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
-      f_frame_.setCameraPose(c_odom_camera);
+      c_frame_.setCameraPose(c_odom_camera);
 
       state_ = INITIALIZING;
     }
@@ -87,8 +88,8 @@ namespace slam
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
       c_frame_.setCameraPose(c_odom_camera);
 
-      trackCurrentFrame();
-      needNewFixedFrame();
+      // Need new keyframe
+      needNewKeyFrame();
     }
   }
 
@@ -115,86 +116,33 @@ namespace slam
     return true;
   }
 
-  void Tracking::trackCurrentFrame()
+  void Tracking::needNewKeyFrame()
   {
-
-    matches_.clear();
-    inliers_.clear();
-
-    // Descriptor matching
-    cv::Mat f_desc = f_frame_.getLeftDesc();
-    cv::Mat c_desc = c_frame_.getLeftDesc();
-    vector<cv::KeyPoint> f_kp = f_frame_.getLeftKp();
-    vector<cv::Point3f> f_points_3d = f_frame_.getCameraPoints();
-    vector<cv::Point3f> c_points_3d = c_frame_.getCameraPoints();
-
-    // Matching
-    Tools::ratioMatching(c_desc, f_desc, 0.9, matches_);
-
-    // Check minimum matches
-    if (matches_.size() >= MIN_INLIERS_TRACKING)
-    {
-      vector<cv::Point2f> f_matched_kp;
-      vector<cv::Point3f> c_matched_3d_points;
-      for(uint i=0; i<matches_.size(); i++)
-      {
-        f_matched_kp.push_back(f_kp[matches_[i].trainIdx].pt);
-        c_matched_3d_points.push_back(c_points_3d[matches_[i].queryIdx]);
-      }
-
-      // Use extrinsic guess when the tracker is not reseting the fixed frame to speed up the process
-      bool use_guess = true;
-      if (reset_fixed_frame_)
-        use_guess = false;
-
-      // Estimate the motion
-      solvePnPRansac(c_matched_3d_points, f_matched_kp, camera_matrix_,
-                     cv::Mat(), rvec_, tvec_, use_guess,
-                     100, 1.3, MAX_INLIERS_TRACKING, inliers_);
-    }
-
-    // Publish
-    f_pub_->publishTracking(this);
-  }
-
-  void Tracking::needNewFixedFrame()
-  {
-    // Wait for initialization
+    // Init initialization
     if (state_ == INITIALIZING)
     {
-      if (inliers_.size() < MIN_INLIERS_TRACKING)
-      {
-        f_frame_ = c_frame_;
-        return;
-      }
-      else
-      {
-        addFrameToMap(f_frame_);
-        state_ = WORKING;
-      }
+      addFrameToMap(c_frame_);
+      state_ = WORKING;
     }
-
-    // Reset fixed frame?
-    reset_fixed_frame_ = false;
-    if (inliers_.size() < MIN_INLIERS_TRACKING)
+    else
     {
-      reset_fixed_frame_ = true;
-      f_frame_ = c_frame_;
-      addFrameToMap(f_frame_);
+      // Do not add very close frames
+      double pose_diff = Tools::poseDiff(last_fixed_frame_pose_, c_frame_.getCameraPose());
+      if (pose_diff > 0.1)
+      {
+        addFrameToMap(c_frame_);
+      }
     }
   }
 
   void Tracking::addFrameToMap(Frame frame)
   {
-    if (frame.getLeftKp().size() > MIN_INLIERS_TRACKING)
+    if (frame.getLeftKp().size() > MIN_INLIERS_LC)
     {
-      // Do not add very close frames
-      double pose_diff = Tools::poseDiff(last_fixed_frame_pose_, frame.getCameraPose());
-      if (state_ == WORKING && pose_diff < 0.1) return;
-
       frame.regionClustering();
       f_pub_->publishClustering(frame);
       graph_->addFrameToQueue(frame);
+      last_fixed_frame_pose_ = frame.getCameraPose();
     }
   }
 

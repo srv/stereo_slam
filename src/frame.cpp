@@ -24,9 +24,10 @@ namespace slam
 
     // Detect keypoints
     vector<cv::KeyPoint> l_kp, r_kp;
-    cv::ORB orb(1000, 1.2, 8, 14, 0, 2, 0, 14);
+    cv::ORB orb(1500, 1.2, 8, 10, 0, 2, 0, 10);
     orb(l_img_gray, noArray(), l_kp, noArray(), false);
     orb(r_img_gray, noArray(), r_kp, noArray(), false);
+
     // Ptr<FeatureDetector> cv_detector;
     // cv_detector = FeatureDetector::create("FAST");
     // cv_detector->detect(l_img_gray, l_kp);
@@ -98,7 +99,7 @@ namespace slam
   {
     clusters_.clear();
     vector< vector<int> > clusters;
-    const float eps = 50.0;
+    const float eps = 90.0; //50.0;
     const int min_pts = 30;
     vector<bool> clustered;
     vector<int> noise;

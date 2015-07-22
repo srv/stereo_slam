@@ -8,7 +8,7 @@ using namespace tools;
 namespace slam
 {
 
-  Graph::Graph(LoopClosing* loop_closing) : frame_id_(0), loop_closing_(loop_closing)
+  Graph::Graph(LoopClosing* loop_closing) : frame_id_(-1), loop_closing_(loop_closing)
   {
     init();
   }
@@ -141,7 +141,7 @@ namespace slam
     }
 
     // Connect this frame with the previous
-    if (frame_id_ > 1)
+    if (frame_id_ > 0)
     {
       vector<int> prev_frame_vertices;
       getFrameVertices(frame_id_ - 1, prev_frame_vertices);
@@ -276,7 +276,7 @@ namespace slam
 
     // Add the new edge to graph
     g2o::EdgeSE3* e = new g2o::EdgeSE3();
-    Eigen::Isometry3d t = Tools::tfToIsometry(edge.inverse());
+    Eigen::Isometry3d t = Tools::tfToIsometry(edge);
     e->setVertex(0, v_i);
     e->setVertex(1, v_j);
     e->setMeasurement(t);

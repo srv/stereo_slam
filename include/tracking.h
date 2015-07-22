@@ -71,20 +71,8 @@ public:
   inline Params getParams() const {return params_;}
 
   /** \brief Get current frame
-  */
-  inline Frame getFixedFrame() const {return f_frame_;}
-
-  /** \brief Get current frame
    */
   inline Frame getCurrentFrame() const {return c_frame_;}
-
-  /** \brief Get tracker matchings
-   */
-  inline vector<cv::DMatch> getMatches() const {return matches_;}
-
-  /** \brief Get tracker inliers
-   */
-  inline vector<int> getInliers() const {return inliers_;}
 
   /** \brief Starts tracking
    */
@@ -116,13 +104,9 @@ protected:
                         sensor_msgs::Image img_msg,
                         tf::StampedTransform &transform);
 
-  /** \brief Track current frame with fixed frame
+  /** \brief Decide if new keyframe is needed
    */
-  void trackCurrentFrame();
-
-  /** \brief Decide if new fixed frame is needed
-   */
-  void needNewFixedFrame();
+  void needNewKeyFrame();
 
   /** \brief Add a frame to the graph if enough inliers
    * \param The frame
@@ -139,26 +123,13 @@ private:
 
   tf::TransformListener tf_listener_; //!> Listen for tf between robot and camera.
 
-  cv::Mat camera_matrix_; //!> The camera matrix
-  image_geometry::StereoCameraModel camera_model_; //!> Stereo camera model
-
-  Frame f_frame_; //!> Fixed frame
-  Frame p_frame_; //!> Previous frame
   Frame c_frame_; //!> Current frame
-  Frame last_fixed_frame_before_lost_; //!> The last fixed frame before the system got lost
-
-  vector<cv::DMatch> matches_; //!> Vector of matchings between fixed and current frame
-  vector<int> inliers_; //!> Vector of inliers between fixed and current frame
-
-  cv::Mat rvec_, tvec_; //!> Initial approximations of the rotation and translation vectors for the solvePNPransac
 
   Publisher* f_pub_; //!> Frame publisher
 
+  image_geometry::StereoCameraModel camera_model_; //!> Stereo camera model
+
   Graph* graph_; //!> Graph
-
-  bool reset_fixed_frame_; //!> Will be true on the next iteration after the fixed frame has been reset.
-
-  ros::WallTime lost_time_; //!> Time at which the tracker got lost.
 
   tf::Transform last_fixed_frame_pose_; //!> Stores the last fixed frame pose
 
