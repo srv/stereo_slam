@@ -82,6 +82,7 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
 
     # Read the data
     data = pylab.loadtxt(odom_file, delimiter=',', skiprows=1, usecols=(5,6,7,8,9,10,11))
+    # data = pylab.loadtxt(odom_file, delimiter=',', skiprows=1, usecols=(4,5,6,7,8,9,10))
 
     # Plot
     if (len(data.shape) == 1):
@@ -95,11 +96,11 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
   if (graph_vertices_file != "" and os.path.exists(graph_vertices_file) and check_file_len(graph_vertices_file)):
 
     # Check if file is blocked
-    while (os.path.exists(lock_file) and os.path.isfile(lock_file)):
+    while (os.path.exists(lock_file)):
       time.sleep(0.5)
 
     # Read the data
-    data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(1,2,3,4,5,6,7))
+    data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(2,3,4,5,6,7,8))
 
     # Plot
     if (len(data.shape) == 1):
@@ -134,14 +135,16 @@ def draw_edges():
   if (graph_edges_file != "" and os.path.exists(graph_edges_file) and check_file_len(graph_edges_file)):
 
     # Check if file is blocked
-    while (os.path.exists(lock_file) and os.path.isfile(lock_file)):
+    while (os.path.exists(lock_file)):
       time.sleep(0.5)
 
     # Read the data
     data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(2,3,4,5,10,11,12))
 
-    if (len(data) < 2):
-      return;
+    # Sanity check
+    if (len(data.shape) == 1):
+      edges_shown = True
+      return
 
     # Inliers column
     inliers = data[:,0]

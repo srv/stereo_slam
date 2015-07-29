@@ -31,7 +31,7 @@ namespace slam
     {
       cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
       for (uint j=0; j<clusters[i].size(); j++)
-        cv::circle(img, kp[clusters[i][j]].pt, 2, color, -1);
+        cv::circle(img, kp[clusters[i][j]].pt, 5, color, -1);
     }
 
     // Draw text

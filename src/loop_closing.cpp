@@ -172,7 +172,7 @@ namespace slam
   bool LoopClosing::closeLoopWithCluster(Cluster candidate)
   {
     // Init
-    const float matching_th = 0.8;
+    const float matching_th = 0.88;
 
     // Descriptor matching
     vector<cv::DMatch> matches_1;
@@ -254,7 +254,7 @@ namespace slam
       vector<cv::DMatch> matches_2;
       Tools::ratioMatching(all_frame_desc, all_candidate_desc, matching_th, matches_2);
 
-      if (matches_2.size() > MIN_INLIERS_LC)
+      if (matches_2.size() > LC_MIN_INLIERS)
       {
         // Store matchings
         vector<int> frame_matchings;
@@ -274,9 +274,11 @@ namespace slam
         cv::Mat rvec, tvec;
         solvePnPRansac(matched_points, matched_kp, graph_->getCameraMatrix(),
                        cv::Mat(), rvec, tvec, false,
-                       100, 1.3, MAX_INLIERS_LC, inliers);
+                       100, 2.0, LC_MAX_INLIERS, inliers);
 
-        if (inliers.size() > MIN_INLIERS_LC)
+        ROS_INFO_STREAM("Matches/inliers: " << matches_2.size() << " / " << inliers.size());
+
+        if (inliers.size() > LC_MIN_INLIERS)
         {
           tf::Transform estimated_transform = Tools::buildTransformation(rvec, tvec);
           estimated_transform = estimated_transform.inverse();

@@ -75,6 +75,9 @@ namespace slam
     // Increase the counter
     frame_id_++;
 
+    // Save the frame timestamp
+    frame_stamps_.push_back(frame.getTimestamp());
+
     // Extract sift
     cv::Mat sift_desc = frame.computeSift();
 
@@ -136,7 +139,7 @@ namespace slam
         tf::Transform pose_b = getVertexPose(id_b);
 
         tf::Transform edge = pose_a.inverse() * pose_b;
-        addEdge(id_a, id_b, edge, MAX_INLIERS_LC);
+        addEdge(id_a, id_b, edge, LC_MAX_INLIERS);
       }
     }
 
@@ -177,7 +180,7 @@ namespace slam
       if (closest_vertices.size() > 0)
       {
         tf::Transform edge = closest_poses[0].inverse() * closest_poses[1];
-        addEdge(closest_vertices[0], closest_vertices[1], edge, MAX_INLIERS_LC);
+        addEdge(closest_vertices[0], closest_vertices[1], edge, LC_MIN_INLIERS);
       }
       else
         ROS_ERROR("[Localization:] Impossible to connect current and previous frame. Graph will have non-connected parts!");
@@ -265,8 +268,8 @@ namespace slam
     mutex::scoped_lock lock(mutex_graph_);
 
     // Sanity check
-    if (sigma > MAX_INLIERS_LC)
-      sigma = MAX_INLIERS_LC;
+    if (sigma > LC_MAX_INLIERS)
+      sigma = LC_MAX_INLIERS;
 
     // Get the vertices
     g2o::VertexSE3* v_i = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
@@ -375,9 +378,9 @@ namespace slam
     return local_cluster_poses_[id];
   }
 
-  tf::Transform Graph::getVertexCameraPose(int id)
+  tf::Transform Graph::getVertexCameraPose(int id, bool lock)
   {
-    tf::Transform vertex_pose = getVertexPose(id);
+    tf::Transform vertex_pose = getVertexPose(id, lock);
     return vertex_pose * local_cluster_poses_[id].inverse();
   }
 
@@ -400,12 +403,29 @@ namespace slam
 
     mutex::scoped_lock lock(mutex_graph_);
 
+    vector<int> processed_frames;
+
     // Output the vertices file
     for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
     {
-      tf::Transform pose = getVertexPose(i, false)*camera2odom_;
+      // Is this frame processed?
+      bool found = false;
+      int id = getVertexFrameId(i);
+      for (uint j=0; j<processed_frames.size(); j++)
+      {
+        if (processed_frames[j] == id)
+        {
+          found = true;
+          break;
+        }
+      }
+      if (found) continue;
+      processed_frames.push_back(id);
+
+      tf::Transform pose = getVertexCameraPose(i, false)*camera2odom_;
       f_vertices << fixed <<
             setprecision(6) <<
+            frame_stamps_[id] << "," <<
             i << "," <<
             pose.getOrigin().x() << "," <<
             pose.getOrigin().y() << "," <<
@@ -424,8 +444,8 @@ namespace slam
       g2o::EdgeSE3* e = dynamic_cast<g2o::EdgeSE3*> (*it);
       if (e)
       {
-        tf::Transform pose_0 = getVertexPose(e->vertices()[0]->id(), false)*camera2odom_;
-        tf::Transform pose_1 = getVertexPose(e->vertices()[1]->id(), false)*camera2odom_;
+        tf::Transform pose_0 = getVertexCameraPose(e->vertices()[0]->id(), false)*camera2odom_;
+        tf::Transform pose_1 = getVertexCameraPose(e->vertices()[1]->id(), false)*camera2odom_;
 
         // Extract the inliers
         Eigen::Matrix<double, 6, 6> information = e->information();

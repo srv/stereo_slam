@@ -38,7 +38,7 @@ public:
 
   /** \brief Class constructor
    */
-  Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model);
+  Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp);
 
   /** \brief Get left image
    */
@@ -96,6 +96,10 @@ public:
    */
   inline vector<Eigen::Vector4f> getClusterCentroids() const {return cluster_centroids_;}
 
+  /** \brief Get frame timestamp
+   */
+  inline double getTimestamp() const {return stamp_;}
+
   /** \brief Compute sift descriptors
    * @return the matrix of sift descriptors
    */
@@ -133,6 +137,8 @@ private:
   vector<Eigen::Vector4f> cluster_centroids_; //!> Central point for every cluster
 
   tf::Transform camera_pose_; //!> Camera world position for this frame
+
+  double stamp_; //!> Store the frame timestamp
 
 };
 

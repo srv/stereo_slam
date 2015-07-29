@@ -105,7 +105,7 @@ public:
    * @return graph vertex camera pose
    * \param vertex id
    */
-  tf::Transform getVertexCameraPose(int id);
+  tf::Transform getVertexCameraPose(int id, bool lock = true);
 
   /** \brief Set the transformation between camera and robot odometry frame
    * \param the transform
@@ -181,6 +181,8 @@ private:
   vector<tf::Transform> local_cluster_poses_; //!> Stores the cluster poses relative to camera frame
 
   vector<tf::Transform> initial_pose_history_; //!> Stores the initial cluster poses, before graph update.
+
+  vector<double> frame_stamps_; //> Stores the frame timestamps
 
   mutex mutex_graph_; //!> Mutex for the graph manipulation
 

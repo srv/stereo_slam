@@ -12,10 +12,11 @@ namespace slam
 
   Frame::Frame() {}
 
-  Frame::Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model)
+  Frame::Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp)
   {
     l_img.copyTo(l_img_);
     r_img.copyTo(r_img_);
+    stamp_ = timestamp;
 
     // Convert images to grayscale
     cv::Mat l_img_gray, r_img_gray;
@@ -99,7 +100,7 @@ namespace slam
   {
     clusters_.clear();
     vector< vector<int> > clusters;
-    const float eps = 90.0; //50.0;
+    const float eps = 50.0;
     const int min_pts = 30;
     vector<bool> clustered;
     vector<int> noise;

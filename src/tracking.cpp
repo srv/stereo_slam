@@ -48,6 +48,7 @@ namespace slam
   {
 
     tf::Transform c_odom_robot = Tools::odomTotf(*odom_msg);
+    double timestamp = l_img_msg->header.stamp.toSec();
 
     cv::Mat l_img, r_img;
     Tools::imgMsgToMat(*l_img_msg, *r_img_msg, l_img, r_img);
@@ -71,7 +72,7 @@ namespace slam
       graph_->setCameraModel(camera_model_.left());
 
       // The initial frame
-      c_frame_ = Frame(l_img, r_img, camera_model_);
+      c_frame_ = Frame(l_img, r_img, camera_model_, timestamp);
 
       // For the first frame, its estimated pose will coincide with odometry
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
@@ -82,7 +83,7 @@ namespace slam
     else
     {
       // The current frame
-      c_frame_ = Frame(l_img, r_img, camera_model_);
+      c_frame_ = Frame(l_img, r_img, camera_model_, timestamp);
 
       // Set the odometry of this frame
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
@@ -128,7 +129,7 @@ namespace slam
     {
       // Do not add very close frames
       double pose_diff = Tools::poseDiff(last_fixed_frame_pose_, c_frame_.getCameraPose());
-      if (pose_diff > 0.1)
+      if (pose_diff > 0.10)
       {
         addFrameToMap(c_frame_);
       }
@@ -137,7 +138,7 @@ namespace slam
 
   void Tracking::addFrameToMap(Frame frame)
   {
-    if (frame.getLeftKp().size() > MIN_INLIERS_LC)
+    if (frame.getLeftKp().size() > LC_MIN_INLIERS)
     {
       frame.regionClustering();
       f_pub_->publishClustering(frame);

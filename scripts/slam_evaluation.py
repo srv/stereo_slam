@@ -208,10 +208,11 @@ if __name__ == "__main__":
 
   # Load the visual odometry
   odom = pylab.loadtxt(args.visual_odometry_file, delimiter=',', comments='%', usecols=(0,5,6,7,8,9,10,11))
+  # odom = pylab.loadtxt(args.visual_odometry_file, delimiter=',', comments='%', usecols=(0,4,5,6,7,8,9,10))
   odom[:,0] = odom[:,0] / 1000000000
 
   # Load the graph vertices
-  vertices = pylab.loadtxt(args.graph_vertices_file, delimiter=',', usecols=(0,5,6,7,8,9,10,11))
+  vertices = pylab.loadtxt(args.graph_vertices_file, delimiter=',', usecols=(0,2,3,4,5,6,7,8))
 
   # Get the gt indeces for all graph vertices
   gt_rebased = rebase(vertices, gt)
@@ -282,7 +283,7 @@ if __name__ == "__main__":
   lines = f.readlines()
   f.close()
   if (len(lines) > 0):
-    edges = pylab.loadtxt(args.graph_edges_file, delimiter=',', usecols=(2,3,4,9,10,11))
+    edges = pylab.loadtxt(args.graph_edges_file, delimiter=',', usecols=(3,4,5,10,11,12))
     for i in range(len(edges)):
       vect = []
       vect.append([edges[i,0], edges[i,1], edges[i,2]])

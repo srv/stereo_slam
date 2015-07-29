@@ -9,7 +9,7 @@ using namespace cv;
 using namespace std;
 
 
-vector<DMatch> matching(Mat desc_1, Mat desc_2)
+vector<DMatch> matching(Mat desc_1, Mat desc_2, double th)
 {
   vector<DMatch> matches;
   const int knn = 2;
@@ -27,7 +27,7 @@ vector<DMatch> matching(Mat desc_1, Mat desc_2)
   for (unsigned m = 0; m < knn_matches.size(); m++)
   {
     if (knn_matches[m].size() < 2) continue;
-    if (knn_matches[m][0].distance <= knn_matches[m][1].distance * 0.8)
+    if (knn_matches[m][0].distance <= knn_matches[m][1].distance * th)
       matches.push_back(knn_matches[m][0]);
   }
 
@@ -48,20 +48,18 @@ Mat draw(Mat img, vector<DMatch> matches, vector<KeyPoint> kp)
   {
     cv::Scalar color;
     if (find(matches_int.begin(), matches_int.end(), i) != matches_int.end())
-      color = cv::Scalar(0,255,0);
-    else
+    {
       color = cv::Scalar(0,0,255);
+      Point2f pt1, pt2;
+      pt1.x = kp[i].pt.x-r;
+      pt1.y = kp[i].pt.y-r;
+      pt2.x = kp[i].pt.x+r;
+      pt2.y = kp[i].pt.y+r;
 
-    Point2f pt1, pt2;
-    pt1.x = kp[i].pt.x-r;
-    pt1.y = kp[i].pt.y-r;
-    pt2.x = kp[i].pt.x+r;
-    pt2.y = kp[i].pt.y+r;
-
-    rectangle(paint, pt1, pt2, color);
-    circle(paint, kp[i].pt, 2, color, -1);
+      rectangle(paint, pt1, pt2, color, 2);
+      // circle(paint, kp[i].pt, 2, color, -1);
+    }
   }
-
   return paint;
 }
 
@@ -86,7 +84,7 @@ int main(int argc, char** argv)
   cv_detector->detect(img2, kp_orb_2);
   cv_extractor->compute(img1, kp_orb_1, desc_orb_1);
   cv_extractor->compute(img2, kp_orb_2, desc_orb_2);
-  vector<DMatch> matches_orb = matching(desc_orb_1, desc_orb_2);
+  vector<DMatch> matches_orb = matching(desc_orb_1, desc_orb_2, 0.8);
   cout << "ORB" << endl;
 
   // SIFT
@@ -96,7 +94,7 @@ int main(int argc, char** argv)
   cv_detector->detect(img2, kp_sift_2);
   cv_extractor->compute(img1, kp_sift_1, desc_sift_1);
   cv_extractor->compute(img2, kp_sift_2, desc_sift_2);
-  vector<DMatch> matches_sift = matching(desc_sift_1, desc_sift_2);
+  vector<DMatch> matches_sift = matching(desc_sift_1, desc_sift_2, 0.6);
   cout << "SIFT" << endl;
 
   // SURF
@@ -106,17 +104,17 @@ int main(int argc, char** argv)
   cv_detector->detect(img2, kp_surf_2);
   cv_extractor->compute(img1, kp_surf_1, desc_surf_1);
   cv_extractor->compute(img2, kp_surf_2, desc_surf_2);
-  vector<DMatch> matches_surf = matching(desc_surf_1, desc_surf_2);
+  vector<DMatch> matches_surf = matching(desc_surf_1, desc_surf_2, 0.6);
   cout << "SURF" << endl;
 
   // FAST
   cv_detector = FeatureDetector::create("FAST");
-  cv_extractor = DescriptorExtractor::create("SIFT");
+  cv_extractor = DescriptorExtractor::create("SURF");
   cv_detector->detect(img1, kp_fast_1);
   cv_detector->detect(img2, kp_fast_2);
   cv_extractor->compute(img1, kp_fast_1, desc_fast_1);
   cv_extractor->compute(img2, kp_fast_2, desc_fast_2);
-  vector<DMatch> matches_fast = matching(desc_fast_1, desc_fast_2);
+  vector<DMatch> matches_fast = matching(desc_fast_1, desc_fast_2, 0.6);
   cout << "FAST" << endl;
 
   Mat orb = draw(img1, matches_orb, kp_orb_1);
