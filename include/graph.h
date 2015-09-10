@@ -11,6 +11,9 @@
 #include <image_geometry/pinhole_camera_model.h>
 #include <nav_msgs/Odometry.h>
 
+#include <cv.h>
+#include <highgui.h>
+
 #include <g2o/core/sparse_optimizer.h>
 #include <g2o/core/block_solver.h>
 #include <g2o/types/slam3d/edge_se3.h>
@@ -19,6 +22,7 @@
 
 #include <boost/thread.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include "frame.h"
 #include "loop_closing.h"
@@ -159,9 +163,13 @@ protected:
    */
   int addVertex(tf::Transform pose);
 
+  /** \brief Save the frame to the default location
+   */
+  void saveFrame(Frame frame, int frame_id);
+
   /** \brief Save the graph to file
    */
-  void saveToFile();
+  void saveGraph();
 
   /** \brief Publishes the graph camera pose
    * \param Camera pose

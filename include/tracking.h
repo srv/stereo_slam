@@ -17,13 +17,29 @@
 #include <tf/transform_datatypes.h>
 #include <tf/transform_listener.h>
 
+#include <pcl_ros/point_cloud.h>
+#include <pcl_ros/transforms.h>
+#include <pcl/point_types.h>
+#include <pcl/common/common.h>
+#include <pcl/filters/filter.h>
+#include <pcl/filters/approximate_voxel_grid.h>
+
 #include <opencv2/opencv.hpp>
+
+#include <boost/filesystem.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include "frame.h"
 #include "graph.h"
 #include "publisher.h"
 
 using namespace std;
+using namespace boost;
+namespace fs  = filesystem;
+
+
+typedef pcl::PointXYZRGB                  PointRGB;
+typedef pcl::PointCloud<PointRGB>         PointCloudRGB;
 
 namespace slam
 {
@@ -87,12 +103,14 @@ protected:
    * \param r_img right stereo image message of type sensor_msgs::Image
    * \param l_info left stereo info message of type sensor_msgs::CameraInfo
    * \param r_info right stereo info message of type sensor_msgs::CameraInfo
+   * \param pointcloud
    */
   void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                     const sensor_msgs::ImageConstPtr& l_img_msg,
                     const sensor_msgs::ImageConstPtr& r_img_msg,
                     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-                    const sensor_msgs::CameraInfoConstPtr& r_info_msg);
+                    const sensor_msgs::CameraInfoConstPtr& r_info_msg,
+                    const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
 
   /** \brief Get the transform between odometry frame and camera frame
    * @return true if valid transform, false otherwise
@@ -106,12 +124,19 @@ protected:
 
   /** \brief Decide if new keyframe is needed
    */
-  void needNewKeyFrame();
+  void needNewKeyFrame(PointCloudRGB::Ptr cloud);
 
   /** \brief Add a frame to the graph if enough inliers
    * \param The frame
    */
-  void addFrameToMap(Frame frame);
+  void addFrameToMap(Frame frame, PointCloudRGB::Ptr cloud);
+
+
+  /** \brief Filters a pointcloud
+   * @return filtered cloud
+   * \param input cloud
+   */
+  PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr in_cloud);
 
 private:
 
@@ -133,12 +158,15 @@ private:
 
   tf::Transform last_fixed_frame_pose_; //!> Stores the last fixed frame pose
 
+  int frame_id_; //!> Processed frames counter
+
   // Topic sync
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,
                                                           sensor_msgs::Image,
                                                           sensor_msgs::Image,
                                                           sensor_msgs::CameraInfo,
-                                                          sensor_msgs::CameraInfo> SyncPolicy;
+                                                          sensor_msgs::CameraInfo,
+                                                          sensor_msgs::PointCloud2> SyncPolicy;
   typedef message_filters::Synchronizer<SyncPolicy> Sync;
 
 };

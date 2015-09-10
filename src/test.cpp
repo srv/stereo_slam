@@ -49,15 +49,15 @@ Mat draw(Mat img, vector<DMatch> matches, vector<KeyPoint> kp)
     cv::Scalar color;
     if (find(matches_int.begin(), matches_int.end(), i) != matches_int.end())
     {
-      color = cv::Scalar(0,0,255);
+      color = cv::Scalar(29,255,45);
       Point2f pt1, pt2;
       pt1.x = kp[i].pt.x-r;
       pt1.y = kp[i].pt.y-r;
       pt2.x = kp[i].pt.x+r;
       pt2.y = kp[i].pt.y+r;
 
-      rectangle(paint, pt1, pt2, color, 2);
-      // circle(paint, kp[i].pt, 2, color, -1);
+      // rectangle(paint, pt1, pt2, color, 2);
+      circle(paint, kp[i].pt, 5, color, -1);
     }
   }
   return paint;

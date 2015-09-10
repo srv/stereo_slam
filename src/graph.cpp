@@ -70,10 +70,12 @@ namespace slam
 
     // The clusters of this frame
     vector< vector<int> > clusters = frame.getClusters();
-    if (clusters.size() == 0) return;
 
     // Increase the counter
     frame_id_++;
+
+    // Save the frame
+    saveFrame(frame, frame_id_);
 
     // Save the frame timestamp
     frame_stamps_.push_back(frame.getTimestamp());
@@ -187,7 +189,7 @@ namespace slam
     }
 
     // Save graph to file
-    saveToFile();
+    saveGraph();
 
     // Publish camera pose
     int last_idx = -1;
@@ -384,7 +386,31 @@ namespace slam
     return vertex_pose * local_cluster_poses_[id].inverse();
   }
 
-  void Graph::saveToFile()
+  void Graph::saveFrame(Frame frame, int frame_id)
+  {
+    cv::Mat img;
+    frame.getLeftImg().copyTo(img);
+    if (img.cols == 0)
+      return;
+
+    // // Draw the clusters
+    // vector< vector<int> > clusters = frame.getClusters();
+    // vector<cv::KeyPoint> kp = frame.getLeftKp();
+    // cv::RNG rng(12345);
+    // for (uint i=0; i<clusters.size(); i++)
+    // {
+    //   cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
+    //   for (uint j=0; j<clusters[i].size(); j++)
+    //     cv::circle(img, kp[clusters[i][j]].pt, 5, color, -1);
+    // }
+
+    // Save
+    string frame_id_str = Tools::convertTo5digits(frame_id);
+    string keyframe_file = WORKING_DIRECTORY + "keyframes/" + frame_id_str + ".jpg";
+    cv::imwrite( keyframe_file, img );
+  }
+
+  void Graph::saveGraph()
   {
     string lock_file, vertices_file, edges_file;
     vertices_file = WORKING_DIRECTORY + "graph_vertices.txt";
@@ -444,35 +470,43 @@ namespace slam
       g2o::EdgeSE3* e = dynamic_cast<g2o::EdgeSE3*> (*it);
       if (e)
       {
-        tf::Transform pose_0 = getVertexCameraPose(e->vertices()[0]->id(), false)*camera2odom_;
-        tf::Transform pose_1 = getVertexCameraPose(e->vertices()[1]->id(), false)*camera2odom_;
+        // Get the frames corresponding to these edges
+        int frame_a = Graph::getVertexFrameId(e->vertices()[0]->id());
+        int frame_b = Graph::getVertexFrameId(e->vertices()[1]->id());
 
-        // Extract the inliers
-        Eigen::Matrix<double, 6, 6> information = e->information();
-        int inliers = 0;
-        if (information(0,0) > 0.0001)
-          inliers = (int)information(0,0);
+        if (abs(frame_a - frame_b) > 1 )
+        {
 
-        // Write
-        f_edges <<
-              e->vertices()[0]->id() << "," <<
-              e->vertices()[1]->id() << "," <<
-              inliers << "," <<
-              setprecision(6) <<
-              pose_0.getOrigin().x() << "," <<
-              pose_0.getOrigin().y() << "," <<
-              pose_0.getOrigin().z() << "," <<
-              pose_0.getRotation().x() << "," <<
-              pose_0.getRotation().y() << "," <<
-              pose_0.getRotation().z() << "," <<
-              pose_0.getRotation().w() << "," <<
-              pose_1.getOrigin().x() << "," <<
-              pose_1.getOrigin().y() << "," <<
-              pose_1.getOrigin().z() << "," <<
-              pose_1.getRotation().x() << "," <<
-              pose_1.getRotation().y() << "," <<
-              pose_1.getRotation().z() << "," <<
-              pose_1.getRotation().w() << endl;
+          tf::Transform pose_0 = getVertexCameraPose(e->vertices()[0]->id(), false)*camera2odom_;
+          tf::Transform pose_1 = getVertexCameraPose(e->vertices()[1]->id(), false)*camera2odom_;
+
+          // Extract the inliers
+          Eigen::Matrix<double, 6, 6> information = e->information();
+          int inliers = 0;
+          if (information(0,0) > 0.0001)
+            inliers = (int)information(0,0);
+
+          // Write
+          f_edges <<
+                e->vertices()[0]->id() << "," <<
+                e->vertices()[1]->id() << "," <<
+                inliers << "," <<
+                setprecision(6) <<
+                pose_0.getOrigin().x() << "," <<
+                pose_0.getOrigin().y() << "," <<
+                pose_0.getOrigin().z() << "," <<
+                pose_0.getRotation().x() << "," <<
+                pose_0.getRotation().y() << "," <<
+                pose_0.getRotation().z() << "," <<
+                pose_0.getRotation().w() << "," <<
+                pose_1.getOrigin().x() << "," <<
+                pose_1.getOrigin().y() << "," <<
+                pose_1.getOrigin().z() << "," <<
+                pose_1.getRotation().x() << "," <<
+                pose_1.getRotation().y() << "," <<
+                pose_1.getRotation().z() << "," <<
+                pose_1.getRotation().w() << endl;
+        }
       }
     }
     f_edges.close();

@@ -86,3 +86,11 @@ target_link_libraries(test1
 											${eigen_LIBRARIES}
 											${OpenCV_LIBRARIES}
 											${catkin_LIBRARIES})
+
+# Reconstruction nodes
+add_executable(reconstruction
+						   src/reconstruction/node.cpp
+						   src/reconstruction/base.cpp)
+target_link_libraries(reconstruction
+						${eigen_LIBRARIES}
+						${catkin_LIBRARIES})

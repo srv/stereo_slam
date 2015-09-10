@@ -328,6 +328,19 @@ public:
         matches.push_back(knn_matches[m][0]);
     }
   }
+
+  static string convertTo5digits(int in)
+  {
+    uint val = (uint)in;
+    string output;
+    int digits = 5;
+    while (digits-- > 0) {
+        output += ('0' + val % 10);
+        val /= 10;
+    }
+    reverse(output.begin(), output.end());
+    return output;
+  }
 };
 
 } // namespace

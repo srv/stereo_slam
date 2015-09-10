@@ -100,15 +100,18 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
       time.sleep(0.5)
 
     # Read the data
-    data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(2,3,4,5,6,7,8))
+    try:
+      data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(2,3,4,5,6,7,8))
+    except:
+      return;
 
     # Plot
     if (len(data.shape) == 1):
       data = np.array([data])
     if (plot_dim == 3):
-      ax_vertices = ax.plot(data[:,0], data[:,1], data[:,2], 'b', label='Stereo slam', marker='o', linestyle='None')
+      ax_vertices = ax.plot(data[:,0], data[:,1], data[:,2], 'b', label='Stereo slam', marker='o')
     else:
-      ax_vertices = ax.plot(data[:,0], data[:,1], 'b', label='Stereo slam', marker='o', linestyle='None')
+      ax_vertices = ax.plot(data[:,0], data[:,1], 'b', label='Stereo slam', marker='o')
 
   # Show the edges
   if (edges_shown == True):
@@ -120,7 +123,7 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
   pyplot.draw()
 
   # Show legend only once
-  if (ax_gt is not None and ax_odom is not None and ax_vertices is not None and legend_edited is False):
+  if (ax_odom is not None and ax_vertices is not None and legend_edited is False):
     ax.legend()
     legend_edited = True
 
@@ -139,7 +142,10 @@ def draw_edges():
       time.sleep(0.5)
 
     # Read the data
-    data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(2,3,4,5,10,11,12))
+    try:
+      data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(0,1,2,3,4,5,10,11,12))
+    except:
+      return;
 
     # Sanity check
     if (len(data.shape) == 1):
@@ -147,7 +153,7 @@ def draw_edges():
       return
 
     # Inliers column
-    inliers = data[:,0]
+    inliers = data[:,2]
     max_inliers = max(inliers)
     min_inliers = min(inliers)
 
@@ -172,8 +178,8 @@ def draw_edges():
 
       # Get the color depending on the inlier value
       if (valid_color):
-        red = hex(int(m_red * data[i,0] + n_red))
-        blue = hex(int(m_blue * data[i,0] + n_blue))
+        red = hex(int(m_red * data[i,2] + n_red))
+        blue = hex(int(m_blue * data[i,2] + n_blue))
         red = red[2:]
         blue = blue[2:]
         if (len(red) == 1):
@@ -185,8 +191,8 @@ def draw_edges():
         color = 'b';
 
       vect = []
-      vect.append([data[i,1], data[i,2], data[i,3]])
-      vect.append([data[i,4], data[i,5], data[i,6]])
+      vect.append([data[i,3], data[i,4], data[i,5]])
+      vect.append([data[i,6], data[i,7], data[i,8]])
       vect =  np.array(vect)
       if (plot_dim == 3):
         ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], color, linestyle='-')

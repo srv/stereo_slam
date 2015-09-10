@@ -30,15 +30,20 @@ namespace slam
     orb(r_img_gray, noArray(), r_kp, noArray(), false);
 
     // Ptr<FeatureDetector> cv_detector;
+    // vector<cv::KeyPoint> l_kp, r_kp;
     // cv_detector = FeatureDetector::create("FAST");
     // cv_detector->detect(l_img_gray, l_kp);
     // cv_detector->detect(r_img_gray, r_kp);
 
     // Extract descriptors
     cv::Mat l_desc, r_desc;
-    LDB extractor_;
-    extractor_.compute(l_img_gray, l_kp, l_desc, 0);
-    extractor_.compute(r_img_gray, r_kp, r_desc, 0);
+    // LDB extractor_;
+    // extractor_.compute(l_img_gray, l_kp, l_desc, 0);
+    // extractor_.compute(r_img_gray, r_kp, r_desc, 0);
+    cv::Ptr<cv::DescriptorExtractor> cv_extractor;
+    cv_extractor = cv::DescriptorExtractor::create("ORB");
+    cv_extractor->compute(l_img_gray, l_kp, l_desc);
+    cv_extractor->compute(r_img_gray, r_kp, r_desc);
 
     // Left/right matching
     vector<cv::DMatch> matches, matches_filtered;
@@ -47,7 +52,7 @@ namespace slam
     // Filter matches by epipolar
     for (size_t i=0; i<matches.size(); ++i)
     {
-      if (abs(l_kp[matches[i].queryIdx].pt.y - r_kp[matches[i].trainIdx].pt.y) < 1.0)
+      if (abs(l_kp[matches[i].queryIdx].pt.y - r_kp[matches[i].trainIdx].pt.y) < 1.5)
         matches_filtered.push_back(matches[i]);
     }
 
@@ -101,7 +106,7 @@ namespace slam
     clusters_.clear();
     vector< vector<int> > clusters;
     const float eps = 50.0;
-    const int min_pts = 30;
+    const int min_pts = 20;
     vector<bool> clustered;
     vector<int> noise;
     vector<bool> visited;
@@ -222,10 +227,15 @@ namespace slam
       noise = noise_tmp;
     }
 
-    // Treat noise as a cluster if enough points
-    // TODO: revise if it is needed or not!
-    // if (noise.size() >= min_pts)
-    //   clusters_.push_back(noise);
+    // If 1 cluster, add all keypoints
+    if (clusters_.size() == 1)
+    {
+      vector<int> cluster_tmp;
+      for (uint i=0; i<l_kp_.size(); i++)
+        cluster_tmp.push_back(int(i));
+      clusters_.clear();
+      clusters_.push_back(cluster_tmp);
+    }
 
     // Compute the clusters centroids
     for (uint i=0; i<clusters_.size(); i++)

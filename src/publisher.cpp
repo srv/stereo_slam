@@ -38,11 +38,11 @@ namespace slam
     stringstream s;
     int baseline = 0;
     s << " Number of clusters: " << clusters.size();
-    cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1, 1, &baseline);
-    cv::Mat im_text = cv::Mat(img.rows + text_size.height + 10, img.cols, img.type());
+    cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1.5, 1, &baseline);
+    cv::Mat im_text = cv::Mat(img.rows + text_size.height + 20, img.cols, img.type());
     img.copyTo(im_text.rowRange(0, img.rows).colRange(0, img.cols));
-    im_text.rowRange(img.rows, im_text.rows) = cv::Mat::zeros(text_size.height + 10, img.cols, img.type());
-    cv::putText(im_text, s.str(), cv::Point(5, im_text.rows - 5), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(255,255,255), 1, 8);
+    im_text.rowRange(img.rows, im_text.rows).setTo(cv::Scalar(255,255,255));
+    cv::putText(im_text, s.str(), cv::Point(5, im_text.rows - 10), cv::FONT_HERSHEY_PLAIN, 1.5, cv::Scalar(0,0,0), 2, 8);
 
     // Publish
     cv_bridge::CvImage ros_image;

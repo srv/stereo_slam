@@ -124,13 +124,19 @@ private:
 
   vector< pair<int, int > > lc_found_; //!> Stores all the loop closures found in order to do not repeat them
 
+  int num_loop_closures_; //!> Stores the number of loop closures
+
   string execution_dir_; //!> Execution directory where all image information will be stored
+
+  string loop_closures_dir_; //!> Directory where images of loop closures will be stored
 
   Graph* graph_; //!> Graph pointer
 
   ros::Publisher pub_num_lc_; //!> Publishes the number of loop closings
 
   ros::Publisher pub_queue_; //!> Publishes the loop closing queue size
+
+  ros::Publisher pub_lc_matchings_; //!> Publishes the image with the loop closure matchings
 
   image_geometry::PinholeCameraModel camera_model_; //!> Camera model (left)
 

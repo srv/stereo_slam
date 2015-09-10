@@ -165,6 +165,8 @@ if __name__ == "__main__":
           help='file the vertices of stereo slam')
   parser.add_argument('graph_edges_file',
           help='file the edges of stereo slam')
+  parser.add_argument('orb_file',
+          help='file corresponding to the ORB-SLAM trajectory')
   args = parser.parse_args()
   colors = ['g','r','b']
   angles = [-6, 6, -4, 4, -12, 12]
@@ -193,6 +195,24 @@ if __name__ == "__main__":
   ax1.set_xlabel("x (m)")
   ax1.set_ylabel("y (m)")
 
+  fig2 = pylab.figure()
+  ax2 = fig2.gca()
+  ax2.grid(True)
+  ax2.set_xlabel("x (m)")
+  ax2.set_ylabel("y (m)")
+
+  fig3 = pylab.figure()
+  ax3 = fig3.gca()
+  ax3.grid(True)
+  ax3.set_xlabel("x (m)")
+  ax3.set_ylabel("y (m)")
+
+  fig4 = pylab.figure()
+  ax4 = fig4.gca()
+  ax4.grid(True)
+  ax4.set_xlabel("x (m)")
+  ax4.set_ylabel("y (m)")
+
   # Load ground truth (gt) data.
   # Check the file type
   f = open(args.ground_truth_file)
@@ -214,9 +234,13 @@ if __name__ == "__main__":
   # Load the graph vertices
   vertices = pylab.loadtxt(args.graph_vertices_file, delimiter=',', usecols=(0,2,3,4,5,6,7,8))
 
+  # Load the ORB-SLAM trajectory
+  orb = pylab.loadtxt(args.orb_file, delimiter=',', usecols=(0,2,3,4,5,6,7,8))
+
   # Get the gt indeces for all graph vertices
   gt_rebased = rebase(vertices, gt)
   odom_rebased = rebase(vertices, odom)
+  orb_rebased = rebase(vertices, orb)
 
   # Compute the translation to make the same origin for all curves
   first_vertice = to_transform(vertices[0,:])
@@ -228,6 +252,8 @@ if __name__ == "__main__":
   gt_rb_moved = apply_tf_to_matrix(tf_delta, gt_rebased)
   odom_moved = apply_tf_to_matrix(tf_delta, odom)
   odom_rb_moved = apply_tf_to_matrix(tf_delta, odom_rebased)
+  orb_moved = apply_tf_to_matrix(tf_delta, orb)
+  orb_rb_moved = apply_tf_to_matrix(tf_delta, orb_rebased)
 
   # Transform optimization
   Param = collections.namedtuple('Param','roll pitch yaw')
@@ -245,21 +271,27 @@ if __name__ == "__main__":
   gt_rb_corrected = apply_tf_to_vector(tf_correction, gt_rb_moved)
   odom_corrected = apply_tf_to_vector(tf_correction, odom_moved)
   odom_rb_corrected = apply_tf_to_vector(tf_correction, odom_rb_moved)
+  orb_corrected = apply_tf_to_vector(tf_correction, orb_moved)
+  orb_rb_corrected = apply_tf_to_vector(tf_correction, orb_rb_moved)
 
   # Compute the errors
   print "Computing errors, please wait..."
   gt_dist = trajectory_distances(gt_rb_corrected)
   odom_dist = trajectory_distances(odom_rb_corrected)
   vertices_dist = trajectory_distances(vertices)
+  orb_dist = trajectory_distances(orb_rb_corrected)
   odom_errors = calc_errors(gt_rb_corrected, odom_rb_corrected)
   vertices_errors = calc_errors(gt_rb_corrected, vertices)
+  orb_errors = calc_errors(gt_rb_corrected, orb_rb_corrected)
   time = calc_time_vector(gt_rb_corrected)
   odom_mae = np.average(np.abs(odom_errors), 0)
   vertices_mae = np.average(np.abs(vertices_errors), 0)
+  orb_mae = np.average(np.abs(orb_errors), 0)
 
   rows = []
-  rows.append(['Odometry'] + [len(odom_errors)] + [odom_dist[-1]] + [odom_mae])
-  rows.append(['SLAM'] + [len(vertices_errors)] + [vertices_dist[-1]] + [vertices_mae])
+  rows.append(['Viso2'] + [len(odom_errors)] + [odom_dist[-1]] + [odom_mae])
+  rows.append(['ORB-SLAM'] + [len(orb_errors)] + [orb_dist[-1]] + [orb_mae])
+  rows.append(['Stereo-SLAM'] + [len(vertices_errors)] + [vertices_dist[-1]] + [vertices_mae])
 
   # Build the header for the output table
   header = [  "Input", "Data Points", "Traj. Distance (m)", "Trans. MAE (m)"]
@@ -269,14 +301,15 @@ if __name__ == "__main__":
 
   # Plot graph (3D)
   ax0.plot(gt_corrected[:,1], gt_corrected[:,2], gt_corrected[:,3], colors[0], linewidth=linewidth, label='Ground Truth')
-  ax0.plot(odom_corrected[:,1], odom_corrected[:,2], odom_corrected[:,3], colors[1], linewidth=linewidth, label='EKF Odometry')
-  ax0.plot(vertices[:,1], vertices[:,2], vertices[:,3], colors[2], linewidth=linewidth, label='Stereo slam', marker='o')
+  ax0.plot(odom_corrected[:,1], odom_corrected[:,2], odom_corrected[:,3], colors[1], linewidth=linewidth, label='Viso2')
+  ax0.plot(orb_corrected[:,1], orb_corrected[:,2], orb_corrected[:,3], 'y', linewidth=linewidth, label='ORB-SLAM')
+  ax0.plot(vertices[:,1], vertices[:,2], vertices[:,3], colors[2], linewidth=linewidth, label='Stereo-SLAM', marker='o')
 
   # Plot graph (2D)
-  ax1.plot(gt_corrected[:,1], gt_corrected[:,2], colors[0], linewidth=linewidth, label='Ground Truth')
-  ax1.plot(odom_corrected[:,1], odom_corrected[:,2], colors[1], linewidth=linewidth, label='EKF Odometry')
-  ax1.plot(vertices[:,1], vertices[:,2], colors[2], linewidth=linewidth, label='Stereo slam', marker='o')
-  ax1.tick_params(axis='both', which='major', labelsize=40);
+  ax1.plot(gt_corrected[:,1], gt_corrected[:,2], colors[0], linewidth=linewidth, label='Ground truth')
+  ax1.plot(odom_corrected[:,1], odom_corrected[:,2], colors[1], linewidth=linewidth, label='Viso2')
+  ax1.plot(orb_corrected[:,1], orb_corrected[:,2], 'y', linewidth=linewidth, label='ORB-SLAM')
+  ax1.plot(vertices[:,1], vertices[:,2], colors[2], linewidth=linewidth, label='Stereo-SLAM', marker='o')
 
   # Plot the graph edges
   f = open(args.graph_edges_file)
@@ -292,19 +325,35 @@ if __name__ == "__main__":
       ax0.plot(vect[:,0], vect[:,1], vect[:,2], colors[2], linewidth=linewidth-1, linestyle='--')
       ax1.plot(vect[:,0], vect[:,1], colors[2], linewidth=linewidth-1, linestyle='--')
 
-  ax0.legend()
-  ax1.legend()
+  ax0.legend(loc=2)
+  ax1.legend(loc=2)
+
+  # Plot individual graphs (2D)
+  ax2.plot(gt_corrected[:,1], gt_corrected[:,2], 'g', linewidth=linewidth, label='Ground truth')
+  ax2.plot(odom_corrected[:,1], odom_corrected[:,2], 'b', linewidth=linewidth, label='Viso2')
+  ax2.legend(loc=2)
+
+  ax3.plot(gt_corrected[:,1], gt_corrected[:,2], 'g', linewidth=linewidth, label='Ground truth')
+  ax3.plot(orb_corrected[:,1], orb_corrected[:,2], 'b', linewidth=linewidth, label='ORB-SLAM')
+  ax3.legend(loc=2)
+
+  ax4.plot(gt_corrected[:,1], gt_corrected[:,2], 'g', linewidth=linewidth, label='Ground truth')
+  ax4.plot(vertices[:,1], vertices[:,2], 'b', linewidth=linewidth, label='Stereo-SLAM')
+  ax4.legend(loc=2)
+
 
   # Plot errors
-  fig2 = pylab.figure()
-  ax2 = fig2.gca()
-  ax2.plot(odom_dist, odom_errors, colors[1], linewidth=linewidth, label='EKF Odometry')
-  ax2.plot(vertices_dist, vertices_errors, colors[2], linewidth=linewidth, label='Stereo slam')
-  ax2.grid(True)
-  ax2.set_xlabel("Distance (m)")
-  ax2.set_ylabel("Error (m)")
-  ax2.legend(loc=2)
-  ax2.tick_params(axis='both', which='major', labelsize=40);
+  fig5 = pylab.figure()
+  ax5 = fig5.gca()
+  ax5.plot(odom_dist, odom_errors, colors[1], linewidth=linewidth, label='Viso2')
+  ax5.plot(orb_dist, orb_errors, 'g', linewidth=linewidth, label='ORB-SLAM')
+  ax5.plot(vertices_dist, vertices_errors, colors[2], linewidth=linewidth, label='Stereo-SLAM')
+  ax5.grid(True)
+  ax5.set_xlabel("Distance (m)")
+  ax5.set_ylabel("Error (m)")
+  ax5.legend(loc=2)
+  ax5.tick_params(axis='both', which='major', labelsize=40);
+  ax5.set_xlim(0, 52)
 
   pyplot.draw()
   pylab.show()
