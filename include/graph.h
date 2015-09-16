@@ -111,6 +111,12 @@ public:
    */
   tf::Transform getVertexCameraPose(int id, bool lock = true);
 
+  /** \brief Correct the odometry with the last graph information
+   * @return corrected odometry
+   * \param original odometry
+   */
+  tf::Transform correctOdometry(tf::Transform odometry);
+
   /** \brief Set the transformation between camera and robot odometry frame
    * \param the transform
    */
@@ -136,11 +142,11 @@ public:
 
 protected:
 
-  /** \brief Correct the pose with the information of the updated graph
+  /** \brief Correct a cluster pose with the information of the updated graph
    * @return the corrected pose
    * \param The pose to be corrected
    */
-  tf::Transform correctPose(tf::Transform initial_pose);
+  tf::Transform correctClusterPose(tf::Transform initial_pose);
 
   /** \brief Return all possible combinations of 2 elements of the input vector
    * @return the list of combinations

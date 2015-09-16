@@ -304,7 +304,7 @@ namespace slam
         cv::Mat rvec, tvec;
         solvePnPRansac(matched_points, matched_kp, graph_->getCameraMatrix(),
                        cv::Mat(), rvec, tvec, false,
-                       100, 6.0, LC_MAX_INLIERS, inliers);
+                       100, 5.0, LC_MAX_INLIERS, inliers);
 
         ROS_INFO_STREAM("Matches/inliers: " << matches_2.size() << " / " << inliers.size());
 

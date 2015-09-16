@@ -199,7 +199,18 @@ public:
     * \param pose_1 transformation matrix of pose 1
     * \param pose_2 transformation matrix of pose 2
     */
-  static double poseDiff(tf::Transform pose_1, tf::Transform pose_2)
+  static double poseDiff3D(tf::Transform pose_1, tf::Transform pose_2)
+  {
+    tf::Vector3 d = pose_1.getOrigin() - pose_2.getOrigin();
+    return sqrt(d.x()*d.x() + d.y()*d.y() + d.z()*d.z());
+  }
+
+  /** \brief compute the absolute diference between 2 poses (omitting z)
+    * @return the norm between two poses
+    * \param pose_1 transformation matrix of pose 1
+    * \param pose_2 transformation matrix of pose 2
+    */
+  static double poseDiff2D(tf::Transform pose_1, tf::Transform pose_2)
   {
     tf::Vector3 d = pose_1.getOrigin() - pose_2.getOrigin();
     return sqrt(d.x()*d.x() + d.y()*d.y());

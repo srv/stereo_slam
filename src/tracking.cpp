@@ -9,7 +9,7 @@ namespace slam
 {
 
   Tracking::Tracking(Publisher *f_pub, Graph *graph)
-                    : f_pub_(f_pub), graph_(graph), frame_id_(0)
+                    : f_pub_(f_pub), graph_(graph), frame_id_(0), jump_detected_(false), secs_to_filter_(4.0)
   {}
 
   void Tracking::run()
@@ -20,6 +20,8 @@ namespace slam
 
     ros::NodeHandle nh;
     ros::NodeHandle nhp("~");
+
+    pose_pub_ = nhp.advertise<nav_msgs::Odometry>("odometry", 1);
 
     image_transport::ImageTransport it(nh);
 
@@ -35,9 +37,9 @@ namespace slam
     right_sub     .subscribe(it, params_.camera_topic+"/right/image_rect_color", 3);
     left_info_sub .subscribe(nh, params_.camera_topic+"/left/camera_info",  3);
     right_info_sub.subscribe(nh, params_.camera_topic+"/right/camera_info", 3);
-    cloud_sub     .subscribe(nh, params_.camera_topic+"/points2", 5);
-    sync.reset(new Sync(SyncPolicy(5), odom_sub, left_sub, right_sub, left_info_sub, right_info_sub, cloud_sub) );
-    sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5, _6));
+    // cloud_sub     .subscribe(nh, params_.camera_topic+"/points2", 5);
+    sync.reset(new Sync(SyncPolicy(5), odom_sub, left_sub, right_sub, left_info_sub, right_info_sub) );
+    sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5));
 
     // Create directory to store the keyframes
     string keyframes_dir = WORKING_DIRECTORY + "keyframes";
@@ -62,8 +64,7 @@ namespace slam
                               const sensor_msgs::ImageConstPtr& l_img_msg,
                               const sensor_msgs::ImageConstPtr& r_img_msg,
                               const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-                              const sensor_msgs::CameraInfoConstPtr& r_info_msg,
-                              const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
+                              const sensor_msgs::CameraInfoConstPtr& r_info_msg)
   {
 
     tf::Transform c_odom_robot = Tools::odomTotf(*odom_msg);
@@ -85,10 +86,6 @@ namespace slam
       cv::Mat camera_matrix;
       Tools::getCameraModel(*l_info_msg, *r_info_msg, camera_model_, camera_matrix);
 
-      ROS_INFO_STREAM("TF Camera to odometry frame:");
-      ROS_INFO_STREAM("T: " << odom2camera_.getOrigin().x() << ", " << odom2camera_.getOrigin().y() << ", " << odom2camera_.getOrigin().z());
-      ROS_INFO_STREAM("Q: " << odom2camera_.getRotation().x() << ", " << odom2camera_.getRotation().y() << ", " << odom2camera_.getRotation().z() << ", " << odom2camera_.getRotation().w());
-
       // Set graph properties
       graph_->setCamera2Odom(odom2camera_.inverse());
       graph_->setCameraMatrix(camera_matrix);
@@ -101,12 +98,14 @@ namespace slam
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
       c_frame_.setCameraPose(c_odom_camera);
 
+      prev_corrected_odom_robot_ = c_odom_robot;
+
       state_ = INITIALIZING;
     }
     else
     {
       PointCloudRGB::Ptr pcl_cloud(new PointCloudRGB);
-      fromROSMsg(*cloud_msg, *pcl_cloud);
+      // fromROSMsg(*cloud_msg, *pcl_cloud);
 
       // The current frame
       c_frame_ = Frame(l_img, r_img, camera_model_, timestamp);
@@ -118,6 +117,53 @@ namespace slam
       // Need new keyframe
       needNewKeyFrame(pcl_cloud);
     }
+
+    // Correct robot pose with the last graph information
+    tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
+    tf::Transform corrected_odom_robot = graph_->correctOdometry(c_odom_camera) * odom2camera_.inverse();
+
+    // Detect a big jump
+    double jump = Tools::poseDiff3D(corrected_odom_robot, prev_corrected_odom_robot_);
+    if (!jump_detected_ && jump > 0.8)
+    {
+      jump_time_ = ros::WallTime::now();
+      jump_detected_ = true;
+    }
+    if (jump_detected_ && ( ros::WallTime::now().toSec() - jump_time_.toSec() > secs_to_filter_ )    )
+    {
+      jump_detected_ = false;
+    }
+
+    tf::Transform pose = corrected_odom_robot;
+    if (jump_detected_)
+    {
+      // Filter big jumps
+      double m = 1/secs_to_filter_;
+      double factor = m * (ros::WallTime::now().toSec() - jump_time_.toSec());
+
+      double c_x = pose.getOrigin().x();
+      double c_y = pose.getOrigin().y();
+      double c_z = pose.getOrigin().z();
+
+      double p_x = prev_corrected_odom_robot_.getOrigin().x();
+      double p_y = prev_corrected_odom_robot_.getOrigin().y();
+      double p_z = prev_corrected_odom_robot_.getOrigin().z();
+
+      double x = factor * c_x + (1-factor) * p_x;
+      double y = factor * c_y + (1-factor) * p_y;
+      double z = factor * c_z + (1-factor) * p_z;
+
+      tf::Vector3 filtered_pose(x, y, z);
+      pose.setOrigin(filtered_pose);
+    }
+
+    // Publish
+    nav_msgs::Odometry pose_msg = *odom_msg;
+    tf::poseTFToMsg(pose, pose_msg.pose.pose);
+    pose_pub_.publish(pose_msg);
+
+    // Store
+    prev_corrected_odom_robot_ = pose;
   }
 
   bool Tracking::getOdom2CameraTf(nav_msgs::Odometry odom_msg,
@@ -154,7 +200,7 @@ namespace slam
     else
     {
       // Do not add very close frames
-      double pose_diff = Tools::poseDiff(last_fixed_frame_pose_, c_frame_.getCameraPose());
+      double pose_diff = Tools::poseDiff3D(last_fixed_frame_pose_, c_frame_.getCameraPose());
       if (pose_diff > 0.6)
       {
         addFrameToMap(c_frame_, cloud);
@@ -178,12 +224,12 @@ namespace slam
         last_fixed_frame_pose_ = frame.getCameraPose();
 
         // Save cloud
-        PointCloudRGB::Ptr cloud_filtered;
-        cloud_filtered = filterCloud(cloud);
-        if (cloud_filtered->points.size() == 0) return;
-        string pc_filename = WORKING_DIRECTORY + "pointclouds/" + lexical_cast<string>(frame_id_) + ".pcd";
-        pcl::io::savePCDFileBinary(pc_filename, *cloud_filtered);
-        frame_id_++;
+        // PointCloudRGB::Ptr cloud_filtered;
+        // cloud_filtered = filterCloud(cloud);
+        // if (cloud_filtered->points.size() == 0) return;
+        // string pc_filename = WORKING_DIRECTORY + "pointclouds/" + lexical_cast<string>(frame_id_) + ".pcd";
+        // pcl::io::savePCDFileBinary(pc_filename, *cloud_filtered);
+        // frame_id_++;
       }
     }
   }

@@ -109,8 +109,7 @@ protected:
                     const sensor_msgs::ImageConstPtr& l_img_msg,
                     const sensor_msgs::ImageConstPtr& r_img_msg,
                     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-                    const sensor_msgs::CameraInfoConstPtr& r_info_msg,
-                    const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
+                    const sensor_msgs::CameraInfoConstPtr& r_info_msg);
 
   /** \brief Get the transform between odometry frame and camera frame
    * @return true if valid transform, false otherwise
@@ -160,14 +159,24 @@ private:
 
   int frame_id_; //!> Processed frames counter
 
+  tf::Transform prev_corrected_odom_robot_; //!> Stores the previous corrected odometry pose
+
+  ros::WallTime jump_time_; //!> Stores the time at which the jump starts
+
+  bool jump_detected_; //!> Indicates when a big correction is detected
+
+  double secs_to_filter_; //!> Number of seconds that filter will be applied
+
   // Topic sync
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,
                                                           sensor_msgs::Image,
                                                           sensor_msgs::Image,
                                                           sensor_msgs::CameraInfo,
-                                                          sensor_msgs::CameraInfo,
-                                                          sensor_msgs::PointCloud2> SyncPolicy;
+                                                          sensor_msgs::CameraInfo> SyncPolicy;
   typedef message_filters::Synchronizer<SyncPolicy> Sync;
+
+  // Corrected pose publisher
+  ros::Publisher pose_pub_;
 
 };
 

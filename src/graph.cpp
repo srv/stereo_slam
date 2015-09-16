@@ -95,7 +95,7 @@ namespace slam
     {
       // Correct cluster pose with the last graph update
       tf::Transform cluster_pose = Tools::transformVector4f(cluster_centroids[i], camera_pose);
-      tf::Transform corrected_cluster_pose = correctPose(cluster_pose);
+      tf::Transform corrected_cluster_pose = correctClusterPose(cluster_pose);
       initial_pose_history_.push_back(cluster_pose);
 
       // Add cluster to the graph
@@ -164,7 +164,7 @@ namespace slam
         {
           tf::Transform prev_vertex_pose = getVertexPose(prev_frame_vertices[j]);
 
-          double dist = Tools::poseDiff(cur_vertex_pose, prev_vertex_pose);
+          double dist = Tools::poseDiff3D(cur_vertex_pose, prev_vertex_pose);
           if (dist < min_dist)
           {
             closest_vertices.clear();
@@ -201,7 +201,7 @@ namespace slam
     publishCameraPose(updated_camera_pose);
   }
 
-  tf::Transform Graph::correctPose(tf::Transform initial_pose)
+  tf::Transform Graph::correctClusterPose(tf::Transform initial_pose)
   {
     // Get last
     int last_idx = -1;
@@ -221,6 +221,28 @@ namespace slam
     }
     else
       return initial_pose;
+  }
+
+  tf::Transform Graph::correctOdometry(tf::Transform odometry)
+  {
+    // Get last
+    int last_idx = -1;
+    {
+      mutex::scoped_lock lock(mutex_graph_);
+      last_idx = graph_optimizer_.vertices().size() - 1;
+    }
+
+    if (initial_pose_history_.size() > 0 && last_idx >= 0)
+    {
+      tf::Transform last_graph_pose = getVertexPose(last_idx);
+      tf::Transform last_graph_initial = initial_pose_history_.at(last_idx);
+      tf::Transform odom_diff = last_graph_initial.inverse() * odometry;
+
+      // Compute the corrected pose
+      return last_graph_pose * odom_diff;
+    }
+    else
+      return odometry;
   }
 
   vector< vector<int> > Graph::createComb(vector<int> cluster_ids)
@@ -315,7 +337,7 @@ namespace slam
 
       // Get the node pose
       tf::Transform cur_pose = getVertexPose(i);
-      double dist = Tools::poseDiff(cur_pose, vertex_pose);
+      double dist = Tools::poseDiff2D(cur_pose, vertex_pose);
       neighbor_distances.push_back(make_pair(i, dist));
     }
 
@@ -452,7 +474,7 @@ namespace slam
       f_vertices << fixed <<
             setprecision(6) <<
             frame_stamps_[id] << "," <<
-            i << "," <<
+            id << "," <<
             pose.getOrigin().x() << "," <<
             pose.getOrigin().y() << "," <<
             pose.getOrigin().z() << "," <<

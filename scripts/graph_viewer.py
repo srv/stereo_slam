@@ -123,7 +123,7 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
   pyplot.draw()
 
   # Show legend only once
-  if (ax_odom is not None and ax_vertices is not None and legend_edited is False):
+  if (ax_vertices is not None and legend_edited is False):
     ax.legend()
     legend_edited = True
 
@@ -256,7 +256,7 @@ if __name__ == "__main__":
   # Some hardcode parameters
   font = {'family' : 'Sans',
           'weight' : 'normal',
-          'size'   : 14}
+          'size'   : 30}
   pylab.rc('font', **font)
 
   print "GRAPH VIEWER MOUSE INPUTS:"
@@ -287,13 +287,15 @@ if __name__ == "__main__":
   fig = pylab.figure(1)
   if (plot_dim == 3):
     ax = Axes3D(fig)
-    ax.set_zlabel("Z")
+    ax.set_zlabel("z (m)")
   else:
     ax = fig.gca()
   ax.grid(True)
-  ax.set_title("Graph Viewer")
-  ax.set_xlabel("X")
-  ax.set_ylabel("Y")
+  # ax.set_title("Graph Viewer")
+  ax.set_xlabel("x (m)")
+  ax.set_ylabel("y (m)")
+  # ax.set_xlim([0, 28])
+  # ax.set_ylim([-10, 23])
 
   # Handle on click callback
   fig.canvas.mpl_connect('button_press_event', onclick)
