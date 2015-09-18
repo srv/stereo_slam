@@ -1,4 +1,4 @@
-#include <std_msgs/Int32.h>
+#include <std_msgs/String.h>
 #include <image_geometry/pinhole_camera_model.h>
 
 #include <numeric>
@@ -14,8 +14,9 @@ namespace slam
   LoopClosing::LoopClosing()
   {
     ros::NodeHandle nhp("~");
-    pub_num_lc_ = nhp.advertise<std_msgs::Int32>("loop_closings", 2, true);
-    pub_queue_ = nhp.advertise<std_msgs::Int32>("loop_closing_queue", 2, true);
+    pub_num_keyframes_ = nhp.advertise<std_msgs::String>("keyframes", 2, true);
+    pub_num_lc_ = nhp.advertise<std_msgs::String>("loop_closings", 2, true);
+    pub_queue_ = nhp.advertise<std_msgs::String>("loop_closing_queue", 2, true);
     pub_lc_matchings_ = nhp.advertise<sensor_msgs::Image>("loop_closing_matchings", 2, true);
   }
 
@@ -67,17 +68,23 @@ namespace slam
       }
 
       // Publish loop closing information
+      if (pub_num_keyframes_.getNumSubscribers() > 0)
+      {
+        std_msgs::String msg;
+        msg.data = lexical_cast<string>(graph_->getFrameNum());
+        pub_num_keyframes_.publish(msg);
+      }
       if (pub_num_lc_.getNumSubscribers() > 0)
       {
-        std_msgs::Int32 msg;
-        msg.data = lc_found_.size();
+        std_msgs::String msg;
+        msg.data = lexical_cast<string>(lc_found_.size());
         pub_num_lc_.publish(msg);
       }
       if (pub_queue_.getNumSubscribers() > 0)
       {
         mutex::scoped_lock lock(mutex_cluster_queue_);
-        std_msgs::Int32 msg;
-        msg.data = cluster_queue_.size();
+        std_msgs::String msg;
+        msg.data = lexical_cast<string>(cluster_queue_.size());
         pub_queue_.publish(msg);
       }
 

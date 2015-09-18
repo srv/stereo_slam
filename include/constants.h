@@ -15,9 +15,9 @@ namespace slam
 
   static const string WORKING_DIRECTORY = ros::package::getPath("stereo_slam") + "/";
 
-  static const int LC_MIN_INLIERS = 40; // 25
+  static const int LC_MIN_INLIERS = 40; // 40
 
-  static const int LC_MAX_INLIERS = 150; // 80
+  static const int LC_MAX_INLIERS = 150; // 150
 
   static const int LC_NEIGHBORS = 6; // 6
 

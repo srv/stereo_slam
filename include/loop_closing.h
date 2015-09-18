@@ -132,6 +132,8 @@ private:
 
   Graph* graph_; //!> Graph pointer
 
+  ros::Publisher pub_num_keyframes_; //!> Publishes the number of keyframes
+
   ros::Publisher pub_num_lc_; //!> Publishes the number of loop closings
 
   ros::Publisher pub_queue_; //!> Publishes the loop closing queue size

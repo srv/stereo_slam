@@ -140,6 +140,10 @@ public:
    */
   inline image_geometry::PinholeCameraModel getCameraModel() const {return camera_model_;}
 
+  /** \brief Get camera matrix
+   */
+  inline int getFrameNum() const {return frame_id_+1;}
+
 protected:
 
   /** \brief Correct a cluster pose with the information of the updated graph
