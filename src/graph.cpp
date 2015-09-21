@@ -35,7 +35,7 @@ namespace slam
 
   void Graph::run()
   {
-    ros::Rate r(500);
+    ros::Rate r(50);
     while(ros::ok())
     {
       if(checkNewFrameInQueue())

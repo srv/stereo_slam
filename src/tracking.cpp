@@ -9,7 +9,7 @@ namespace slam
 {
 
   Tracking::Tracking(Publisher *f_pub, Graph *graph)
-                    : f_pub_(f_pub), graph_(graph), frame_id_(0), jump_detected_(false), secs_to_filter_(4.0)
+                    : f_pub_(f_pub), graph_(graph), frame_id_(0), jump_detected_(false), secs_to_filter_(10.0)
   {}
 
   void Tracking::run()
@@ -138,7 +138,7 @@ namespace slam
     if (jump_detected_)
     {
       // Filter big jumps
-      double m = 1/secs_to_filter_;
+      double m = 1/(10*secs_to_filter_);
       double factor = m * (ros::WallTime::now().toSec() - jump_time_.toSec());
 
       double c_x = pose.getOrigin().x();
@@ -152,6 +152,8 @@ namespace slam
       double x = factor * c_x + (1-factor) * p_x;
       double y = factor * c_y + (1-factor) * p_y;
       double z = factor * c_z + (1-factor) * p_z;
+
+      ROS_INFO_STREAM("X: " << x);
 
       tf::Vector3 filtered_pose(x, y, z);
       pose.setOrigin(filtered_pose);

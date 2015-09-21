@@ -122,7 +122,7 @@ private:
 
   vector< pair<int, vector<float> > > hash_table_;  //!> Hash table: stores a hash for every image. This is the unique variable that grows with the robot trajectory
 
-  vector< pair<int, int > > lc_found_; //!> Stores all the loop closures found in order to do not repeat them
+  vector< pair<int, int > > cluster_lc_found_; //!> Stores all the loop closures (between clusters) found in order to do not repeat them
 
   int num_loop_closures_; //!> Stores the number of loop closures
 
