@@ -153,8 +153,6 @@ namespace slam
       double y = factor * c_y + (1-factor) * p_y;
       double z = factor * c_z + (1-factor) * p_z;
 
-      ROS_INFO_STREAM("X: " << x);
-
       tf::Vector3 filtered_pose(x, y, z);
       pose.setOrigin(filtered_pose);
     }
