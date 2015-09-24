@@ -109,7 +109,8 @@ protected:
                     const sensor_msgs::ImageConstPtr& l_img_msg,
                     const sensor_msgs::ImageConstPtr& r_img_msg,
                     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-                    const sensor_msgs::CameraInfoConstPtr& r_info_msg);
+                    const sensor_msgs::CameraInfoConstPtr& r_info_msg,
+                    const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
 
   /** \brief Get the transform between odometry frame and camera frame
    * @return true if valid transform, false otherwise
@@ -172,7 +173,8 @@ private:
                                                           sensor_msgs::Image,
                                                           sensor_msgs::Image,
                                                           sensor_msgs::CameraInfo,
-                                                          sensor_msgs::CameraInfo> SyncPolicy;
+                                                          sensor_msgs::CameraInfo,
+                                                          sensor_msgs::PointCloud2> SyncPolicy;
   typedef message_filters::Synchronizer<SyncPolicy> Sync;
 
   // Corrected pose publisher

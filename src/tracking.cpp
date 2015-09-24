@@ -37,9 +37,9 @@ namespace slam
     right_sub     .subscribe(it, params_.camera_topic+"/right/image_rect_color", 3);
     left_info_sub .subscribe(nh, params_.camera_topic+"/left/camera_info",  3);
     right_info_sub.subscribe(nh, params_.camera_topic+"/right/camera_info", 3);
-    // cloud_sub     .subscribe(nh, params_.camera_topic+"/points2", 5);
-    sync.reset(new Sync(SyncPolicy(5), odom_sub, left_sub, right_sub, left_info_sub, right_info_sub) );
-    sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5));
+    cloud_sub     .subscribe(nh, params_.camera_topic+"/points2", 5);
+    sync.reset(new Sync(SyncPolicy(5), odom_sub, left_sub, right_sub, left_info_sub, right_info_sub, cloud_sub) );
+    sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5, _6));
 
     // Create directory to store the keyframes
     string keyframes_dir = WORKING_DIRECTORY + "keyframes";
@@ -64,7 +64,8 @@ namespace slam
                               const sensor_msgs::ImageConstPtr& l_img_msg,
                               const sensor_msgs::ImageConstPtr& r_img_msg,
                               const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-                              const sensor_msgs::CameraInfoConstPtr& r_info_msg)
+                              const sensor_msgs::CameraInfoConstPtr& r_info_msg,
+                              const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   {
 
     tf::Transform c_odom_robot = Tools::odomTotf(*odom_msg);
@@ -105,7 +106,7 @@ namespace slam
     else
     {
       PointCloudRGB::Ptr pcl_cloud(new PointCloudRGB);
-      // fromROSMsg(*cloud_msg, *pcl_cloud);
+      fromROSMsg(*cloud_msg, *pcl_cloud);
 
       // The current frame
       c_frame_ = Frame(l_img, r_img, camera_model_, timestamp);
@@ -224,12 +225,12 @@ namespace slam
         last_fixed_frame_pose_ = frame.getCameraPose();
 
         // Save cloud
-        // PointCloudRGB::Ptr cloud_filtered;
-        // cloud_filtered = filterCloud(cloud);
-        // if (cloud_filtered->points.size() == 0) return;
-        // string pc_filename = WORKING_DIRECTORY + "pointclouds/" + lexical_cast<string>(frame_id_) + ".pcd";
-        // pcl::io::savePCDFileBinary(pc_filename, *cloud_filtered);
-        // frame_id_++;
+        PointCloudRGB::Ptr cloud_filtered;
+        cloud_filtered = filterCloud(cloud);
+        if (cloud_filtered->points.size() == 0) return;
+        string pc_filename = WORKING_DIRECTORY + "pointclouds/" + lexical_cast<string>(frame_id_) + ".pcd";
+        pcl::io::savePCDFileBinary(pc_filename, *cloud_filtered);
+        frame_id_++;
       }
     }
   }
@@ -243,7 +244,7 @@ namespace slam
 
     // Voxel grid filter (used as x-y surface extraction. Note that leaf in z is very big)
     pcl::ApproximateVoxelGrid<PointRGB> grid;
-    grid.setLeafSize(0.005, 0.005, 0.01);
+    grid.setLeafSize(0.01, 0.01, 0.05);
     grid.setDownsampleAllData(true);
     grid.setInputCloud(cloud);
     grid.filter(*cloud);

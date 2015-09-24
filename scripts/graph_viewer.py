@@ -254,10 +254,10 @@ if __name__ == "__main__":
   plot_dim = args.dim
 
   # Some hardcode parameters
-  font = {'family' : 'Sans',
-          'weight' : 'normal',
-          'size'   : 30}
-  pylab.rc('font', **font)
+  # font = {'family' : 'Sans',
+  #         'weight' : 'normal',
+  #         'size'   : 30}
+  # pylab.rc('font', **font)
 
   print "GRAPH VIEWER MOUSE INPUTS:"
   print " - Right button: activates/deactivates the visualization of graph edges."
