@@ -9,7 +9,7 @@ namespace slam
 {
 
   Tracking::Tracking(Publisher *f_pub, Graph *graph)
-                    : f_pub_(f_pub), graph_(graph), frame_id_(0), jump_detected_(false), secs_to_filter_(10.0)
+    : f_pub_(f_pub), graph_(graph), frame_id_(0), jump_detected_(false), secs_to_filter_(10.0)
   {}
 
   void Tracking::run()
@@ -22,6 +22,7 @@ namespace slam
     ros::NodeHandle nhp("~");
 
     pose_pub_ = nhp.advertise<nav_msgs::Odometry>("odometry", 1);
+    pc_pub_ = nhp.advertise<sensor_msgs::PointCloud2>("pointcloud", 5);
 
     image_transport::ImageTransport it(nh);
 
@@ -49,23 +50,15 @@ namespace slam
     if (!fs::create_directory(dir1))
       ROS_ERROR("[Localization:] ERROR -> Impossible to create the keyframes directory.");
 
-    // Create directory to store the pointclouds
-    string pointclouds_dir = WORKING_DIRECTORY + "pointclouds";
-    if (fs::is_directory(pointclouds_dir))
-      fs::remove_all(pointclouds_dir);
-    fs::path dir2(pointclouds_dir);
-    if (!fs::create_directory(dir2))
-      ROS_ERROR("[Localization:] ERROR -> Impossible to create the pointclouds directory.");
-
     ros::spin();
   }
 
   void Tracking::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
-                              const sensor_msgs::ImageConstPtr& l_img_msg,
-                              const sensor_msgs::ImageConstPtr& r_img_msg,
-                              const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-                              const sensor_msgs::CameraInfoConstPtr& r_info_msg,
-                              const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
+      const sensor_msgs::ImageConstPtr& l_img_msg,
+      const sensor_msgs::ImageConstPtr& r_img_msg,
+      const sensor_msgs::CameraInfoConstPtr& l_info_msg,
+      const sensor_msgs::CameraInfoConstPtr& r_info_msg,
+      const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   {
 
     tf::Transform c_odom_robot = Tools::odomTotf(*odom_msg);
@@ -168,8 +161,8 @@ namespace slam
   }
 
   bool Tracking::getOdom2CameraTf(nav_msgs::Odometry odom_msg,
-                                  sensor_msgs::Image img_msg,
-                                  tf::StampedTransform &transform)
+      sensor_msgs::Image img_msg,
+      tf::StampedTransform &transform)
   {
     // Init the transform
     transform.setIdentity();
@@ -178,9 +171,9 @@ namespace slam
     {
       // Extract the transform
       tf_listener_.lookupTransform(odom_msg.child_frame_id,
-                                   img_msg.header.frame_id,
-                                   ros::Time(0),
-                                   transform);
+          img_msg.header.frame_id,
+          ros::Time(0),
+          transform);
     }
     catch (tf::TransformException ex)
     {
@@ -224,12 +217,23 @@ namespace slam
         graph_->addFrameToQueue(frame);
         last_fixed_frame_pose_ = frame.getCameraPose();
 
-        // Save cloud
-        PointCloudRGB::Ptr cloud_filtered;
-        cloud_filtered = filterCloud(cloud);
-        if (cloud_filtered->points.size() == 0) return;
-        string pc_filename = WORKING_DIRECTORY + "pointclouds/" + lexical_cast<string>(frame_id_) + ".pcd";
-        pcl::io::savePCDFileBinary(pc_filename, *cloud_filtered);
+        // Publish cloud
+        if (pc_pub_.getNumSubscribers() > 0)
+        {
+          // Filter cloud
+          PointCloudRGB::Ptr cloud_filtered;
+          cloud_filtered = filterCloud(cloud);
+          if (cloud_filtered->points.size() == 0) return;
+
+          // Publish
+          string frame_id_str = Tools::convertTo5digits(frame_id_);
+          sensor_msgs::PointCloud2 cloud_msg;
+          pcl::toROSMsg(*cloud_filtered, cloud_msg);
+          cloud_msg.header.frame_id = frame_id_str; // write the keyframe id to the frame id of the message ;)
+          pc_pub_.publish(cloud_msg); 
+        }
+
+        // Increase the frame id counter
         frame_id_++;
       }
     }

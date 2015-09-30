@@ -26,6 +26,7 @@
 
 #include "frame.h"
 #include "loop_closing.h"
+#include "stereo_slam/GraphPoses.h"
 
 using namespace std;
 using namespace boost;
@@ -186,6 +187,10 @@ protected:
    */
   void publishCameraPose(tf::Transform camera_pose);
 
+  /** \brief Publishes all the graph 
+   */
+  void publishGraph();
+
 private:
 
   g2o::SparseOptimizer graph_optimizer_; //!> G2O graph optimizer
@@ -215,6 +220,8 @@ private:
   image_geometry::PinholeCameraModel camera_model_; //!> Pinhole left camera model
 
   ros::Publisher pose_pub_; //!> Camera pose publisher
+
+  ros::Publisher graph_pub_; //!> Graph publisher
 };
 
 } // namespace

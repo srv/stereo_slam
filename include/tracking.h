@@ -152,6 +152,10 @@ private:
 
   Publisher* f_pub_; //!> Frame publisher
 
+  ros::Publisher pc_pub_; //!> Pointcloud publisher
+
+  ros::Publisher pose_pub_; //!> Corrected pose publisher
+
   image_geometry::StereoCameraModel camera_model_; //!> Stereo camera model
 
   Graph* graph_; //!> Graph
@@ -176,9 +180,6 @@ private:
                                                           sensor_msgs::CameraInfo,
                                                           sensor_msgs::PointCloud2> SyncPolicy;
   typedef message_filters::Synchronizer<SyncPolicy> Sync;
-
-  // Corrected pose publisher
-  ros::Publisher pose_pub_;
 
 };
 

@@ -178,10 +178,10 @@ namespace slam
   }
 
   void LoopClosing::filterByFrustum(cv::Mat desc,
-                                    vector<cv::Point3f> points,
-                                    tf::Transform camera_pose,
-                                    cv::Mat& out_desc,
-                                    vector<cv::Point3f>& out_points)
+      vector<cv::Point3f> points,
+      tf::Transform camera_pose,
+      cv::Mat& out_desc,
+      vector<cv::Point3f>& out_points)
   {
     out_desc.release();
     out_points.clear();
@@ -310,8 +310,8 @@ namespace slam
         vector<int> inliers;
         cv::Mat rvec, tvec;
         solvePnPRansac(matched_points, matched_kp, graph_->getCameraMatrix(),
-                       cv::Mat(), rvec, tvec, false,
-                       100, 5.0, LC_MAX_INLIERS, inliers);
+            cv::Mat(), rvec, tvec, false,
+            100, 5.0, LC_MAX_INLIERS, inliers);
 
         ROS_INFO_STREAM("Matches/inliers: " << matches_2.size() << " / " << inliers.size());
 
@@ -382,7 +382,7 @@ namespace slam
               for (uint l=0; l<cluster_lc_found_.size(); l++)
               {
                 if ( (cluster_lc_found_[l].first == cluster_pairs[i][0] && cluster_lc_found_[l].second == cluster_pairs[i][1]) ||
-                     (cluster_lc_found_[l].first == cluster_pairs[i][1] && cluster_lc_found_[l].second == cluster_pairs[i][0]) )
+                    (cluster_lc_found_[l].first == cluster_pairs[i][1] && cluster_lc_found_[l].second == cluster_pairs[i][0]) )
                 {
                   lc_found = true;
                   break;

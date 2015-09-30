@@ -31,6 +31,7 @@ namespace slam
     // Advertise topics
     ros::NodeHandle nhp("~");
     pose_pub_ = nhp.advertise<nav_msgs::Odometry>("graph_camera_odometry", 1);
+    graph_pub_ = nhp.advertise<stereo_slam::GraphPoses>("graph_poses", 2);
   }
 
   void Graph::run()
@@ -190,6 +191,9 @@ namespace slam
 
     // Save graph to file
     saveGraph();
+
+    // Publish the graph
+    publishGraph();
 
     // Publish camera pose
     int last_idx = -1;
@@ -472,22 +476,22 @@ namespace slam
 
       tf::Transform pose = getVertexCameraPose(i, false)*camera2odom_;
       f_vertices << fixed <<
-            setprecision(6) <<
-            frame_stamps_[id] << "," <<
-            id << "," <<
-            pose.getOrigin().x() << "," <<
-            pose.getOrigin().y() << "," <<
-            pose.getOrigin().z() << "," <<
-            pose.getRotation().x() << "," <<
-            pose.getRotation().y() << "," <<
-            pose.getRotation().z() << "," <<
-            pose.getRotation().w() <<  endl;
+        setprecision(6) <<
+        frame_stamps_[id] << "," <<
+        id << "," <<
+        pose.getOrigin().x() << "," <<
+        pose.getOrigin().y() << "," <<
+        pose.getOrigin().z() << "," <<
+        pose.getRotation().x() << "," <<
+        pose.getRotation().y() << "," <<
+        pose.getRotation().z() << "," <<
+        pose.getRotation().w() <<  endl;
     }
     f_vertices.close();
 
     // Output the edges file
     for ( g2o::OptimizableGraph::EdgeSet::iterator it=graph_optimizer_.edges().begin();
-          it!=graph_optimizer_.edges().end(); it++)
+        it!=graph_optimizer_.edges().end(); it++)
     {
       g2o::EdgeSE3* e = dynamic_cast<g2o::EdgeSE3*> (*it);
       if (e)
@@ -510,24 +514,24 @@ namespace slam
 
           // Write
           f_edges <<
-                e->vertices()[0]->id() << "," <<
-                e->vertices()[1]->id() << "," <<
-                inliers << "," <<
-                setprecision(6) <<
-                pose_0.getOrigin().x() << "," <<
-                pose_0.getOrigin().y() << "," <<
-                pose_0.getOrigin().z() << "," <<
-                pose_0.getRotation().x() << "," <<
-                pose_0.getRotation().y() << "," <<
-                pose_0.getRotation().z() << "," <<
-                pose_0.getRotation().w() << "," <<
-                pose_1.getOrigin().x() << "," <<
-                pose_1.getOrigin().y() << "," <<
-                pose_1.getOrigin().z() << "," <<
-                pose_1.getRotation().x() << "," <<
-                pose_1.getRotation().y() << "," <<
-                pose_1.getRotation().z() << "," <<
-                pose_1.getRotation().w() << endl;
+            e->vertices()[0]->id() << "," <<
+            e->vertices()[1]->id() << "," <<
+            inliers << "," <<
+            setprecision(6) <<
+            pose_0.getOrigin().x() << "," <<
+            pose_0.getOrigin().y() << "," <<
+            pose_0.getOrigin().z() << "," <<
+            pose_0.getRotation().x() << "," <<
+            pose_0.getRotation().y() << "," <<
+            pose_0.getRotation().z() << "," <<
+            pose_0.getRotation().w() << "," <<
+            pose_1.getOrigin().x() << "," <<
+            pose_1.getOrigin().y() << "," <<
+            pose_1.getOrigin().z() << "," <<
+            pose_1.getRotation().x() << "," <<
+            pose_1.getRotation().y() << "," <<
+            pose_1.getRotation().z() << "," <<
+            pose_1.getRotation().w() << endl;
         }
       }
     }
@@ -548,6 +552,41 @@ namespace slam
       pose_msg.header.stamp = ros::Time::now();
       tf::poseTFToMsg(camera_pose, pose_msg.pose.pose);
       pose_pub_.publish(pose_msg);
+    }
+  }
+
+  void Graph::publishGraph()
+  {
+    if (graph_pub_.getNumSubscribers() > 0)
+    {
+      // Build the graph data
+      vector<int> id;
+      vector<double> x, y, z, qx, qy, qz, qw;
+      for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
+      {
+        tf::Transform pose = getVertexCameraPose(i, false);
+        id.push_back(i);
+        x.push_back(pose.getOrigin().x());
+        y.push_back(pose.getOrigin().y());
+        z.push_back(pose.getOrigin().z());
+        qx.push_back(pose.getRotation().x());
+        qy.push_back(pose.getRotation().y());
+        qz.push_back(pose.getRotation().z());
+        qw.push_back(pose.getRotation().w());
+      }
+
+      // Publish
+      stereo_slam::GraphPoses graph_msg;
+      graph_msg.header.stamp = ros::Time::now();
+      graph_msg.id = id;
+      graph_msg.x = x;
+      graph_msg.y = y;
+      graph_msg.z = z;
+      graph_msg.qx = qx;
+      graph_msg.qy = qy;
+      graph_msg.qz = qz;
+      graph_msg.qw = qw;
+      graph_pub_.publish(graph_msg);
     }
   }
 
