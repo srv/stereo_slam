@@ -474,7 +474,7 @@ namespace slam
       if (found) continue;
       processed_frames.push_back(id);
 
-      tf::Transform pose = getVertexCameraPose(i, false)*camera2odom_;
+      tf::Transform pose = getVertexCameraPose(i, false);//*camera2odom_;
       f_vertices << fixed <<
         setprecision(6) <<
         frame_stamps_[id] << "," <<
@@ -560,12 +560,26 @@ namespace slam
     if (graph_pub_.getNumSubscribers() > 0)
     {
       // Build the graph data
-      vector<int> id;
+      vector<int> ids;
       vector<double> x, y, z, qx, qy, qz, qw;
+      vector<int> processed_frames;
       for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
       {
+        bool found = false;
+        int id = getVertexFrameId(i);
+        for (uint j=0; j<processed_frames.size(); j++)
+        {
+          if (processed_frames[j] == id)
+          {
+            found = true;
+            break;
+          }
+        }
+        if (found) continue;
+        processed_frames.push_back(id);
+
         tf::Transform pose = getVertexCameraPose(i, false);
-        id.push_back(i);
+        ids.push_back(id);
         x.push_back(pose.getOrigin().x());
         y.push_back(pose.getOrigin().y());
         z.push_back(pose.getOrigin().z());
@@ -578,7 +592,7 @@ namespace slam
       // Publish
       stereo_slam::GraphPoses graph_msg;
       graph_msg.header.stamp = ros::Time::now();
-      graph_msg.id = id;
+      graph_msg.id = ids;
       graph_msg.x = x;
       graph_msg.y = y;
       graph_msg.z = z;

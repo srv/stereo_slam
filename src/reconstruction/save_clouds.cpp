@@ -67,7 +67,7 @@ class SaveClouds
     nh_private_.param("db_name", db_name_, string("slam"));
 
     // Subscribe to pointclouds
-    point_cloud_sub_ = nh_.subscribe<sensor_msgs::PointCloud2>("pointcloud", 5, &SaveClouds::pointCloudCb, this);
+    point_cloud_sub_ = nh_.subscribe<sensor_msgs::PointCloud2>("pointcloud", 1, &SaveClouds::pointCloudCb, this);
 
     // Subscribe to graph poses
     graph_poses_sub_ = nh_.subscribe<stereo_slam::GraphPoses>("graph_poses", 1, &SaveClouds::graphPosesCb, this);
@@ -199,8 +199,6 @@ class SaveClouds
     ros::WallTime start = ros::WallTime::now();
     query(q);
     ros::WallDuration d = ros::WallTime::now() - start;
-    ROS_INFO_STREAM("INSERTING: " << frame_id);
-    ROS_INFO_STREAM("TIME: " << d.toSec());
   }
 
   void insertGraphPoses(vector< pair<int, tf::Transform> > graph_poses)
@@ -302,22 +300,22 @@ class SaveClouds
           pcl::PointXYZRGB max_pt = pointclouds_minmax[idx_minmax].second.max_pt;
           Eigen::Vector4f emin_pt(min_pt.x, min_pt.y, min_pt.z, 1.0);
           Eigen::Vector4f emax_pt(max_pt.x, max_pt.y, max_pt.z, 1.0);
-          Eigen::Affine3f trans(transformA2B(graph_poses, frame_id, prev_frame_id));
+          Eigen::Affine3f trans;
+          if (transformA2B(graph_poses, frame_id, prev_frame_id, trans))
+          {
+            // Remove the overlapping region
+            pcl::CropBox<pcl::PointXYZRGB> crop_filter;
+            crop_filter.setInputCloud(cloud);
+            crop_filter.setMin(emin_pt);
+            crop_filter.setMax(emax_pt);
+            crop_filter.setTransform(trans);
+            crop_filter.setNegative(true);
+            crop_filter.filter(*cloud);
 
-          // Remove the overlapping region
-          int init_size = cloud->points.size();
-          pcl::CropBox<pcl::PointXYZRGB> crop_filter;
-          crop_filter.setInputCloud(cloud);
-          crop_filter.setMin(emin_pt);
-          crop_filter.setMax(emax_pt);
-          crop_filter.setTransform(trans);
-          crop_filter.filter(*cloud);
-          int final_size = cloud->points.size();
-          ROS_INFO_STREAM("SIZE REDUCTION: " << init_size << " -> " << final_size);
-
-          // Insert the reduced cloud into the database
-          insertPointCloud(cloud, lexical_cast<string>(frame_id));
-          erase_ids.push_back(frame_id);
+            // Insert the reduced cloud into the database
+            insertPointCloud(cloud, lexical_cast<string>(frame_id));
+            erase_ids.push_back(frame_id);
+          }
         }
       }
     }
@@ -343,7 +341,7 @@ class SaveClouds
     }
   }
 
-  Eigen::Affine3d transformA2B(vector< pair<int, tf::Transform> > graph_poses, int a, int b)
+  bool transformA2B(vector< pair<int, tf::Transform> > graph_poses, int a, int b, Eigen::Affine3f &out)
   {
     tf::Transform tf_a;
     tf::Transform tf_b;
@@ -367,10 +365,17 @@ class SaveClouds
       if (found_a & found_b) break;
     }
 
-    Eigen::Affine3d out;
-    tf::Transform tf_c = tf_a.inverse()*tf_b;
-    tf::poseTFToEigen(tf_c, out);
-    return out;
+    if (found_a & found_b)
+    {
+      tf::Transform tf_c = tf_a.inverse()*tf_b;
+      Eigen::Affine3d tmp;
+      tf::poseTFToEigen(tf_c, tmp);
+      Eigen::Affine3f tmp2(tmp);
+      out = tmp2;
+      return true;
+    }
+    else
+      return false;
   }
 
   MYSQL_RES *query(string q)

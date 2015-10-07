@@ -195,7 +195,7 @@ namespace slam
     {
       // Do not add very close frames
       double pose_diff = Tools::poseDiff3D(last_fixed_frame_pose_, c_frame_.getCameraPose());
-      if (pose_diff > 0.6)
+      if (pose_diff > 0.5)
       {
         addFrameToMap(c_frame_, cloud);
       }
