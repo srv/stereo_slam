@@ -3,23 +3,23 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake-mo
 
 project(stereo_slam)
 find_package(catkin REQUIRED COMPONENTS
-	roscpp
-	nav_msgs
-	tf
-	sensor_msgs
-	geometry_msgs
-	image_transport
-	message_filters
-	message_generation
-	cv_bridge
-	image_geometry
-	std_srvs
-	pcl_ros
-	cmake_modules
-	tf_conversions)
+  roscpp
+  nav_msgs
+  tf
+  sensor_msgs
+  geometry_msgs
+  image_transport
+  message_filters
+  message_generation
+  cv_bridge
+  image_geometry
+  std_srvs
+  pcl_ros
+  cmake_modules
+  tf_conversions)
 
 ## Declare ROS messages and services
-add_message_files(FILES SlamInfo.msg SlamVertex.msg SlamEdge.msg Correction.msg GraphData.msg)
+add_message_files(FILES GraphPoses.msg)
 generate_messages(DEPENDENCIES std_msgs)
 
 ####################################################
@@ -31,9 +31,6 @@ find_package(Eigen REQUIRED)
 
 # Dependencies - PCL:
 find_package(PCL REQUIRED)
-
-# Dependencies - Libhaloc:
-find_package(libhaloc REQUIRED)
 
 # Dependencies - OpenCV:
 find_package(OpenCV REQUIRED)
@@ -50,49 +47,53 @@ find_package(G2O REQUIRED)
 # Dependencies - Vtk
 find_package(VTK REQUIRED)
 
+# Dependencies - MySql
+find_package(mysqlclient REQUIRED)
+
 catkin_package(CATKIN_DEPENDS message_runtime)
 
 include_directories(include
-						${catkin_INCLUDE_DIRS}
-						${Eigen_INCLUDE_DIRS}
-						${libhaloc_INCLUDE_DIRS}
-						${OpenCV_INCLUDE_DIRS}
-						${SUITESPARSE_INCLUDE_DIRS}
-						${G2O_INCLUDE_DIRS}
-						${PCL_INCLUDE_DIRS}
-						${VTK_INCLUDE_DIRS})
+  ${catkin_INCLUDE_DIRS}
+  ${Eigen_INCLUDE_DIRS}
+  ${libhaloc_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  ${SUITESPARSE_INCLUDE_DIRS}
+  ${G2O_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
+  ${VTK_INCLUDE_DIRS}
+  ${MYSQL_INCLUDE_DIRS})
+
+add_definitions(${MYSQL_DEFINITIONS})
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -march=native")
 
 # Localization node
 add_executable(localization
-						src/localization/node.cpp
-						src/localization/base.cpp
-						src/localization/graph.cpp
-						src/localization/pose.cpp)
-target_link_libraries(	localization
-						${eigen_LIBRARIES}
-						${libhaloc_LIBRARIES}
-						${OpenCV_LIBRARIES}
-						${SUITESPARSE_LIBRARIES}
-						${G2O_LIBRARIES}
-						cholmod
-						${catkin_LIBRARIES})
+  src/node.cpp
+  src/frame.cpp
+  src/publisher.cpp
+  src/tracking.cpp
+  src/ldb.cpp
+  src/graph.cpp
+  src/hash.cpp
+  src/loop_closing.cpp
+  src/cluster.cpp)
+
+target_link_libraries(localization
+  ${eigen_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  ${SUITESPARSE_LIBRARIES}
+  ${G2O_LIBRARIES}
+  cholmod
+  ${catkin_LIBRARIES})
+
 add_dependencies(localization stereo_slam_gencpp)
 
-# Reconstruction nodes
-add_executable(offline_reconstruction
-						src/reconstruction/offline/node.cpp
-						src/reconstruction/offline/base.cpp)
-target_link_libraries(offline_reconstruction
-						${eigen_LIBRARIES}
-						${catkin_LIBRARIES})
-add_executable(registration
-						src/reconstruction/online/registration.cpp)
-target_link_libraries(registration
-						${eigen_LIBRARIES}
-						${catkin_LIBRARIES})
-add_executable(viewer
-						src/reconstruction/online/viewer.cpp)
-target_link_libraries(viewer
-						${eigen_LIBRARIES}
-						${VTK_LIBRARIES}
-						${catkin_LIBRARIES})
+add_executable(save_clouds
+  src/reconstruction/save_clouds.cpp)
+
+target_link_libraries(save_clouds
+  ${eigen_LIBRARIES}
+  ${MYSQL_LIBRARIES}
+  ${catkin_LIBRARIES})
