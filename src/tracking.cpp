@@ -23,6 +23,7 @@ namespace slam
 
     pose_pub_ = nhp.advertise<nav_msgs::Odometry>("odometry", 1);
     pc_pub_ = nhp.advertise<sensor_msgs::PointCloud2>("pointcloud", 5);
+    overlapping_pub_ = nhp.advertise<sensor_msgs::Image>("tracking_overlap", 1, true);
 
     image_transport::ImageTransport it(nh);
 
@@ -185,20 +186,54 @@ namespace slam
 
   void Tracking::needNewKeyFrame(PointCloudRGB::Ptr cloud)
   {
+    // Filter cloud
+    PointCloudRGB::Ptr cloud_filtered;
+    cloud_filtered = filterCloud(cloud);
+
     // Init initialization
     if (state_ == INITIALIZING)
     {
-      addFrameToMap(c_frame_, cloud);
+      addFrameToMap(c_frame_, cloud_filtered);
       state_ = WORKING;
     }
     else
     {
-      // Do not add very close frames
-      double pose_diff = Tools::poseDiff3D(last_fixed_frame_pose_, c_frame_.getCameraPose());
-      if (pose_diff > 0.5)
-      {
-        addFrameToMap(c_frame_, cloud);
-      }
+      // Compute overlap to decide if new keyframe is needed.
+
+      // The transformation between last and current keyframe
+      tf::Transform last_2_current = last_fixed_frame_pose_.inverse() * c_frame_.getCameraPose();
+
+      // Speedup the process by converting the current pointcloud to xyz
+      PointCloudXYZ::Ptr cloud_xyz(new PointCloudXYZ);
+      pcl::copyPointCloud(*cloud_filtered, *cloud_xyz);
+
+      // Transform the current pointcloud
+      Eigen::Affine3d tf_eigen;
+      transformTFToEigen(last_2_current, tf_eigen);
+      PointCloudXYZ::Ptr cloud_xyz_moved(new PointCloudXYZ);
+      pcl::transformPointCloud(*cloud_xyz, *cloud_xyz_moved, tf_eigen);
+
+      // Remove the points that are outside the current pointcloud
+      PointCloudXYZ::Ptr output(new PointCloudXYZ);
+      pcl::CropBox<PointXYZ> crop_filter;
+      crop_filter.setInputCloud(cloud_xyz_moved);
+      crop_filter.setMin(last_min_pt_);
+      crop_filter.setMax(last_max_pt_);
+      crop_filter.filter(*output);
+
+      // The overlap estimation
+      float overlap = output->points.size() * 100 / cloud_xyz_moved->points.size();
+
+      // Safety factor
+      overlap = (0.002 * overlap + 0.8) * overlap;
+
+      // Publish debugging image
+      if (overlapping_pub_.getNumSubscribers() > 0)
+        publishOverlap(cloud_xyz, last_2_current, overlap);
+
+      // Add frame when overlap is less than...
+      if (overlap < TRACKING_MIN_OVERLAP)
+        addFrameToMap(c_frame_, cloud_filtered);
     }
   }
 
@@ -217,20 +252,20 @@ namespace slam
         graph_->addFrameToQueue(frame);
         last_fixed_frame_pose_ = frame.getCameraPose();
 
+        // Store minimum and maximum values of last pointcloud
+        pcl::getMinMax3D(*cloud, last_min_pt_, last_max_pt_);
+
         // Publish cloud
         if (pc_pub_.getNumSubscribers() > 0)
         {
-          // Filter cloud
-          PointCloudRGB::Ptr cloud_filtered;
-          cloud_filtered = filterCloud(cloud);
-          if (cloud_filtered->points.size() == 0) return;
+          if (cloud->points.size() == 0) return;
 
           // Publish
           string frame_id_str = Tools::convertTo5digits(frame_id_);
           sensor_msgs::PointCloud2 cloud_msg;
-          pcl::toROSMsg(*cloud_filtered, cloud_msg);
+          pcl::toROSMsg(*cloud, cloud_msg);
           cloud_msg.header.frame_id = frame_id_str; // write the keyframe id to the frame id of the message ;)
-          pc_pub_.publish(cloud_msg); 
+          pc_pub_.publish(cloud_msg);
         }
 
         // Increase the frame id counter
@@ -248,12 +283,55 @@ namespace slam
 
     // Voxel grid filter (used as x-y surface extraction. Note that leaf in z is very big)
     pcl::ApproximateVoxelGrid<PointRGB> grid;
-    grid.setLeafSize(0.01, 0.01, 0.05);
+    grid.setLeafSize(0.08, 0.08, 0.1);
     grid.setDownsampleAllData(true);
     grid.setInputCloud(cloud);
     grid.filter(*cloud);
 
     return cloud;
+  }
+
+  void Tracking::publishOverlap(PointCloudXYZ::Ptr cloud, tf::Transform movement, float overlap)
+  {
+    int w = 512;
+    int h = 384;
+    cv::Mat img(h, w, CV_8UC3, cv::Scalar(0,0,0));
+
+    // Draw last fixed frame bounding box
+    cv::rectangle(img, cv::Point(3*w/8, 3*h/8), cv::Point(5*w/8, 5*h/8), cv::Scalar(255, 255, 255) );
+
+    float w_scale = (w/4) / (last_max_pt_(0) - last_min_pt_(0));
+    float h_scale = (h/4) / (last_max_pt_(1) - last_min_pt_(1));
+
+    // Get boundaries and transform them
+    PointXYZ min_pt, max_pt;
+    pcl::getMinMax3D(*cloud, min_pt, max_pt);
+    tf::Vector3 p1(min_pt.x, max_pt.y, 0.0);
+    tf::Vector3 p2(max_pt.x, max_pt.y, 0.0);
+    tf::Vector3 p3(max_pt.x, min_pt.y, 0.0);
+    tf::Vector3 p4(min_pt.x, min_pt.y, 0.0);
+    p1 = movement * p1;
+    p2 = movement * p2;
+    p3 = movement * p3;
+    p4 = movement * p4;
+
+    // Draw polygon
+    cv::line(img, cv::Point(w/2 + p1.x()*w_scale, h/2 + p1.y()*h_scale), cv::Point(w/2 + p2.x()*w_scale, h/2 + p2.y()*h_scale), cv::Scalar(255,0,0));
+    cv::line(img, cv::Point(w/2 + p2.x()*w_scale, h/2 + p2.y()*h_scale), cv::Point(w/2 + p3.x()*w_scale, h/2 + p3.y()*h_scale), cv::Scalar(255,0,0));
+    cv::line(img, cv::Point(w/2 + p3.x()*w_scale, h/2 + p3.y()*h_scale), cv::Point(w/2 + p4.x()*w_scale, h/2 + p4.y()*h_scale), cv::Scalar(255,0,0));
+    cv::line(img, cv::Point(w/2 + p4.x()*w_scale, h/2 + p4.y()*h_scale), cv::Point(w/2 + p1.x()*w_scale, h/2 + p1.y()*h_scale), cv::Scalar(255,0,0));
+
+    // Insert text
+    stringstream s;
+    s << "Overlap: " << (int)overlap << "%";
+    cv::putText(img, s.str(), cv::Point(30, h-20), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255, 255, 255), 2, 8);
+
+    // Publish
+    cv_bridge::CvImage ros_image;
+    ros_image.image = img.clone();
+    ros_image.header.stamp = ros::Time::now();
+    ros_image.encoding = "bgr8";
+    overlapping_pub_.publish(ros_image.toImageMsg());
   }
 
 } //namespace slam

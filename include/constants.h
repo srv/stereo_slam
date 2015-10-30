@@ -15,13 +15,24 @@ namespace slam
 
   static const string WORKING_DIRECTORY = ros::package::getPath("stereo_slam") + "/";
 
-  static const int LC_MIN_INLIERS = 40; // 40
+  static const int LC_MIN_INLIERS = 40;
 
-  static const int LC_MAX_INLIERS = 150; // 150
+  static const int LC_MAX_INLIERS = 150;
 
-  static const int LC_NEIGHBORS = 6; // 6
+  static const int LC_NEIGHBORS = 6;
 
-  static const int LC_DISCARD_WINDOW = 10; // 20
+  static const int LC_DISCARD_WINDOW = 15;
+
+  static const float TRACKING_MIN_OVERLAP = 80;
+
+  /*
+  DEFAULT VALUES ARE:
+  LC_MIN_INLIERS        = 40
+  LC_MAX_INLIERS        = 150
+  LC_NEIGHBORS          = 6
+  LC_DISCARD_WINDOW     = 15
+  TRACKING_MIN_OVERLAP  = 80
+  */
 
 } // namespace
 
