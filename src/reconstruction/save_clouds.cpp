@@ -151,7 +151,7 @@ class SaveClouds
     PointCloud::Ptr cloud(new PointCloud);
     fromROSMsg(*cloud_msg, *cloud);
 
-    // Extract the frame id (frame referes to image, not coordinate system)
+    // Extract the frame id (frame refers to image, not coordinate system)
     int frame_id = lexical_cast<int>(cloud_msg->header.frame_id);
 
     // Save cloud to pcd
@@ -164,7 +164,7 @@ class SaveClouds
     if (save_db_)
     {
       // Save cloud into the history
-      mutex::scoped_lock lock(mutex_pc_);
+      mutex::scoped_lock(mutex_pc_);
       pointclouds_list_.push_back(make_pair(frame_id, cloud));
 
       // Save cloud min and max

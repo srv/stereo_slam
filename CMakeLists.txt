@@ -79,7 +79,6 @@ add_executable(localization
   src/hash.cpp
   src/loop_closing.cpp
   src/cluster.cpp)
-
 target_link_libraries(localization
   ${eigen_LIBRARIES}
   ${OpenCV_LIBRARIES}
@@ -87,13 +86,17 @@ target_link_libraries(localization
   ${G2O_LIBRARIES}
   cholmod
   ${catkin_LIBRARIES})
-
 add_dependencies(localization stereo_slam_gencpp)
 
 add_executable(save_clouds
   src/reconstruction/save_clouds.cpp)
-
 target_link_libraries(save_clouds
   ${eigen_LIBRARIES}
   ${MYSQL_LIBRARIES}
+  ${catkin_LIBRARIES})
+
+add_executable(icp
+  src/reconstruction/icp.cpp)
+target_link_libraries(icp
+  ${eigen_LIBRARIES}
   ${catkin_LIBRARIES})
