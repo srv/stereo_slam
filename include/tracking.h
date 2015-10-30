@@ -23,6 +23,7 @@
 #include <pcl/common/common.h>
 #include <pcl/filters/filter.h>
 #include <pcl/filters/approximate_voxel_grid.h>
+#include <pcl/filters/crop_box.h>
 
 #include <opencv2/opencv.hpp>
 
@@ -37,8 +38,9 @@ using namespace std;
 using namespace boost;
 namespace fs  = filesystem;
 
-
+typedef pcl::PointXYZ                     PointXYZ;
 typedef pcl::PointXYZRGB                  PointRGB;
+typedef pcl::PointCloud<PointXYZ>         PointCloudXYZ;
 typedef pcl::PointCloud<PointRGB>         PointCloudRGB;
 
 namespace slam
@@ -138,6 +140,14 @@ protected:
    */
   PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr in_cloud);
 
+  /** \brief Publishes the overlapping debug image
+   * @return
+   * \param current pointcloud
+   * \param the transformation of current pointcloud to the last fixed frame
+   * \param the overlap
+   */
+  void publishOverlap(PointCloudXYZ::Ptr cloud, tf::Transform movement, float overlap);
+
 private:
 
   Params params_; //!> Stores parameters.
@@ -156,11 +166,16 @@ private:
 
   ros::Publisher pose_pub_; //!> Corrected pose publisher
 
+  ros::Publisher overlapping_pub_; //!> Consecutive image overlapping publisher
+
   image_geometry::StereoCameraModel camera_model_; //!> Stereo camera model
 
   Graph* graph_; //!> Graph
 
   tf::Transform last_fixed_frame_pose_; //!> Stores the last fixed frame pose
+
+  Eigen::Vector4f last_min_pt_; // Stores the last fixed frame minimum and maximum points
+  Eigen::Vector4f last_max_pt_;
 
   int frame_id_; //!> Processed frames counter
 

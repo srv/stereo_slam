@@ -163,7 +163,10 @@ namespace slam
       bool valid = closeLoopWithCluster(candidate);
 
       if (valid)
+      {
         ROS_INFO("By hash");
+        break;
+      }
     }
   }
 

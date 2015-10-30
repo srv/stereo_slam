@@ -6,6 +6,7 @@
 
 #include <pcl/point_types.h>
 #include <pcl_ros/point_cloud.h>
+#include <pcl_ros/transforms.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/common/common.h>
 #include <pcl/filters/crop_box.h>
@@ -164,13 +165,13 @@ class SaveClouds
     {
       // Save cloud into the history
       mutex::scoped_lock lock(mutex_pc_);
-      pointclouds_list_.push_back(make_pair(frame_id, cloud)); 
+      pointclouds_list_.push_back(make_pair(frame_id, cloud));
 
       // Save cloud min and max
       pcl::PointXYZRGB min, max;
       pcl::getMinMax3D(*cloud, min, max);
       PointCloudMinMax minmax(min, max);
-      pointclouds_minmax_.push_back(make_pair(frame_id, minmax)); 
+      pointclouds_minmax_.push_back(make_pair(frame_id, minmax));
     }
   }
 
@@ -189,7 +190,7 @@ class SaveClouds
       int rgb = *reinterpret_cast<const int*>(&(cloud->points[n].rgb));
       uint8_t uint_r = (rgb >> 16) & 0x0000ff;
       uint8_t uint_g = (rgb >> 8)  & 0x0000ff;
-      uint8_t uint_b = (rgb)       & 0x0000ff; 
+      uint8_t uint_b = (rgb)       & 0x0000ff;
       string r = lexical_cast<string>((int)uint_r);
       string g = lexical_cast<string>((int)uint_g);
       string b = lexical_cast<string>((int)uint_b);
@@ -269,8 +270,8 @@ class SaveClouds
       {
         mutex::scoped_lock(mutex_pc_);
         frame_id = pointclouds_list_[i].first;
-        cloud = pointclouds_list_[i].second; 
-      } 
+        cloud = pointclouds_list_[i].second;
+      }
 
       // First cloud will be inserted directly
       first_frame_id = pointclouds_minmax[0].first;
@@ -278,7 +279,7 @@ class SaveClouds
       {
         insertPointCloud(cloud, lexical_cast<string>(frame_id));
         erase_ids.push_back(frame_id);
-      } 
+      }
       else
       {
         // Extract the min/max and the pose of the previous pointcloud
