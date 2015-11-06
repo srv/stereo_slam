@@ -55,7 +55,6 @@ catkin_package(CATKIN_DEPENDS message_runtime)
 include_directories(include
   ${catkin_INCLUDE_DIRS}
   ${Eigen_INCLUDE_DIRS}
-  ${libhaloc_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${SUITESPARSE_INCLUDE_DIRS}
   ${G2O_INCLUDE_DIRS}

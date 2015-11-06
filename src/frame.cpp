@@ -14,9 +14,13 @@ namespace slam
 
   Frame::Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp)
   {
+    // Init
+    id_ = -1;
+    stamp_ = timestamp;
+    num_inliers_with_prev_frame_ = LC_MIN_INLIERS;
+
     l_img.copyTo(l_img_);
     r_img.copyTo(r_img_);
-    stamp_ = timestamp;
 
     // Convert images to grayscale
     cv::Mat l_img_gray, r_img_gray;

@@ -72,11 +72,11 @@ namespace slam
     // The clusters of this frame
     vector< vector<int> > clusters = frame.getClusters();
 
-    // Increase the counter
-    frame_id_++;
+    // Frame id
+    frame_id_ = frame.getId();
 
     // Save the frame
-    saveFrame(frame, frame_id_);
+    saveFrame(frame);
 
     // Save the frame timestamp
     frame_stamps_.push_back(frame.getTimestamp());
@@ -97,7 +97,7 @@ namespace slam
       // Correct cluster pose with the last graph update
       tf::Transform cluster_pose = Tools::transformVector4f(cluster_centroids[i], camera_pose);
       tf::Transform corrected_cluster_pose = correctClusterPose(cluster_pose);
-      initial_pose_history_.push_back(cluster_pose);
+      initial_cluster_pose_history_.push_back(cluster_pose);
 
       // Add cluster to the graph
       int id = addVertex(corrected_cluster_pose);
@@ -183,7 +183,7 @@ namespace slam
       if (closest_vertices.size() > 0)
       {
         tf::Transform edge = closest_poses[0].inverse() * closest_poses[1];
-        addEdge(closest_vertices[0], closest_vertices[1], edge, LC_MIN_INLIERS);
+        addEdge(closest_vertices[0], closest_vertices[1], edge, frame.getInliersNumWithPreviousFrame());
       }
       else
         ROS_ERROR("[Localization:] Impossible to connect current and previous frame. Graph will have non-connected parts!");
@@ -201,8 +201,10 @@ namespace slam
       mutex::scoped_lock lock(mutex_graph_);
       last_idx = graph_optimizer_.vertices().size() - 1;
     }
-    tf::Transform updated_camera_pose = getVertexCameraPose(last_idx);
-    publishCameraPose(updated_camera_pose);
+    tf::Transform updated_camera_pose;
+    bool ok = getVertexCameraPose(last_idx, updated_camera_pose, true);
+    if (ok)
+      publishCameraPose(updated_camera_pose);
   }
 
   tf::Transform Graph::correctClusterPose(tf::Transform initial_pose)
@@ -214,39 +216,17 @@ namespace slam
       last_idx = graph_optimizer_.vertices().size() - 1;
     }
 
-    if (initial_pose_history_.size() > 0 && last_idx >= 0)
+    if (initial_cluster_pose_history_.size() > 0 && last_idx >= 0)
     {
       tf::Transform last_graph_pose = getVertexPose(last_idx);
-      tf::Transform last_graph_initial = initial_pose_history_.at(last_idx);
-      tf::Transform odom_diff = last_graph_initial.inverse() * initial_pose;
+      tf::Transform last_graph_initial = initial_cluster_pose_history_.at(last_idx);
+      tf::Transform diff = last_graph_initial.inverse() * initial_pose;
 
       // Compute the corrected pose
-      return last_graph_pose * odom_diff;
+      return last_graph_pose * diff;
     }
     else
       return initial_pose;
-  }
-
-  tf::Transform Graph::correctOdometry(tf::Transform odometry)
-  {
-    // Get last
-    int last_idx = -1;
-    {
-      mutex::scoped_lock lock(mutex_graph_);
-      last_idx = graph_optimizer_.vertices().size() - 1;
-    }
-
-    if (initial_pose_history_.size() > 0 && last_idx >= 0)
-    {
-      tf::Transform last_graph_pose = getVertexPose(last_idx);
-      tf::Transform last_graph_initial = initial_pose_history_.at(last_idx);
-      tf::Transform odom_diff = last_graph_initial.inverse() * odometry;
-
-      // Compute the corrected pose
-      return last_graph_pose * odom_diff;
-    }
-    else
-      return odometry;
   }
 
   vector< vector<int> > Graph::createComb(vector<int> cluster_ids)
@@ -383,6 +363,33 @@ namespace slam
     return frame_id;
   }
 
+  int Graph::getVertexIdOfFrame(int frame_id)
+  {
+    int vertex_id = -1;
+    for (uint i=0; i<cluster_frame_relation_.size(); i++)
+    {
+      if (cluster_frame_relation_[i].second == frame_id)
+      {
+        vertex_id = cluster_frame_relation_[i].first;
+        break;
+      }
+    }
+    return vertex_id;
+  }
+
+  int Graph::getLastVertexFrameId()
+  {
+    // Get last
+    int last_idx = -1;
+    {
+      mutex::scoped_lock lock(mutex_graph_);
+      last_idx = graph_optimizer_.vertices().size() - 1;
+    }
+
+    return getVertexFrameId(last_idx);
+  }
+
+
   tf::Transform Graph::getVertexPose(int id, bool lock)
   {
     if (lock)
@@ -406,13 +413,19 @@ namespace slam
     return local_cluster_poses_[id];
   }
 
-  tf::Transform Graph::getVertexCameraPose(int id, bool lock)
+  bool Graph::getVertexCameraPose(int id, tf::Transform& vertex_camera_pose, bool lock)
   {
+    vertex_camera_pose.setIdentity();
+
+    if (id > (int)local_cluster_poses_.size())
+      return false;
+
     tf::Transform vertex_pose = getVertexPose(id, lock);
-    return vertex_pose * local_cluster_poses_[id].inverse();
+    vertex_camera_pose = vertex_pose * local_cluster_poses_[id].inverse();
+    return true;
   }
 
-  void Graph::saveFrame(Frame frame, int frame_id)
+  void Graph::saveFrame(Frame frame)
   {
     cv::Mat img;
     frame.getLeftImg().copyTo(img);
@@ -431,7 +444,7 @@ namespace slam
     // }
 
     // Save
-    string frame_id_str = Tools::convertTo5digits(frame_id);
+    string frame_id_str = Tools::convertTo5digits(frame.getId());
     string keyframe_file = WORKING_DIRECTORY + "keyframes/" + frame_id_str + ".jpg";
     cv::imwrite( keyframe_file, img );
   }
@@ -474,7 +487,8 @@ namespace slam
       if (found) continue;
       processed_frames.push_back(id);
 
-      tf::Transform pose = getVertexCameraPose(i, false);//*camera2odom_;
+      tf::Transform pose;
+      getVertexCameraPose(i, pose, false);//*camera2odom_;
       f_vertices << fixed <<
         setprecision(6) <<
         frame_stamps_[id] << "," <<
@@ -503,8 +517,9 @@ namespace slam
         if (abs(frame_a - frame_b) > 1 )
         {
 
-          tf::Transform pose_0 = getVertexCameraPose(e->vertices()[0]->id(), false)*camera2odom_;
-          tf::Transform pose_1 = getVertexCameraPose(e->vertices()[1]->id(), false)*camera2odom_;
+          tf::Transform pose_0, pose_1;
+          getVertexCameraPose(e->vertices()[0]->id(), pose_0, false);//*camera2odom_;
+          getVertexCameraPose(e->vertices()[1]->id(), pose_1, false);//*camera2odom_;
 
           // Extract the inliers
           Eigen::Matrix<double, 6, 6> information = e->information();
@@ -559,6 +574,8 @@ namespace slam
   {
     if (graph_pub_.getNumSubscribers() > 0)
     {
+      mutex::scoped_lock lock(mutex_graph_);
+
       // Build the graph data
       vector<int> ids;
       vector<double> x, y, z, qx, qy, qz, qw;
@@ -578,7 +595,8 @@ namespace slam
         if (found) continue;
         processed_frames.push_back(id);
 
-        tf::Transform pose = getVertexCameraPose(i, false);
+        tf::Transform pose;
+        getVertexCameraPose(i, pose, false);
         ids.push_back(id);
         x.push_back(pose.getOrigin().x());
         y.push_back(pose.getOrigin().y());

@@ -93,6 +93,17 @@ public:
    */
   int getVertexFrameId(int id);
 
+  /** \brief Get the vertex id of some specific frame
+   * @return the vertex id
+   * \param frame id
+   */
+  int getVertexIdOfFrame(int frame_id);
+
+  /** \brief Get the last vertex frame id
+   * @return the frame id
+   */
+  int getLastVertexFrameId();
+
   /** \brief Get the graph vertex pose
    * @return graph vertex pose
    * \param vertex id
@@ -109,14 +120,10 @@ public:
   /** \brief Get the camera pose of some specific vertex
    * @return graph vertex camera pose
    * \param vertex id
+   * \param true to lock the graph
+   * \param graph vertex camera pose
    */
-  tf::Transform getVertexCameraPose(int id, bool lock = true);
-
-  /** \brief Correct the odometry with the last graph information
-   * @return corrected odometry
-   * \param original odometry
-   */
-  tf::Transform correctOdometry(tf::Transform odometry);
+  bool getVertexCameraPose(int id, tf::Transform& vertex_camera_pose, bool lock = true);
 
   /** \brief Set the transformation between camera and robot odometry frame
    * \param the transform
@@ -176,7 +183,7 @@ protected:
 
   /** \brief Save the frame to the default location
    */
-  void saveFrame(Frame frame, int frame_id);
+  void saveFrame(Frame frame);
 
   /** \brief Save the graph to file
    */
@@ -187,7 +194,7 @@ protected:
    */
   void publishCameraPose(tf::Transform camera_pose);
 
-  /** \brief Publishes all the graph 
+  /** \brief Publishes all the graph
    */
   void publishGraph();
 
@@ -203,7 +210,7 @@ private:
 
   vector<tf::Transform> local_cluster_poses_; //!> Stores the cluster poses relative to camera frame
 
-  vector<tf::Transform> initial_pose_history_; //!> Stores the initial cluster poses, before graph update.
+  vector<tf::Transform> initial_cluster_pose_history_; //!> Stores the initial cluster poses, before graph update.
 
   vector<double> frame_stamps_; //> Stores the frame timestamps
 

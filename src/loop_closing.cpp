@@ -644,7 +644,9 @@ namespace slam
     fs.release();
 
     // Set the properties of the cluster
-    Cluster cluster_tmp(id, frame_id, graph_->getVertexCameraPose(id), kp, desc, empty, points);
+    tf::Transform vertex_camera_pose;
+    graph_->getVertexCameraPose(id, vertex_camera_pose, true);
+    Cluster cluster_tmp(id, frame_id, vertex_camera_pose, kp, desc, empty, points);
     cluster = cluster_tmp;
 
     return cluster;
