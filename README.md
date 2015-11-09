@@ -1,17 +1,20 @@
 Stereo SLAM
 =============
 
-stereo_slam is a [ROS][link_ros] node to execute Simultaneous Localization And Mapping (SLAM) using only one stereo camera. The algorithm was designed and tested for underwater robotics. This node is based on the [G2O][link_g2o] library for graph optimization and uses the power of [libhaloc][link_libhaloc] to find loop closures between graph nodes. The workflow of the stereo_slam node is as follows:
-
-![alt tag](https://raw.github.com/srv/stereo_slam/hydro/resources/flowchart.png)
+stereo_slam is a [ROS][link_ros] node to execute Simultaneous Localization And Mapping (SLAM) using only one stereo camera. The algorithm was designed and tested for underwater robotics. This node is based on the [G2O][link_g2o] library for graph optimization and uses the power of [libhaloc][link_libhaloc] to find loop closures between graph nodes. It uses a keyframe to multi-keyframe loop closing mechanism, based on keypoint clustering, to improve the SLAM corrections on feature-poor environments.
 
 You can see it in action here:
 
 [![Alt text for your video](http://img.youtube.com/vi/h3FfXafuOvE/0.jpg)](http://www.youtube.com/watch?v=h3FfXafuOvE)
 
+Specially designed for underwater scenarios:
+
+[Video: ORB-SLAM vs Stereo SLAM (underwater)][link_yt_3]
+
 More videos...
-[Stereo SLAM and 3D reconstruction ][link_yt_1] and
-[Stereo SLAM at UIB outdoor pond][link_yt_2]
+
+[Video: Stereo SLAM and 3D reconstruction ][link_yt_1] and
+[Video: Stereo SLAM at UIB outdoor pond][link_yt_2]
 
 Installation (Ubuntu + ROS Indigo)
 -------
@@ -20,8 +23,6 @@ Installation (Ubuntu + ROS Indigo)
 ```bash
 sudo apt-get install ros-<your ros distro>-libg2o
 ```
-
-Install libhaloc as specified here: [libhaloc][link_libhaloc].
 
 You also need to setup a stereo visual odometer (e.g. [viso2][link_viso2] or [fovis][link_fovis]).
 
@@ -37,43 +38,57 @@ rosmake
 Parameters
 -------
 
-### Most important ###
-
 * `odom_topic` - Visual odometry topic (type nav_msgs::Odometry).
-* `left_topic` - Left image camera topic (type sensor_msgs::Image).
-* `right_topic` - Right image camera topic (type sensor_msgs::Image).
-* `left_info_topic` - Left info camera topic (type sensor_msgs::CameraInfo).
-* `right_info_topic` - Right info camera topic (type sensor_msgs::CameraInfo).
-* `min_displacement` - Min displacement between graph vertices (in meters).
-* `min_matches` - Minimun number of descriptor matches to consider a matching as possible loop closure. If you don't have loop closings, try to decrease this parameter (minimum value = 8).
-* `min_inliers` - Minimum number of inliers between loop closing candidates. If you don't have loop closings, try to decrease this parameter (minimum value = 7).
+* `camera_topic` - The namespace of your stereo camera.
 
+Other (hard-coded) parameters
 
-### Other parameters (do not touch by default) ###
-
-#### G2O Library ####
-* `g2o_algorithm` - Set to 0 for LinearSlam Solver with gauss-newton. Set to 1 for LinearSlam Solver with Levenberg (Default 1).
-* `g2o_opt_max_iter` - Maximum number of g2o alogirthm iterations (typically between 10-50)
-
-#### Graph ####
-* `min_neighbor` - Minimum number of neighbors to considerate for loop closing.
-
-#### Stereo vision ####
-* `desc_type` - Can be SIFT or SURF (SIFT by default).
-* `desc_thresh` - Descriptor threshold (for SIFT typically between 0.8-0.9).
-
-#### Topics ####
-* `pose_frame_id` - Frame name where pose will be published.
-* `pose_child_frame_id` - Child frame name of the pose.
+* `include/constants.h` - Contains the set of node parameters. Default parameters should work.
 
 
 Run the node
 -------
 
-You can run the node using the launch file located at launch/demo.launch:
+You can run the node using the following launch file (please, for a better performance scale your images if more than 960px width).
+
 ```bash
-roslaunch stereo_slam demo.launch
+<launch>
+  <arg name="camera" default="/stereo"/>
+  
+  <!-- Run the stereo image proc -->
+  <node ns="$(arg camera)" pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc" />
+  
+  <node pkg="viso2_ros" type="stereo_odometer" name="stereo_odometer">
+    <remap from="stereo" to="$(arg camera)"/>
+    <remap from="image" to="image_rect"/>
+  </node>
+  
+  <node pkg="stereo_slam" type="localization" name="stereo_slam" output="screen">
+    <param name="odom_topic" value="/stereo_odometer/odometry"/>
+    <param name="camera_topic" value="$(arg camera)"/>
+  </node>
 ```
+
+Published Topics
+-------
+* `/stereo_slam/odometry` - The vehicle pose (type nav_msgs::Odometry).
+* `/stereo_slam/graph_poses` - The updated graph poses (type stereo_slam::GraphPoses).
+* `/stereo_slam/keyframes` - Number of inserted keyframes (type std_msgs::String).
+* `/stereo_slam/keypoints_clustering` - Image containing the keypoint clusters (type sensor_msgs::Image).
+* `/stereo_slam/loop_closing_matchings` - Image of the loop closing correspondences. Correspondences are keyframe-to-multi-keyframe (type sensor_msgs::Image).
+* `/stereo_slam/loop_closing_queue` - Number of keyframes waiting on the loop closing queue. Please monitor this topic, to check the real-time performance: if this number grows indefinitely it means that your system is not able to process all the keyframes, then, scale your images. (type std_msgs::String).
+* `/stereo_slam/loop_closings` - Number of loop closings found (type std_msgs::String).
+* `/stereo_slam/pointcloud` - The pointcloud for every keyframe (type sensor_msgs::PointCloud2).
+* `/stereo_slam/tracking_overlap` - Image containing a representation of the traking overlap. Used to decide when to insert a new keyframe into the graph (type sensor_msgs::Image).
+
+
+Saved data
+-------
+The node stores some data into the stereo_slam directory during the execution:
+* `haloc` - A folder containing all the files needed for the libhaloc library, which is responsible for loop closing detection. You do not need this folder at all.
+* `keyframes` - Stores the left stereo image for every keyframe (with the possibility of drawing the keypoint clustering over the image).
+* `loop_closures` - Stores all the images published in the topic `/stereo_slam/loop_closing_matchings`.
+* `pointclouds` - Stores all the pointclouds published in the topic `/stereo_slam/pointcloud`.
 
 
 Online graph viewer
@@ -86,6 +101,14 @@ usage: 	graph_viewer.py [-h]
 	ground_truth_file visual_odometry_file
 	graph_vertices_file graph_edges_file
 ```
+
+or (automatically detect the graph files):
+
+```bash
+roscd stereo_slam
+./scripts/graph_viewer.py
+```
+
 
 The odometry file can be recorded directly from ros using:
 ```bash
@@ -122,3 +145,4 @@ This script perform a set of operations in order to evaluate the performance of 
 [link_libhaloc]: https://github.com/srv/libhaloc
 [link_yt_1]: http://www.youtube.com/watch?v=GXOhWmzSqUM
 [link_yt_2]: http://www.youtube.com/watch?v=8NR6ono1SUI
+[link_yt_3]: https://www.youtube.com/watch?v=C4U8eaPzrLg
