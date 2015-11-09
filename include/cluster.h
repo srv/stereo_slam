@@ -28,7 +28,7 @@ public:
 
   /** \brief Class constructor
    */
-  Cluster(int id, int frame_id, tf::Transform camera_pose, vector<cv::KeyPoint> kp, cv::Mat ldb_desc, cv::Mat sift_desc, vector<cv::Point3f> points);
+  Cluster(int id, int frame_id, tf::Transform camera_pose, vector<cv::KeyPoint> kp, cv::Mat orb_desc, cv::Mat sift_desc, vector<cv::Point3f> points);
 
   /** \brief Computes and returns the 3D points in world coordinates
    * @return the 3D points in world coordinates
@@ -47,9 +47,9 @@ public:
    */
   inline vector<cv::KeyPoint> getKp() const {return kp_;}
 
-  /** \brief Get ldb descriptors
+  /** \brief Get orb descriptors
    */
-  inline cv::Mat getLdb() const {return ldb_desc_;}
+  inline cv::Mat getOrb() const {return orb_desc_;}
 
   /** \brief Get sift descriptors
    */
@@ -74,7 +74,7 @@ private:
 
   vector<cv::KeyPoint> kp_; //!> cv::KeyPoints.
 
-  cv::Mat ldb_desc_; //!> LDB descriptors
+  cv::Mat orb_desc_; //!> ORB descriptors
   cv::Mat sift_desc_; //!> Sift descriptors
 
   vector<cv::Point3f> points_; //!> Stereo 3D points in camera frame

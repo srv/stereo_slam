@@ -124,7 +124,7 @@ namespace slam
     cv::FileStorage fs(execution_dir_+"/"+lexical_cast<string>(c_cluster_.getId())+".yml", cv::FileStorage::WRITE);
     write(fs, "frame_id", c_cluster_.getFrameId());
     write(fs, "kp", c_cluster_.getKp());
-    write(fs, "desc", c_cluster_.getLdb());
+    write(fs, "desc", c_cluster_.getOrb());
     write(fs, "points", c_cluster_.getPoints());
     fs.release();
   }
@@ -136,7 +136,7 @@ namespace slam
     for (uint i=0; i<candidate_neighbors.size(); i++)
     {
       Cluster candidate = readCluster(candidate_neighbors[i]);
-      if (candidate.getLdb().rows == 0)
+      if (candidate.getOrb().rows == 0)
         continue;
 
       bool valid = closeLoopWithCluster(candidate);
@@ -157,7 +157,7 @@ namespace slam
     for (uint i=0; i<hash_matching.size(); i++)
     {
       Cluster candidate = readCluster(hash_matching[i].first);
-      if (candidate.getLdb().rows == 0)
+      if (candidate.getOrb().rows == 0)
         continue;
 
       bool valid = closeLoopWithCluster(candidate);
@@ -207,11 +207,11 @@ namespace slam
 
     // Descriptor matching
     vector<cv::DMatch> matches_1;
-    Tools::ratioMatching(c_cluster_.getLdb(), candidate.getLdb(), matching_th, matches_1);
+    Tools::ratioMatching(c_cluster_.getOrb(), candidate.getOrb(), matching_th, matches_1);
 
     // Compute the percentage of matchings
-    int size_c = c_cluster_.getLdb().rows;
-    int size_n = candidate.getLdb().rows;
+    int size_c = c_cluster_.getOrb().rows;
+    int size_n = candidate.getOrb().rows;
     int m_percentage = round(100.0 * (float) matches_1.size() / (float) min(size_c, size_n) );
 
     // Get the neighbor clusters if high percentage of matching
@@ -223,12 +223,11 @@ namespace slam
       vector<int> cluster_candidate_list;
       vector<cv::Point3f> all_candidate_points;
       vector<cv::KeyPoint> all_candidate_kp;
-      cv::Mat all_frame_desc = c_cluster_.getLdb();
+      cv::Mat all_frame_desc = c_cluster_.getOrb();
       vector<cv::KeyPoint> all_frame_kp = c_cluster_.getKp();
 
       // Check if 3D points of the candidate are in camera frustum
-      // filterByFrustum(candidate.getLdb(), candidate.getWorldPoints(), c_cluster_.getCameraPose(), all_candidate_desc, all_candidate_points);
-      all_candidate_desc = candidate.getLdb();
+      all_candidate_desc = candidate.getOrb();
       all_candidate_points = candidate.getWorldPoints();
       all_candidate_kp = candidate.getKp();
 
@@ -242,7 +241,7 @@ namespace slam
       for (uint j=0; j<candidate_neighbors.size(); j++)
       {
         Cluster candidate_neighbor = readCluster(candidate_neighbors[j]);
-        cv::Mat c_n_desc = candidate_neighbor.getLdb();
+        cv::Mat c_n_desc = candidate_neighbor.getOrb();
         if (c_n_desc.rows == 0) continue;
 
         // Delete points outside of frustum
@@ -275,7 +274,7 @@ namespace slam
           continue;
 
         Cluster frame_cluster = readCluster(frame_clusters[j]);
-        cv::Mat f_n_desc = frame_cluster.getLdb();
+        cv::Mat f_n_desc = frame_cluster.getOrb();
         if (f_n_desc.rows == 0) continue;
 
         // Concatenate descriptors and keypoints
@@ -644,7 +643,8 @@ namespace slam
     fs.release();
 
     // Set the properties of the cluster
-    Cluster cluster_tmp(id, frame_id, graph_->getVertexCameraPose(id), kp, desc, empty, points);
+    tf::Transform vertex_camera_pose = graph_->getVertexCameraPose(id, true);
+    Cluster cluster_tmp(id, frame_id, vertex_camera_pose, kp, desc, empty, points);
     cluster = cluster_tmp;
 
     return cluster;

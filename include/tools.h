@@ -248,8 +248,8 @@ public:
       return tf::Transform();
 
     tf::Vector3 axis(rvec.at<double>(0, 0),
-               rvec.at<double>(1, 0),
-                 rvec.at<double>(2, 0));
+                     rvec.at<double>(1, 0),
+                     rvec.at<double>(2, 0));
     double angle = norm(rvec);
     tf::Quaternion quaternion(axis, angle);
 
@@ -257,54 +257,6 @@ public:
         tvec.at<double>(2, 0));
 
     return tf::Transform(quaternion, translation);
-  }
-
-  /** \brief convert tf::Transform to cv::Mat
-    * @return the transformation matrix in cv::Mat format
-    * \param input tf::Transform
-    */
-  static cv::Mat transformToMat(tf::Transform in)
-  {
-    //cv::Mat out(4,4,CV_32FC1);
-    cv::Mat out = cv::Mat::eye(4,4,CV_32FC1);
-    tf::Matrix3x3 rot = in.getBasis();
-    tf::Vector3 trans = in.getOrigin();
-    out.at<float>(0,0) = (float)rot[0][0];
-    out.at<float>(0,1) = (float)rot[0][1];
-    out.at<float>(0,2) = (float)rot[0][2];
-    out.at<float>(0,3) = (float)trans.x();
-    out.at<float>(1,0) = (float)rot[1][0];
-    out.at<float>(1,1) = (float)rot[1][1];
-    out.at<float>(1,2) = (float)rot[1][2];
-    out.at<float>(1,3) = (float)trans.y();
-    out.at<float>(2,0) = (float)rot[2][0];
-    out.at<float>(2,1) = (float)rot[2][1];
-    out.at<float>(2,2) = (float)rot[2][2];
-    out.at<float>(2,3) = (float)trans.z();
-    return out;
-  }
-
-  /** \brief convert cv::Mat to tf::Transform
-    * @return the transformation matrix in tf::Transform format
-    * \param input cv::Mat
-    */
-  static tf::Transform matToTransform(cv::Mat in)
-  {
-    tf::Matrix3x3 rot;
-    rot[0][0] = in.at<float>(0,0);
-    rot[0][1] = in.at<float>(0,1);
-    rot[0][2] = in.at<float>(0,2);
-    rot[1][0] = in.at<float>(1,0);
-    rot[1][1] = in.at<float>(1,1);
-    rot[1][2] = in.at<float>(1,2);
-    rot[2][0] = in.at<float>(2,0);
-    rot[2][1] = in.at<float>(2,1);
-    rot[2][2] = in.at<float>(2,2);
-    tf::Vector3 trans(in.at<float>(0,3),
-                      in.at<float>(1,3),
-                      in.at<float>(2,3));
-    tf::Transform out(rot, trans);
-    return out;
   }
 
   static cv::Point3f transformPoint(cv::Point3f point, tf::Transform base)

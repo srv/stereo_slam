@@ -16,6 +16,7 @@
 #include <image_geometry/stereo_camera_model.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
 
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
@@ -125,13 +126,16 @@ protected:
                         tf::StampedTransform &transform);
 
   /** \brief Decide if new keyframe is needed
+   * @return True if new keyframe will be inserted into the graph
+   * \param The current frame pointcloud
    */
-  void needNewKeyFrame(PointCloudRGB::Ptr cloud);
+  bool needNewKeyFrame(PointCloudRGB::Ptr cloud);
 
   /** \brief Add a frame to the graph if enough inliers
-   * \param The frame
+   * @return True if new keyframe will be inserted into the map
+   * \param The current frame pointcloud
    */
-  void addFrameToMap(Frame frame, PointCloudRGB::Ptr cloud);
+  bool addFrameToMap(PointCloudRGB::Ptr cloud);
 
 
   /** \brief Filters a pointcloud
@@ -148,6 +152,15 @@ protected:
    */
   void publishOverlap(PointCloudXYZ::Ptr cloud, tf::Transform movement, float overlap);
 
+  /** \brief Refine the keyframe to keyframe position using SolvePnP
+   * @return True if a valid transform was found
+   * \param current frame
+   * \param previous frame
+   * \param the estimated transform
+   * \param number of inliers for the refined pose
+   */
+  bool refinePose(Frame c_frame, Frame p_frame, tf::Transform& out, int& num_inliers);
+
 private:
 
   Params params_; //!> Stores parameters.
@@ -160,6 +173,10 @@ private:
 
   Frame c_frame_; //!> Current frame
 
+  Frame p_frame_; //!> Previous frame
+
+  cv::Mat camera_matrix_; //!> Camera matrix
+
   Publisher* f_pub_; //!> Frame publisher
 
   ros::Publisher pc_pub_; //!> Pointcloud publisher
@@ -167,6 +184,8 @@ private:
   ros::Publisher pose_pub_; //!> Corrected pose publisher
 
   ros::Publisher overlapping_pub_; //!> Consecutive image overlapping publisher
+
+  tf::TransformBroadcaster tf_broadcaster_; //!> Publish transform
 
   image_geometry::StereoCameraModel camera_model_; //!> Stereo camera model
 
@@ -179,7 +198,9 @@ private:
 
   int frame_id_; //!> Processed frames counter
 
-  tf::Transform prev_corrected_odom_robot_; //!> Stores the previous corrected odometry pose
+  vector<tf::Transform> odom_pose_history_; //!> Stores the odometry poses, relative to camera frame
+
+  tf::Transform prev_robot_pose_; //!> Stores the previous corrected odometry pose
 
   ros::WallTime jump_time_; //!> Stores the time at which the jump starts
 

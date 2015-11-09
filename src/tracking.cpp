@@ -16,7 +16,6 @@ namespace slam
   {
     // Init
     state_ = NOT_INITIALIZED;
-    last_fixed_frame_pose_.setIdentity();
 
     ros::NodeHandle nh;
     ros::NodeHandle nhp("~");
@@ -68,6 +67,9 @@ namespace slam
     cv::Mat l_img, r_img;
     Tools::imgMsgToMat(*l_img_msg, *r_img_msg, l_img, r_img);
 
+    PointCloudRGB::Ptr pcl_cloud(new PointCloudRGB);
+    fromROSMsg(*cloud_msg, *pcl_cloud);
+
     if (state_ == NOT_INITIALIZED)
     {
       // Transformation between odometry and camera
@@ -78,47 +80,80 @@ namespace slam
       }
 
       // Camera parameters
-      cv::Mat camera_matrix;
-      Tools::getCameraModel(*l_info_msg, *r_info_msg, camera_model_, camera_matrix);
+      Tools::getCameraModel(*l_info_msg, *r_info_msg, camera_model_, camera_matrix_);
 
       // Set graph properties
       graph_->setCamera2Odom(odom2camera_.inverse());
-      graph_->setCameraMatrix(camera_matrix);
+      graph_->setCameraMatrix(camera_matrix_);
       graph_->setCameraModel(camera_model_.left());
 
       // The initial frame
       c_frame_ = Frame(l_img, r_img, camera_model_, timestamp);
 
+      // Filter cloud
+      PointCloudRGB::Ptr cloud_filtered;
+      cloud_filtered = filterCloud(pcl_cloud);
+
       // For the first frame, its estimated pose will coincide with odometry
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
       c_frame_.setCameraPose(c_odom_camera);
+      bool frame_ok = addFrameToMap(cloud_filtered);
+      if (!frame_ok) return;
 
-      prev_corrected_odom_robot_ = c_odom_robot;
+      // Store the odometry for this frame
+      odom_pose_history_.push_back(c_odom_camera);
 
+      // No corrections apply yet
+      prev_robot_pose_ = c_odom_robot;
+
+      // Mark as initialized
       state_ = INITIALIZING;
     }
     else
     {
-      PointCloudRGB::Ptr pcl_cloud(new PointCloudRGB);
-      fromROSMsg(*cloud_msg, *pcl_cloud);
-
       // The current frame
       c_frame_ = Frame(l_img, r_img, camera_model_, timestamp);
 
-      // Set the odometry of this frame
-      tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
-      c_frame_.setCameraPose(c_odom_camera);
+      // Get the pose of the last frame id
+      tf::Transform last_frame_pose;
+
+      bool ok = graph_->getFramePose(frame_id_ - 1, last_frame_pose);
+      if (!ok)
+        return;
+
+      // Previous/current frame odometry difference
+      tf::Transform c_camera_odom_pose = c_odom_robot * odom2camera_;
+      tf::Transform odom_diff = odom_pose_history_[odom_pose_history_.size()-1].inverse() * c_camera_odom_pose;
+
+      // Refine its position relative to the previous frame
+      tf::Transform p2c_diff, c_camera_pose;
+      int num_inliers = LC_MIN_INLIERS;
+      bool refine_ok = refinePose(p_frame_, c_frame_, p2c_diff, num_inliers);
+
+      double error = Tools::poseDiff3D(p2c_diff, odom_diff);
+      if (refine_ok && error < 0.2)
+        c_camera_pose = last_frame_pose * p2c_diff;
+      else
+        c_camera_pose = last_frame_pose * odom_diff;
+
+      c_frame_.setCameraPose(c_camera_pose);
+      c_frame_.setInliersNumWithPreviousFrame(num_inliers);
 
       // Need new keyframe
-      needNewKeyFrame(pcl_cloud);
+      bool is_new_keyframe = needNewKeyFrame(pcl_cloud);
+      if (is_new_keyframe)
+      {
+        // Store the camera odometry for this keyframe
+        tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
+        odom_pose_history_.push_back(c_odom_camera);
+      }
     }
 
-    // Correct robot pose with the last graph information
-    tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
-    tf::Transform corrected_odom_robot = graph_->correctOdometry(c_odom_camera) * odom2camera_.inverse();
+    // Convert camera to robot pose
+    tf::Transform robot_pose = c_frame_.getCameraPose() * odom2camera_.inverse();
 
     // Detect a big jump
-    double jump = Tools::poseDiff3D(corrected_odom_robot, prev_corrected_odom_robot_);
+    double jump = Tools::poseDiff3D(robot_pose, prev_robot_pose_);
     if (!jump_detected_ && jump > 0.8)
     {
       jump_time_ = ros::WallTime::now();
@@ -129,7 +164,7 @@ namespace slam
       jump_detected_ = false;
     }
 
-    tf::Transform pose = corrected_odom_robot;
+    tf::Transform pose = robot_pose;
     if (jump_detected_)
     {
       // Filter big jumps
@@ -140,9 +175,9 @@ namespace slam
       double c_y = pose.getOrigin().y();
       double c_z = pose.getOrigin().z();
 
-      double p_x = prev_corrected_odom_robot_.getOrigin().x();
-      double p_y = prev_corrected_odom_robot_.getOrigin().y();
-      double p_z = prev_corrected_odom_robot_.getOrigin().z();
+      double p_x = prev_robot_pose_.getOrigin().x();
+      double p_y = prev_robot_pose_.getOrigin().y();
+      double p_z = prev_robot_pose_.getOrigin().z();
 
       double x = factor * c_x + (1-factor) * p_x;
       double y = factor * c_y + (1-factor) * p_y;
@@ -156,9 +191,10 @@ namespace slam
     nav_msgs::Odometry pose_msg = *odom_msg;
     tf::poseTFToMsg(pose, pose_msg.pose.pose);
     pose_pub_.publish(pose_msg);
+    tf_broadcaster_.sendTransform(tf::StampedTransform(pose, odom_msg->header.stamp, "map", odom_msg->child_frame_id));
 
     // Store
-    prev_corrected_odom_robot_ = pose;
+    prev_robot_pose_ = pose;
   }
 
   bool Tracking::getOdom2CameraTf(nav_msgs::Odometry odom_msg,
@@ -184,7 +220,7 @@ namespace slam
     return true;
   }
 
-  void Tracking::needNewKeyFrame(PointCloudRGB::Ptr cloud)
+  bool Tracking::needNewKeyFrame(PointCloudRGB::Ptr cloud)
   {
     // Filter cloud
     PointCloudRGB::Ptr cloud_filtered;
@@ -193,15 +229,17 @@ namespace slam
     // Init initialization
     if (state_ == INITIALIZING)
     {
-      addFrameToMap(c_frame_, cloud_filtered);
-      state_ = WORKING;
+      bool valid_frame = addFrameToMap(cloud_filtered);
+      if (valid_frame)
+        state_ = WORKING;
+      return valid_frame;
     }
     else
     {
       // Compute overlap to decide if new keyframe is needed.
 
       // The transformation between last and current keyframe
-      tf::Transform last_2_current = last_fixed_frame_pose_.inverse() * c_frame_.getCameraPose();
+      tf::Transform last_2_current = p_frame_.getCameraPose().inverse() * c_frame_.getCameraPose();
 
       // Speedup the process by converting the current pointcloud to xyz
       PointCloudXYZ::Ptr cloud_xyz(new PointCloudXYZ);
@@ -233,33 +271,37 @@ namespace slam
 
       // Add frame when overlap is less than...
       if (overlap < TRACKING_MIN_OVERLAP)
-        addFrameToMap(c_frame_, cloud_filtered);
+      {
+        return addFrameToMap(cloud_filtered);
+      }
     }
+    return false;
   }
 
-  void Tracking::addFrameToMap(Frame frame, PointCloudRGB::Ptr cloud)
+  bool Tracking::addFrameToMap(PointCloudRGB::Ptr cloud)
   {
-    if (frame.getLeftKp().size() > LC_MIN_INLIERS)
+    if (c_frame_.getLeftKp().size() > LC_MIN_INLIERS)
     {
-      frame.regionClustering();
+      c_frame_.regionClustering();
 
-      // Check if clusters
-      vector< vector<int> > clusters = frame.getClusters();
+      // Check if enough clusters
+      vector< vector<int> > clusters = c_frame_.getClusters();
       if (clusters.size() > 0)
       {
         // Add to graph
-        f_pub_->publishClustering(frame);
-        graph_->addFrameToQueue(frame);
-        last_fixed_frame_pose_ = frame.getCameraPose();
+        c_frame_.setId(frame_id_);
+        f_pub_->publishClustering(c_frame_);
+        graph_->addFrameToQueue(c_frame_);
+
+        // Store previous frame
+        p_frame_ = c_frame_;
 
         // Store minimum and maximum values of last pointcloud
         pcl::getMinMax3D(*cloud, last_min_pt_, last_max_pt_);
 
         // Publish cloud
-        if (pc_pub_.getNumSubscribers() > 0)
+        if (pc_pub_.getNumSubscribers() > 0 && cloud->points.size() > 0)
         {
-          if (cloud->points.size() == 0) return;
-
           // Publish
           string frame_id_str = Tools::convertTo5digits(frame_id_);
           sensor_msgs::PointCloud2 cloud_msg;
@@ -270,7 +312,62 @@ namespace slam
 
         // Increase the frame id counter
         frame_id_++;
+        return true;
       }
+    }
+
+    return false;
+  }
+
+  bool Tracking::refinePose(Frame query, Frame candidate, tf::Transform& out, int& num_inliers)
+  {
+    // Init
+    out.setIdentity();
+    num_inliers = LC_MIN_INLIERS;
+
+    // Sanity check
+    if (query.getLeftDesc().rows == 0 || candidate.getLeftDesc().rows == 0)
+      return false;
+
+    // Match current and previous left descriptors
+    vector<cv::DMatch> matches;
+    Tools::ratioMatching(query.getLeftDesc(), candidate.getLeftDesc(), 0.8, matches);
+
+    if (matches.size() >= LC_MIN_INLIERS)
+    {
+      // Get the matched keypoints
+      vector<cv::KeyPoint> query_kp = query.getLeftKp();
+      vector<cv::Point3f> candidate_3d = candidate.getCameraPoints();
+      vector<cv::Point2f> query_matched_kp;
+      vector<cv::Point3f> candidate_matched_3d_points;
+      for(uint i=0; i<matches.size(); i++)
+      {
+        query_matched_kp.push_back(query_kp[matches[i].queryIdx].pt);
+        candidate_matched_3d_points.push_back(candidate_3d[matches[i].trainIdx]);
+      }
+
+      cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64FC1);
+      cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);
+      vector<int> inliers;
+      cv::solvePnPRansac(candidate_matched_3d_points, query_matched_kp, camera_matrix_,
+                     cv::Mat(), rvec, tvec, false,
+                     100, 1.3, LC_MAX_INLIERS, inliers);
+
+      // Inliers threshold
+      if (inliers.size() < LC_MIN_INLIERS)
+      {
+        return false;
+      }
+      else
+      {
+        out = Tools::buildTransformation(rvec, tvec);
+        num_inliers = inliers.size();
+        return true;
+      }
+    }
+    else
+    {
+      return false;
     }
   }
 

@@ -23,7 +23,7 @@ namespace slam
 
   static const int LC_DISCARD_WINDOW = 15;
 
-  static const float TRACKING_MIN_OVERLAP = 80;
+  static const float TRACKING_MIN_OVERLAP = 85;
 
   /*
   DEFAULT VALUES ARE:
@@ -31,7 +31,7 @@ namespace slam
   LC_MAX_INLIERS        = 150
   LC_NEIGHBORS          = 6
   LC_DISCARD_WINDOW     = 15
-  TRACKING_MIN_OVERLAP  = 80
+  TRACKING_MIN_OVERLAP  = 85
   */
 
 } // namespace

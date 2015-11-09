@@ -74,6 +74,11 @@ public:
    */
   inline vector<cv::Point3f> getCameraPoints() const {return camera_points_;}
 
+  /** \brief Set frame id
+   * \param vector of 3D points
+   */
+  inline void setId(const int& id){id_ = id;}
+
   /** \brief Set 3D
    * \param vector of 3D points
    */
@@ -83,6 +88,15 @@ public:
    * \param camera pose
    */
   inline void setCameraPose(const tf::Transform& camera_pose){camera_pose_ = camera_pose;}
+
+  /** \brief Set number of inliers with the previous frame
+   * \param number of inliers between current frame and previous
+   */
+  inline void setInliersNumWithPreviousFrame(const int& num_inliers){num_inliers_with_prev_frame_ = num_inliers;}
+
+  /** \brief Get frame id
+   */
+  inline int getId() const {return id_;}
 
   /** \brief Get camera pose
    */
@@ -99,6 +113,10 @@ public:
   /** \brief Get frame timestamp
    */
   inline double getTimestamp() const {return stamp_;}
+
+  /** \brief Get frame timestamp
+   */
+  inline int getInliersNumWithPreviousFrame() const {return num_inliers_with_prev_frame_;}
 
   /** \brief Compute sift descriptors
    * @return the matrix of sift descriptors
@@ -121,6 +139,8 @@ protected:
 
 private:
 
+  int id_; //!> Frame id
+
   cv::Mat l_img_; //!> Left image
   cv::Mat r_img_; //!> Right image
 
@@ -139,6 +159,8 @@ private:
   tf::Transform camera_pose_; //!> Camera world position for this frame
 
   double stamp_; //!> Store the frame timestamp
+
+  int num_inliers_with_prev_frame_;
 
 };
 

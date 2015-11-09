@@ -3,7 +3,6 @@
 #include "frame.h"
 #include "constants.h"
 #include "tools.h"
-#include "ldb.h"
 
 using namespace tools;
 
@@ -14,9 +13,13 @@ namespace slam
 
   Frame::Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp)
   {
+    // Init
+    id_ = -1;
+    stamp_ = timestamp;
+    num_inliers_with_prev_frame_ = LC_MIN_INLIERS;
+
     l_img.copyTo(l_img_);
     r_img.copyTo(r_img_);
-    stamp_ = timestamp;
 
     // Convert images to grayscale
     cv::Mat l_img_gray, r_img_gray;
@@ -26,20 +29,11 @@ namespace slam
     // Detect keypoints
     vector<cv::KeyPoint> l_kp, r_kp;
     cv::ORB orb(1500, 1.2, 8, 10, 0, 2, 0, 10);
-    orb(l_img_gray, noArray(), l_kp, noArray(), false);
-    orb(r_img_gray, noArray(), r_kp, noArray(), false);
-
-    // Ptr<FeatureDetector> cv_detector;
-    // vector<cv::KeyPoint> l_kp, r_kp;
-    // cv_detector = FeatureDetector::create("FAST");
-    // cv_detector->detect(l_img_gray, l_kp);
-    // cv_detector->detect(r_img_gray, r_kp);
+    orb(l_img_gray, cv::noArray(), l_kp, cv::noArray(), false);
+    orb(r_img_gray, cv::noArray(), r_kp, cv::noArray(), false);
 
     // Extract descriptors
     cv::Mat l_desc, r_desc;
-    // LDB extractor_;
-    // extractor_.compute(l_img_gray, l_kp, l_desc, 0);
-    // extractor_.compute(r_img_gray, r_kp, r_desc, 0);
     cv::Ptr<cv::DescriptorExtractor> cv_extractor;
     cv_extractor = cv::DescriptorExtractor::create("ORB");
     cv_extractor->compute(l_img_gray, l_kp, l_desc);
@@ -197,12 +191,12 @@ namespace slam
       {
         int idx = -1;
         bool found = false;
-        KeyPoint p_n = l_kp_.at(noise[n]);
+        cv::KeyPoint p_n = l_kp_.at(noise[n]);
         for (uint i=0; i<clusters_.size(); i++)
         {
           for (uint j=0; j<clusters_[i].size(); j++)
           {
-            KeyPoint p_c = l_kp_.at(clusters_[i][j]);
+            cv::KeyPoint p_c = l_kp_.at(clusters_[i][j]);
             float dist = sqrt(pow((p_c.pt.x - p_n.pt.x),2)+pow((p_c.pt.y - p_n.pt.y),2));
             if(dist <= eps && dist != 0.0)
             {

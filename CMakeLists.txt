@@ -55,7 +55,6 @@ catkin_package(CATKIN_DEPENDS message_runtime)
 include_directories(include
   ${catkin_INCLUDE_DIRS}
   ${Eigen_INCLUDE_DIRS}
-  ${libhaloc_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${SUITESPARSE_INCLUDE_DIRS}
   ${G2O_INCLUDE_DIRS}
@@ -74,12 +73,10 @@ add_executable(localization
   src/frame.cpp
   src/publisher.cpp
   src/tracking.cpp
-  src/ldb.cpp
   src/graph.cpp
   src/hash.cpp
   src/loop_closing.cpp
   src/cluster.cpp)
-
 target_link_libraries(localization
   ${eigen_LIBRARIES}
   ${OpenCV_LIBRARIES}
@@ -87,13 +84,17 @@ target_link_libraries(localization
   ${G2O_LIBRARIES}
   cholmod
   ${catkin_LIBRARIES})
-
 add_dependencies(localization stereo_slam_gencpp)
 
 add_executable(save_clouds
   src/reconstruction/save_clouds.cpp)
-
 target_link_libraries(save_clouds
   ${eigen_LIBRARIES}
   ${MYSQL_LIBRARIES}
+  ${catkin_LIBRARIES})
+
+add_executable(icp
+  src/reconstruction/icp.cpp)
+target_link_libraries(icp
+  ${eigen_LIBRARIES}
   ${catkin_LIBRARIES})
