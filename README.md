@@ -8,11 +8,13 @@ You can see it in action here:
 [![Alt text for your video](http://img.youtube.com/vi/h3FfXafuOvE/0.jpg)](http://www.youtube.com/watch?v=h3FfXafuOvE)
 
 Specially designed for underwater scenarios:
-[ORB-SLAM vs Stereo SLAM (underwater) ][link_yt_3]
+
+[Video: ORB-SLAM vs Stereo SLAM (underwater)][link_yt_3]
 
 More videos...
-[Stereo SLAM and 3D reconstruction ][link_yt_1] and
-[Stereo SLAM at UIB outdoor pond][link_yt_2]
+
+[Video: Stereo SLAM and 3D reconstruction ][link_yt_1] and
+[Video: Stereo SLAM at UIB outdoor pond][link_yt_2]
 
 Installation (Ubuntu + ROS Indigo)
 -------
