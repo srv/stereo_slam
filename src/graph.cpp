@@ -91,16 +91,15 @@ namespace slam
     vector<cv::Point3f> points = frame.getCameraPoints();
     vector<cv::KeyPoint> kp = frame.getLeftKp();
     tf::Transform camera_pose = frame.getCameraPose();
-    cv::Mat ldb_desc = frame.getLeftDesc();
+    cv::Mat orb_desc = frame.getLeftDesc();
     for (uint i=0; i<clusters.size(); i++)
     {
       // Correct cluster pose with the last graph update
       tf::Transform cluster_pose = Tools::transformVector4f(cluster_centroids[i], camera_pose);
-      tf::Transform corrected_cluster_pose = correctClusterPose(cluster_pose);
       initial_cluster_pose_history_.push_back(cluster_pose);
 
       // Add cluster to the graph
-      int id = addVertex(corrected_cluster_pose);
+      int id = addVertex(cluster_pose);
 
       // Store information
       cluster_frame_relation_.push_back( make_pair(id, frame_id_) );
@@ -108,7 +107,7 @@ namespace slam
       vertex_ids.push_back(id);
 
       // Build cluster
-      cv::Mat c_desc_ldb, c_desc_sift;
+      cv::Mat c_desc_orb, c_desc_sift;
       vector<cv::KeyPoint> c_kp;
       vector<cv::Point3f> c_points;
       for (uint j=0; j<clusters[i].size(); j++)
@@ -116,10 +115,10 @@ namespace slam
         int idx = clusters[i][j];
         c_kp.push_back(kp[idx]);
         c_points.push_back(points[idx]);
-        c_desc_ldb.push_back(ldb_desc.row(idx));
+        c_desc_orb.push_back(orb_desc.row(idx));
         c_desc_sift.push_back(sift_desc.row(idx));
       }
-      Cluster cluster(id, frame_id_, camera_pose, c_kp, c_desc_ldb, c_desc_sift, c_points);
+      Cluster cluster(id, frame_id_, camera_pose, c_kp, c_desc_orb, c_desc_sift, c_points);
       clusters_to_close_loop.push_back(cluster);
     }
 
@@ -201,10 +200,8 @@ namespace slam
       mutex::scoped_lock lock(mutex_graph_);
       last_idx = graph_optimizer_.vertices().size() - 1;
     }
-    tf::Transform updated_camera_pose;
-    bool ok = getVertexCameraPose(last_idx, updated_camera_pose, true);
-    if (ok)
-      publishCameraPose(updated_camera_pose);
+    tf::Transform updated_camera_pose = getVertexCameraPose(last_idx, true);
+    publishCameraPose(updated_camera_pose);
   }
 
   tf::Transform Graph::correctClusterPose(tf::Transform initial_pose)
@@ -363,20 +360,6 @@ namespace slam
     return frame_id;
   }
 
-  int Graph::getVertexIdOfFrame(int frame_id)
-  {
-    int vertex_id = -1;
-    for (uint i=0; i<cluster_frame_relation_.size(); i++)
-    {
-      if (cluster_frame_relation_[i].second == frame_id)
-      {
-        vertex_id = cluster_frame_relation_[i].first;
-        break;
-      }
-    }
-    return vertex_id;
-  }
-
   int Graph::getLastVertexFrameId()
   {
     // Get last
@@ -393,18 +376,51 @@ namespace slam
   tf::Transform Graph::getVertexPose(int id, bool lock)
   {
     if (lock)
+    {
       mutex::scoped_lock lock(mutex_graph_);
 
-    if( id >= 0)
-    {
-      g2o::VertexSE3* vertex =  dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[id]);
-      return Tools::getVertexPose(vertex);
+      if( id >= 0)
+      {
+        g2o::VertexSE3* vertex =  dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[id]);
+        return Tools::getVertexPose(vertex);
+      }
+      else
+      {
+        tf::Transform tmp;
+        tmp.setIdentity();
+        return tmp;
+      }
     }
     else
     {
-      tf::Transform tmp;
-      tmp.setIdentity();
-      return tmp;
+      if( id >= 0)
+      {
+        g2o::VertexSE3* vertex =  dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[id]);
+        return Tools::getVertexPose(vertex);
+      }
+      else
+      {
+        tf::Transform tmp;
+        tmp.setIdentity();
+        return tmp;
+      }
+    }
+  }
+
+  bool Graph::getFramePose(int frame_id, tf::Transform& frame_pose)
+  {
+    frame_pose.setIdentity();
+    vector<int> frame_vertices;
+    getFrameVertices(frame_id, frame_vertices);
+
+    if (frame_vertices.size() == 0)
+    {
+      return false;
+    }
+    else
+    {
+      frame_pose = getVertexCameraPose(frame_vertices[0]);
+      return true;
     }
   }
 
@@ -413,35 +429,32 @@ namespace slam
     return local_cluster_poses_[id];
   }
 
-  bool Graph::getVertexCameraPose(int id, tf::Transform& vertex_camera_pose, bool lock)
+  tf::Transform Graph::getVertexCameraPose(int id, bool lock)
   {
-    vertex_camera_pose.setIdentity();
-
-    if (id > (int)local_cluster_poses_.size())
-      return false;
-
     tf::Transform vertex_pose = getVertexPose(id, lock);
-    vertex_camera_pose = vertex_pose * local_cluster_poses_[id].inverse();
-    return true;
+    return vertex_pose * local_cluster_poses_[id].inverse();
   }
 
-  void Graph::saveFrame(Frame frame)
+  void Graph::saveFrame(Frame frame, bool draw_clusters)
   {
     cv::Mat img;
     frame.getLeftImg().copyTo(img);
     if (img.cols == 0)
       return;
 
-    // // Draw the clusters
-    // vector< vector<int> > clusters = frame.getClusters();
-    // vector<cv::KeyPoint> kp = frame.getLeftKp();
-    // cv::RNG rng(12345);
-    // for (uint i=0; i<clusters.size(); i++)
-    // {
-    //   cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
-    //   for (uint j=0; j<clusters[i].size(); j++)
-    //     cv::circle(img, kp[clusters[i][j]].pt, 5, color, -1);
-    // }
+    if (draw_clusters)
+    {
+      // Draw the clusters
+      vector< vector<int> > clusters = frame.getClusters();
+      vector<cv::KeyPoint> kp = frame.getLeftKp();
+      cv::RNG rng(12345);
+      for (uint i=0; i<clusters.size(); i++)
+      {
+        cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
+        for (uint j=0; j<clusters[i].size(); j++)
+          cv::circle(img, kp[clusters[i][j]].pt, 5, color, -1);
+      }
+    }
 
     // Save
     string frame_id_str = Tools::convertTo5digits(frame.getId());
@@ -487,8 +500,7 @@ namespace slam
       if (found) continue;
       processed_frames.push_back(id);
 
-      tf::Transform pose;
-      getVertexCameraPose(i, pose, false);//*camera2odom_;
+      tf::Transform pose = getVertexCameraPose(i, false);//*camera2odom_;
       f_vertices << fixed <<
         setprecision(6) <<
         frame_stamps_[id] << "," <<
@@ -517,9 +529,8 @@ namespace slam
         if (abs(frame_a - frame_b) > 1 )
         {
 
-          tf::Transform pose_0, pose_1;
-          getVertexCameraPose(e->vertices()[0]->id(), pose_0, false);//*camera2odom_;
-          getVertexCameraPose(e->vertices()[1]->id(), pose_1, false);//*camera2odom_;
+          tf::Transform pose_0 = getVertexCameraPose(e->vertices()[0]->id(), false);//*camera2odom_;
+          tf::Transform pose_1 = getVertexCameraPose(e->vertices()[1]->id(), false);//*camera2odom_;
 
           // Extract the inliers
           Eigen::Matrix<double, 6, 6> information = e->information();
@@ -595,8 +606,7 @@ namespace slam
         if (found) continue;
         processed_frames.push_back(id);
 
-        tf::Transform pose;
-        getVertexCameraPose(i, pose, false);
+        tf::Transform pose = getVertexCameraPose(i, false);
         ids.push_back(id);
         x.push_back(pose.getOrigin().x());
         y.push_back(pose.getOrigin().y());

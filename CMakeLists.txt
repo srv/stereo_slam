@@ -73,7 +73,6 @@ add_executable(localization
   src/frame.cpp
   src/publisher.cpp
   src/tracking.cpp
-  src/ldb.cpp
   src/graph.cpp
   src/hash.cpp
   src/loop_closing.cpp

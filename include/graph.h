@@ -93,12 +93,6 @@ public:
    */
   int getVertexFrameId(int id);
 
-  /** \brief Get the vertex id of some specific frame
-   * @return the vertex id
-   * \param frame id
-   */
-  int getVertexIdOfFrame(int frame_id);
-
   /** \brief Get the last vertex frame id
    * @return the frame id
    */
@@ -109,7 +103,14 @@ public:
    * \param vertex id
    * \param set to true to lock the graph
    */
-  tf::Transform getVertexPose(int id, bool lock = true);
+  tf::Transform getVertexPose(int vertex_id, bool lock = true);
+
+  /** \brief Get frame pose
+   * @return true if frame pose can be extracted, false otherwise
+   * \param frame id
+   * \param output graph frame pose
+   */
+  bool getFramePose(int frame_id, tf::Transform& frame_pose);
 
   /** \brief Get the graph vertex pose relative to camera
    * @return graph vertex pose relative to camera
@@ -121,9 +122,12 @@ public:
    * @return graph vertex camera pose
    * \param vertex id
    * \param true to lock the graph
-   * \param graph vertex camera pose
    */
-  bool getVertexCameraPose(int id, tf::Transform& vertex_camera_pose, bool lock = true);
+  tf::Transform getVertexCameraPose(int id, bool lock = true);
+
+  /** \brief Save the graph to file
+   */
+  void saveGraph();
 
   /** \brief Set the transformation between camera and robot odometry frame
    * \param the transform
@@ -182,12 +186,10 @@ protected:
   int addVertex(tf::Transform pose);
 
   /** \brief Save the frame to the default location
+   * \param the frame to be drawn
+   * \param true to draw the clusters over the frame
    */
-  void saveFrame(Frame frame);
-
-  /** \brief Save the graph to file
-   */
-  void saveGraph();
+  void saveFrame(Frame frame, bool draw_clusters = false);
 
   /** \brief Publishes the graph camera pose
    * \param Camera pose

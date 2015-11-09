@@ -116,27 +116,25 @@ namespace slam
 
       // Get the pose of the last frame id
       tf::Transform last_frame_pose;
-      int vertex_id = graph_->getVertexIdOfFrame(frame_id_-1);
-      bool ok = graph_->getVertexCameraPose(vertex_id, last_frame_pose, true);
+
+      bool ok = graph_->getFramePose(frame_id_ - 1, last_frame_pose);
       if (!ok)
         return;
+
+      // Previous/current frame odometry difference
+      tf::Transform c_camera_odom_pose = c_odom_robot * odom2camera_;
+      tf::Transform odom_diff = odom_pose_history_[odom_pose_history_.size()-1].inverse() * c_camera_odom_pose;
 
       // Refine its position relative to the previous frame
       tf::Transform p2c_diff, c_camera_pose;
       int num_inliers = LC_MIN_INLIERS;
       bool refine_ok = refinePose(p_frame_, c_frame_, p2c_diff, num_inliers);
-      if (refine_ok)
-      {
-        // Corrected and refined pose
+
+      double error = Tools::poseDiff3D(p2c_diff, odom_diff);
+      if (refine_ok && error < 0.2)
         c_camera_pose = last_frame_pose * p2c_diff;
-      }
       else
-      {
-        // Corrected the odometry
-        tf::Transform c_camera_odom_pose = c_odom_robot * odom2camera_;
-        tf::Transform odom_diff = odom_pose_history_[odom_pose_history_.size()-1].inverse() * c_camera_odom_pose;
         c_camera_pose = last_frame_pose * odom_diff;
-      }
 
       c_frame_.setCameraPose(c_camera_pose);
       c_frame_.setInliersNumWithPreviousFrame(num_inliers);
@@ -333,7 +331,7 @@ namespace slam
 
     // Match current and previous left descriptors
     vector<cv::DMatch> matches;
-    Tools::ratioMatching(candidate.getLeftDesc(), query.getLeftDesc(), 0.8, matches);
+    Tools::ratioMatching(query.getLeftDesc(), candidate.getLeftDesc(), 0.8, matches);
 
     if (matches.size() >= LC_MIN_INLIERS)
     {
@@ -344,15 +342,16 @@ namespace slam
       vector<cv::Point3f> candidate_matched_3d_points;
       for(uint i=0; i<matches.size(); i++)
       {
-        query_matched_kp.push_back(query_kp[matches[i].trainIdx].pt);
-        candidate_matched_3d_points.push_back(candidate_3d[matches[i].queryIdx]);
+        query_matched_kp.push_back(query_kp[matches[i].queryIdx].pt);
+        candidate_matched_3d_points.push_back(candidate_3d[matches[i].trainIdx]);
       }
 
-      cv::Mat rvec, tvec;
+      cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64FC1);
+      cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);
       vector<int> inliers;
-      solvePnPRansac(candidate_matched_3d_points, query_matched_kp, camera_matrix_,
+      cv::solvePnPRansac(candidate_matched_3d_points, query_matched_kp, camera_matrix_,
                      cv::Mat(), rvec, tvec, false,
-                     100, 1.5, LC_MAX_INLIERS, inliers);
+                     100, 1.3, LC_MAX_INLIERS, inliers);
 
       // Inliers threshold
       if (inliers.size() < LC_MIN_INLIERS)
@@ -361,7 +360,6 @@ namespace slam
       }
       else
       {
-        ROS_INFO_STREAM("INLIERS: " << inliers.size());
         out = Tools::buildTransformation(rvec, tvec);
         num_inliers = inliers.size();
         return true;
