@@ -82,7 +82,7 @@ Published Topics
 * `/stereo_slam/tracking_overlap` - Image containing a representation of the traking overlap. Used to decide when to insert a new keyframe into the graph (type sensor_msgs::Image).
 
 
-Data stored
+Saved data
 -------
 The node stores some data into the stereo_slam directory during the execution:
 * `haloc` - A folder containing all the files needed for the libhaloc library, which is responsible for loop closing detection. You do not need this folder at all.
