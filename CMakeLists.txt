@@ -44,6 +44,9 @@ find_package(SuiteSparse REQUIRED)
 # using -DG2O_INCLUDE_DIRS.
 find_package(G2O REQUIRED)
 
+# Dependencies - Ceres:
+find_package(Ceres REQUIRED)
+
 # Dependencies - Vtk
 find_package(VTK REQUIRED)
 
@@ -58,6 +61,7 @@ include_directories(include
   ${OpenCV_INCLUDE_DIRS}
   ${SUITESPARSE_INCLUDE_DIRS}
   ${G2O_INCLUDE_DIRS}
+  ${CERES_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
   ${VTK_INCLUDE_DIRS}
   ${MYSQL_INCLUDE_DIRS})
@@ -76,12 +80,14 @@ add_executable(localization
   src/graph.cpp
   src/hash.cpp
   src/loop_closing.cpp
-  src/cluster.cpp)
+  src/cluster.cpp
+  src/calibration.cpp)
 target_link_libraries(localization
   ${eigen_LIBRARIES}
   ${OpenCV_LIBRARIES}
   ${SUITESPARSE_LIBRARIES}
   ${G2O_LIBRARIES}
+  ${CERES_LIBRARIES}
   cholmod
   ${catkin_LIBRARIES})
 add_dependencies(localization stereo_slam_gencpp)

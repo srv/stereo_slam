@@ -315,8 +315,6 @@ namespace slam
             cv::Mat(), rvec, tvec, false,
             100, 5.0, LC_MAX_INLIERS, inliers);
 
-        ROS_INFO_STREAM("Matches/inliers: " << matches_2.size() << " / " << inliers.size());
-
         // Loop found!
         if (inliers.size() >= LC_MIN_INLIERS)
         {
@@ -396,11 +394,6 @@ namespace slam
               tf::Transform frame_cluster_pose_relative_to_camera = graph_->getVertexPoseRelativeToCamera(cluster_pairs[i][0]);
               tf::Transform edge_1 = candidate_cluster_pose.inverse() * estimated_transform * frame_cluster_pose_relative_to_camera;
 
-              tf::Transform frame_cluster_pose = graph_->getVertexPose(cluster_pairs[i][0]);
-              tf::Transform tmp = candidate_cluster_pose.inverse() * frame_cluster_pose;
-              ROS_INFO_STREAM("INITIAL EDGE: " << tmp.getOrigin().x() << ", " << tmp.getOrigin().y() << ", " << tmp.getOrigin().z());
-              ROS_INFO_STREAM("FINAL EDGE: " << edge_1.getOrigin().x() << ", " << edge_1.getOrigin().y() << ", " << edge_1.getOrigin().z());
-
               // Add this edge to the graph
               graph_->addEdge(cluster_pairs[i][1], cluster_pairs[i][0], edge_1, inliers_per_pair[i]);
               vector<int> pair;
@@ -417,23 +410,6 @@ namespace slam
 
           if (some_edge_added)
           {
-
-            ROS_INFO_STREAM("LOOP: " << c_cluster_.getFrameId() << " <-> " << candidate.getFrameId() << " Matches: " << matches_2.size() << ". Inliers: " << inliers.size());
-            ROS_INFO_STREAM("INLIERS:");
-            for (uint i=0; i<definitive_inliers_per_pair.size(); i++)
-            {
-              cout << definitive_cluster_pairs[i][0] << " (frame: " << graph_->getVertexFrameId(definitive_cluster_pairs[i][0]) << ") <-> " << definitive_cluster_pairs[i][1] << " (frame: " << graph_->getVertexFrameId(definitive_cluster_pairs[i][1]) << ") Inliers: " << definitive_inliers_per_pair[i] << endl;
-            }
-
-            double roll_odom, roll_spnp, pitch_odom, pitch_spnp, yaw_odom, yaw_spnp;
-            c_cluster_.getCameraPose().getBasis().getRPY(roll_odom, pitch_odom, yaw_odom);
-            estimated_transform.getBasis().getRPY(roll_spnp, pitch_spnp, yaw_spnp);
-
-            ROS_INFO_STREAM("ODOM XYZ: " << c_cluster_.getCameraPose().getOrigin().x() << ", " << c_cluster_.getCameraPose().getOrigin().y() << ", " << c_cluster_.getCameraPose().getOrigin().z());
-            ROS_INFO_STREAM("SPNP XYZ: " << estimated_transform.getOrigin().x() << ", " << estimated_transform.getOrigin().y() << ", " << estimated_transform.getOrigin().z());
-            ROS_INFO_STREAM("ODOM RPY: " << roll_odom * 180/M_PI << ", " << pitch_odom * 180/M_PI << ", " << yaw_odom * 180/M_PI);
-            ROS_INFO_STREAM("SPNP RPY: " << roll_spnp * 180/M_PI << ", " << pitch_spnp * 180/M_PI << ", " << yaw_spnp * 180/M_PI);
-
             // Build image with loop closure matchings
             cv::Mat lc_image;
 
