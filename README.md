@@ -22,6 +22,8 @@ Installation (Ubuntu + ROS Indigo)
 1) Install the dependencies
 ```bash
 sudo apt-get install ros-<your ros distro>-libg2o
+
+sudo apt-get install libceres-dev
 ```
 
 You also need to setup a stereo visual odometer (e.g. [viso2][link_viso2] or [fovis][link_fovis]).
