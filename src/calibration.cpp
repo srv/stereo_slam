@@ -54,8 +54,8 @@ namespace slam
       all_points = all_points_;
     }
 
-    cout << "[Localization:] Optimizing camera parameters with " << all_points_.size() << " points." << endl;
-    cout << "[Localization:] Initial parameters (Tx, cx, cy, fx): " << camera_params_[0] << ", " << camera_params_[1] << ", " << camera_params_[2] << ", " << camera_params_[3] << endl;
+    ROS_INFO_STREAM("[Localization:] Optimizing camera parameters with " << all_points_.size() << " points.");
+    ROS_INFO_STREAM("[Localization:] Initial parameters (Tx, cx, cy, fx): " << camera_params_[0] << ", " << camera_params_[1] << ", " << camera_params_[2] << ", " << camera_params_[3]);
 
     for (uint i=0; i<all_points.size(); i++)
     {
@@ -89,9 +89,7 @@ namespace slam
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    cout << "[Localization:] Final parameters (Tx, cx, cy, fx): " << camera_params_[0] << ", " << camera_params_[1] << ", " << camera_params_[2] << ", " << camera_params_[3] << endl;
-    cout << endl << endl << endl;
-
+    ROS_INFO_STREAM("[Localization:] Final parameters (Tx, cx, cy, fx): " << camera_params_[0] << ", " << camera_params_[1] << ", " << camera_params_[2] << ", " << camera_params_[3]);
     //cout << summary.FullReport() << "\n";
   }
 
