@@ -389,7 +389,7 @@ namespace slam
         // Build output transform
         out = Tools::buildTransformation(rvec, tvec);
 
-        // Save the points
+        // Save the points for calibration
         for (uint i=0; i<inliers.size(); i++)
         {
           int id_query = query.getId();

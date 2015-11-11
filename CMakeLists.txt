@@ -19,7 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf_conversions)
 
 ## Declare ROS messages and services
-add_message_files(FILES GraphPoses.msg)
+add_message_files(FILES GraphPoses.msg CameraParams.msg)
 generate_messages(DEPENDENCIES std_msgs)
 
 ####################################################

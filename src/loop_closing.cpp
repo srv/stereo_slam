@@ -18,6 +18,7 @@ namespace slam
     pub_num_lc_ = nhp.advertise<std_msgs::String>("loop_closings", 2, true);
     pub_queue_ = nhp.advertise<std_msgs::String>("loop_closing_queue", 2, true);
     pub_lc_matchings_ = nhp.advertise<sensor_msgs::Image>("loop_closing_matchings", 2, true);
+    pub_calibration_ = nhp.advertise<stereo_slam::CameraParams>("camera_params", 1, true);
   }
 
   void LoopClosing::run()
@@ -123,7 +124,8 @@ namespace slam
     // Store
     cv::FileStorage fs(execution_dir_+"/"+lexical_cast<string>(c_cluster_.getId())+".yml", cv::FileStorage::WRITE);
     write(fs, "frame_id", c_cluster_.getFrameId());
-    write(fs, "kp", c_cluster_.getKp());
+    write(fs, "kp_l", c_cluster_.getLeftKp());
+    write(fs, "kp_r", c_cluster_.getRightKp());
     write(fs, "desc", c_cluster_.getOrb());
     write(fs, "points", c_cluster_.getPoints());
     fs.release();
@@ -131,18 +133,18 @@ namespace slam
 
   void LoopClosing::searchByProximity()
   {
-    vector<int> candidate_neighbors;
-    graph_->findClosestVertices(c_cluster_.getId(), c_cluster_.getId(), LC_DISCARD_WINDOW, 3, candidate_neighbors);
-    for (uint i=0; i<candidate_neighbors.size(); i++)
+    vector<int> cand_neighbors;
+    graph_->findClosestVertices(c_cluster_.getId(), c_cluster_.getId(), LC_DISCARD_WINDOW, 3, cand_neighbors);
+    for (uint i=0; i<cand_neighbors.size(); i++)
     {
-      Cluster candidate = readCluster(candidate_neighbors[i]);
+      Cluster candidate = readCluster(cand_neighbors[i]);
       if (candidate.getOrb().rows == 0)
         continue;
 
       bool valid = closeLoopWithCluster(candidate);
 
       if (valid)
-        ROS_INFO("By proximity");
+        ROS_INFO("[Localization:] Loop closure by proximity.");
     }
   }
 
@@ -164,38 +166,8 @@ namespace slam
 
       if (valid)
       {
-        ROS_INFO("By hash");
+        ROS_INFO("[Localization:] Loop closure by hash.");
         break;
-      }
-    }
-  }
-
-  bool LoopClosing::isInFrustum(cv::Point3f point, tf::Transform camera_pose)
-  {
-    cv::Size res = camera_model_.fullResolution();
-    cv::Point3f p_camera = Tools::transformPoint(point, camera_pose.inverse());
-    cv::Point2d pixels = camera_model_.project3dToPixel(p_camera);
-    if (pixels.x < 0 || pixels.x > res.width) return false;
-    if (pixels.y < 0 || pixels.y > res.height) return false;
-    return true;
-  }
-
-  void LoopClosing::filterByFrustum(cv::Mat desc,
-      vector<cv::Point3f> points,
-      tf::Transform camera_pose,
-      cv::Mat& out_desc,
-      vector<cv::Point3f>& out_points)
-  {
-    out_desc.release();
-    out_points.clear();
-
-    for (uint i=0; i<points.size(); i++)
-    {
-      cv::Point3f p = points[i];
-      if ( isInFrustum(p, camera_pose) )
-      {
-        out_desc.push_back(desc.row(i));
-        out_points.push_back(p);
       }
     }
   }
@@ -214,104 +186,112 @@ namespace slam
     int size_n = candidate.getOrb().rows;
     int m_percentage = round(100.0 * (float) matches_1.size() / (float) min(size_c, size_n) );
 
-    // Get the neighbor clusters if high percentage of matching
+    // Get the neighbor clusters if enough matching percentage
     if (m_percentage > 35)
     {
       // Init accumulated data
-      cv::Mat all_candidate_desc;
-      vector<int> cluster_frame_list;
-      vector<int> cluster_candidate_list;
-      vector<cv::Point3f> all_candidate_points;
-      vector<cv::KeyPoint> all_candidate_kp;
-      cv::Mat all_frame_desc = c_cluster_.getOrb();
-      vector<cv::KeyPoint> all_frame_kp = c_cluster_.getKp();
+      vector<int> cluster_query_list;
+      vector<int> cluster_cand_list;
 
-      // Check if 3D points of the candidate are in camera frustum
-      all_candidate_desc = candidate.getOrb();
-      all_candidate_points = candidate.getWorldPoints();
-      all_candidate_kp = candidate.getKp();
+      // Candidate data
+      cv::Mat all_cand_desc = candidate.getOrb();
+      vector<cv::Point3f> all_cand_points = candidate.getWorldPoints();
+      vector<cv::KeyPoint> all_cand_kp_l = candidate.getLeftKp();
+      vector<cv::KeyPoint> all_cand_kp_r = candidate.getRightKp();
+
+      // Query data
+      cv::Mat all_query_desc = c_cluster_.getOrb();
+      vector<cv::KeyPoint> all_query_kp_l = c_cluster_.getLeftKp();
+      vector<cv::KeyPoint> all_query_kp_r = c_cluster_.getRightKp();
 
       // Init the cluster candidate list
-      for (uint j=0; j<all_candidate_points.size(); j++)
-        cluster_candidate_list.push_back(candidate.getId());
+      for (uint j=0; j<all_cand_points.size(); j++)
+        cluster_cand_list.push_back(candidate.getId());
 
       // Increase the probability to close loop by extracting the candidate neighbors
-      vector<int> candidate_neighbors;
-      graph_->findClosestVertices(candidate.getId(), c_cluster_.getId(), LC_DISCARD_WINDOW, LC_NEIGHBORS, candidate_neighbors);
-      for (uint j=0; j<candidate_neighbors.size(); j++)
+      vector<int> cand_neighbors;
+      graph_->findClosestVertices(candidate.getId(), c_cluster_.getId(), LC_DISCARD_WINDOW, LC_NEIGHBORS, cand_neighbors);
+      for (uint j=0; j<cand_neighbors.size(); j++)
       {
-        Cluster candidate_neighbor = readCluster(candidate_neighbors[j]);
-        cv::Mat c_n_desc = candidate_neighbor.getOrb();
+        Cluster cand_neighbor = readCluster(cand_neighbors[j]);
+        cv::Mat c_n_desc = cand_neighbor.getOrb();
         if (c_n_desc.rows == 0) continue;
 
-        // Delete points outside of frustum
-        // cv::Mat desc_tmp;
-        // vector<cv::Point3f> points_tmp;
-        // filterByFrustum(c_n_desc, candidate_neighbor.getWorldPoints(), c_cluster_.getCameraPose(), desc_tmp, points_tmp);
-        vector<cv::Point3f> points_tmp = candidate_neighbor.getWorldPoints();
-        vector<cv::KeyPoint> kp_tmp = candidate_neighbor.getKp();
+        vector<cv::Point3f> points_tmp = cand_neighbor.getWorldPoints();
+        vector<cv::KeyPoint> kp_tmp_l = cand_neighbor.getLeftKp();
+        vector<cv::KeyPoint> kp_tmp_r = cand_neighbor.getRightKp();
 
         // Concatenate descriptors and points
-        cv::vconcat(all_candidate_desc, c_n_desc, all_candidate_desc);
-        all_candidate_points.insert(all_candidate_points.end(), points_tmp.begin(), points_tmp.end());
-        all_candidate_kp.insert(all_candidate_kp.end(), kp_tmp.begin(), kp_tmp.end());
+        cv::vconcat(all_cand_desc, c_n_desc, all_cand_desc);
+        all_cand_points.insert(all_cand_points.end(), points_tmp.begin(), points_tmp.end());
+        all_cand_kp_l.insert(all_cand_kp_l.end(), kp_tmp_l.begin(), kp_tmp_l.end());
+        all_cand_kp_r.insert(all_cand_kp_r.end(), kp_tmp_r.begin(), kp_tmp_r.end());
 
         // Save the cluster id for these points
         for (uint n=0; n<points_tmp.size(); n++)
-          cluster_candidate_list.push_back(candidate_neighbor.getId());
+          cluster_cand_list.push_back(cand_neighbor.getId());
       }
 
       // Init the cluster frame list
-      for (uint j=0; j<c_cluster_.getKp().size(); j++)
-        cluster_frame_list.push_back(c_cluster_.getId());
+      for (uint j=0; j<c_cluster_.getLeftKp().size(); j++)
+        cluster_query_list.push_back(c_cluster_.getId());
 
       // Extract all the clusters corresponding to the current cluster frame
-      vector<int> frame_clusters;
-      graph_->getFrameVertices(c_cluster_.getFrameId(), frame_clusters);
-      for (uint j=0; j<frame_clusters.size(); j++)
+      vector<int> query_clusters;
+      graph_->getFrameVertices(c_cluster_.getFrameId(), query_clusters);
+      for (uint j=0; j<query_clusters.size(); j++)
       {
-        if (frame_clusters[j] == c_cluster_.getId())
+        if (query_clusters[j] == c_cluster_.getId())
           continue;
 
-        Cluster frame_cluster = readCluster(frame_clusters[j]);
-        cv::Mat f_n_desc = frame_cluster.getOrb();
+        Cluster query_cluster = readCluster(query_clusters[j]);
+        cv::Mat f_n_desc = query_cluster.getOrb();
         if (f_n_desc.rows == 0) continue;
 
         // Concatenate descriptors and keypoints
-        vector<cv::KeyPoint> frame_n_kp = frame_cluster.getKp();
-        cv::vconcat(all_frame_desc, f_n_desc, all_frame_desc);
-        all_frame_kp.insert(all_frame_kp.end(), frame_n_kp.begin(), frame_n_kp.end());
+        cv::vconcat(all_query_desc, f_n_desc, all_query_desc);
+        vector<cv::KeyPoint> query_n_kp_l = query_cluster.getLeftKp();
+        vector<cv::KeyPoint> query_n_kp_r = query_cluster.getRightKp();
+        all_query_kp_l.insert(all_query_kp_l.end(), query_n_kp_l.begin(), query_n_kp_l.end());
+        all_query_kp_r.insert(all_query_kp_r.end(), query_n_kp_r.begin(), query_n_kp_r.end());
 
         // Save the cluster id for these points
-        for (uint n=0; n<frame_n_kp.size(); n++)
-          cluster_frame_list.push_back(frame_cluster.getId());
+        for (uint n=0; n<query_n_kp_l.size(); n++)
+          cluster_query_list.push_back(query_cluster.getId());
       }
 
       // Match current frame descriptors with all the clusters
       vector<cv::DMatch> matches_2;
-      Tools::ratioMatching(all_frame_desc, all_candidate_desc, matching_th, matches_2);
+      Tools::ratioMatching(all_query_desc, all_cand_desc, matching_th, matches_2);
 
       if (matches_2.size() >= LC_MIN_INLIERS)
       {
         // Store matchings
-        vector<int> frame_matchings;
-        vector<int> candidate_matchings;
-        vector<cv::Point2f> matched_kp;
-        vector<cv::Point2f> matched_candidate_kp;
-        vector<cv::Point3f> matched_points;
+        vector<int> query_matchings;
+        vector<int> cand_matchings;
+        vector<cv::Point2f> matched_query_kp_l, matched_query_kp_r;
+        vector<cv::Point2f> matched_cand_kp_l, matched_cand_kp_r;
+        vector<cv::Point3f> matched_cand_3d_points;
         for(uint j=0; j<matches_2.size(); j++)
         {
-          matched_kp.push_back(all_frame_kp[matches_2[j].queryIdx].pt);
-          matched_points.push_back(all_candidate_points[matches_2[j].trainIdx]);
-          matched_candidate_kp.push_back(all_candidate_kp[matches_2[j].trainIdx].pt);
-          frame_matchings.push_back(cluster_frame_list[matches_2[j].queryIdx]);
-          candidate_matchings.push_back(cluster_candidate_list[matches_2[j].trainIdx]);
+          // Features
+          matched_query_kp_l.push_back(all_query_kp_l[matches_2[j].queryIdx].pt);
+          matched_query_kp_r.push_back(all_query_kp_r[matches_2[j].queryIdx].pt);
+          matched_cand_kp_l.push_back(all_cand_kp_l[matches_2[j].trainIdx].pt);
+          matched_cand_kp_r.push_back(all_cand_kp_r[matches_2[j].trainIdx].pt);
+
+          // 3d
+          matched_cand_3d_points.push_back(all_cand_points[matches_2[j].trainIdx]);
+
+          // Ids
+          query_matchings.push_back(cluster_query_list[matches_2[j].queryIdx]);
+          cand_matchings.push_back(cluster_cand_list[matches_2[j].trainIdx]);
         }
 
         // Estimate the motion
         vector<int> inliers;
         cv::Mat rvec, tvec;
-        solvePnPRansac(matched_points, matched_kp, graph_->getCameraMatrix(),
+        solvePnPRansac(matched_cand_3d_points, matched_query_kp_l, graph_->getCameraMatrix(),
             cv::Mat(), rvec, tvec, false,
             100, 5.0, LC_MAX_INLIERS, inliers);
 
@@ -324,32 +304,32 @@ namespace slam
           // Get the inliers per cluster pair
           vector< vector<int> > cluster_pairs;
           vector<int> inliers_per_pair;
-          vector<int> candidate_kfs;
+          vector<int> cand_kfs;
           for (uint i=0; i<inliers.size(); i++)
           {
-            int frame_cluster = frame_matchings[inliers[i]];
-            int candidate_cluster = candidate_matchings[inliers[i]];
-            int candidate_kf = graph_->getVertexFrameId(candidate_cluster);
+            int query_cluster = query_matchings[inliers[i]];
+            int cand_cluster = cand_matchings[inliers[i]];
+            int cand_kf = graph_->getVertexFrameId(cand_cluster);
 
             // Build the unique candidate keyframes vector
             bool found_0 = false;
-            for (uint j=0; j<candidate_kfs.size(); j++)
+            for (uint j=0; j<cand_kfs.size(); j++)
             {
-              if (candidate_kfs[j] == candidate_kf)
+              if (cand_kfs[j] == cand_kf)
               {
                 found_0 = true;
                 break;
               }
             }
             if (!found_0)
-              candidate_kfs.push_back(candidate_kf);
+              cand_kfs.push_back(cand_kf);
 
             // Search if this pair already exists
             bool found_1 = false;
             uint idx = 0;
             for (uint j=0; j<cluster_pairs.size(); j++)
             {
-              if (cluster_pairs[j][0] == frame_cluster && cluster_pairs[j][1] == candidate_cluster)
+              if (cluster_pairs[j][0] == query_cluster && cluster_pairs[j][1] == cand_cluster)
               {
                 found_1 = true;
                 idx = j;
@@ -362,8 +342,8 @@ namespace slam
             else
             {
               vector<int> pair;
-              pair.push_back(frame_cluster);
-              pair.push_back(candidate_cluster);
+              pair.push_back(query_cluster);
+              pair.push_back(cand_cluster);
               cluster_pairs.push_back(pair);
               inliers_per_pair.push_back(1);
             }
@@ -410,130 +390,44 @@ namespace slam
 
           if (some_edge_added)
           {
-            // Build image with loop closure matchings
-            cv::Mat lc_image;
-
-            // Read candidate keyframes
-            vector<int> idx_img_candidate_kfs;
-            cv::Mat img_candidate_kfs;
-            int baseline = 0;
-            for (uint i=0; i<candidate_kfs.size(); i++)
-            {
-              string frame_id_str = Tools::convertTo5digits(candidate_kfs[i]);
-              string keyframe_file = WORKING_DIRECTORY + "keyframes/" + frame_id_str + ".jpg";
-              cv::Mat kf = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
-
-              // Add the keyframe identifier
-              stringstream s;
-              s << " Keyframe " << candidate_kfs[i];
-              cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1, 1, &baseline);
-              cv::Mat im_text = cv::Mat(kf.rows + text_size.height + 10, kf.cols, kf.type());
-              kf.copyTo(im_text.rowRange(0, kf.rows).colRange(0, kf.cols));
-              im_text.rowRange(kf.rows, im_text.rows).setTo(cv::Scalar(255,255,255));
-              cv::putText(im_text, s.str(), cv::Point(5, im_text.rows - 5), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,0), 1, 8);
-
-              if (img_candidate_kfs.cols == 0)
-                im_text.copyTo(img_candidate_kfs);
-              else
-                cv::hconcat(img_candidate_kfs, im_text, img_candidate_kfs);
-
-              // Store the index
-              idx_img_candidate_kfs.push_back(candidate_kfs[i]);
-            }
-
-            // Read the current keyframe
-            string frame_id_str = Tools::convertTo5digits(c_cluster_.getFrameId());
-            string keyframe_file = WORKING_DIRECTORY + "keyframes/" + frame_id_str + ".jpg";
-            cv::Mat current_kf_tmp = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
-
-            // Add the keyframe identifier
-            stringstream s;
-            s << " Keyframe " << c_cluster_.getFrameId();
-            cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1, 1, &baseline);
-            cv::Mat current_kf_text = cv::Mat(current_kf_tmp.rows + text_size.height + 10, current_kf_tmp.cols, current_kf_tmp.type());
-            current_kf_tmp.copyTo(current_kf_text.rowRange(text_size.height + 10, current_kf_tmp.rows + text_size.height + 10).colRange(0, current_kf_tmp.cols));
-            current_kf_text.rowRange(0, text_size.height + 10).setTo(cv::Scalar(255,255,255));
-            cv::putText(current_kf_text, s.str(), cv::Point(5, 14), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,0), 1, 8);
-
-            // Compose current keyframe with candidate keyframes
-            cv::Mat current_kf(img_candidate_kfs.rows, img_candidate_kfs.cols, img_candidate_kfs.type(), cv::Scalar(0, 0, 0));
-            int x_offset = round(img_candidate_kfs.cols/2 - current_kf_text.cols/2);
-            current_kf_text.copyTo( current_kf( cv::Rect(x_offset, 0, current_kf_text.cols, current_kf_text.rows) ) );
-            cv::vconcat(current_kf, img_candidate_kfs, lc_image);
-
-            // Build the vector of colors
-            cv::RNG rng(12345);
-            vector<cv::Scalar> colors;
-            for (uint i=0; i<definitive_inliers_per_pair.size(); i++)
-            {
-              cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
-              colors.push_back(color);
-            }
-
-            // Draw the matchings
-            for (uint i=0; i<inliers.size(); i++)
-            {
-              // Extract the keypoint for the current keyframe
-              cv::Point2f current_kp = matched_kp[inliers[i]];
-              cv::Point2f candidate_kp = matched_candidate_kp[inliers[i]];
-
-              // Candidate cluster identifier
-              int cand_cluster = candidate_matchings[inliers[i]];
-              int cand_keyframe = graph_->getVertexFrameId(cand_cluster);
-
-              int position = -1;
-              for (uint j=0; j<idx_img_candidate_kfs.size(); j++)
-              {
-                if (idx_img_candidate_kfs[j] == cand_keyframe)
-                {
-                  position = j;
-                  break;
-                }
-              }
-
-              // Draw
-              if (position >= 0)
-              {
-                // Decide the color
-                int color_idx = -1;
-                for (uint n=0; n<definitive_inliers_per_pair.size(); n++)
-                {
-                  if (definitive_cluster_pairs[n][1] == cand_cluster)
-                  {
-                    color_idx = n;
-                    break;
-                  }
-                }
-                if (color_idx >= 0)
-                {
-                  cv::Point2f p_cur_kf = current_kp;
-                  p_cur_kf.x = x_offset + p_cur_kf.x;
-
-                  cv::Point2f p_cand_kf = candidate_kp;
-                  p_cand_kf.y = p_cand_kf.y + current_kf.rows;
-                  p_cand_kf.x = position*current_kf_text.cols + p_cand_kf.x;
-
-                  cv::circle(lc_image, p_cur_kf, 4, colors[color_idx], -1);
-                  cv::circle(lc_image, p_cand_kf, 4, colors[color_idx], -1);
-                  cv::line(lc_image, p_cur_kf, p_cand_kf, colors[color_idx], 2, 8, 0);
-                }
-              }
-            }
-
-            // Save
-            string lc_file = loop_closures_dir_ + "/" + Tools::convertTo5digits(num_loop_closures_) + ".jpg";
-            cv::imwrite( lc_file, lc_image );
             num_loop_closures_++;
-
-            // Publish
-            cv_bridge::CvImage ros_image;
-            ros_image.image = lc_image.clone();
-            ros_image.header.stamp = ros::Time::now();
-            ros_image.encoding = "bgr8";
-            pub_lc_matchings_.publish(ros_image.toImageMsg());
 
             // Update the graph with the new edges
             graph_->update();
+
+            // Draw the loop closure to image
+            drawLoopClosure(cand_kfs,
+                            cand_matchings,
+                            inliers,
+                            definitive_inliers_per_pair,
+                            definitive_cluster_pairs,
+                            matched_query_kp_l,
+                            matched_cand_kp_l);
+
+            // Update the calibration object
+            updateCalibration(inliers,
+                              cand_matchings,
+                              matched_query_kp_l,
+                              matched_query_kp_r,
+                              matched_cand_kp_l,
+                              matched_cand_kp_r);
+
+            // Execute and publish the camera calibration
+            if (pub_calibration_.getNumSubscribers() > 0)
+            {
+              // Calibrate
+              calib_->run();
+
+              // Publish
+              vector<double> cam_params = calib_->getCameraParams();
+              stereo_slam::CameraParams cam_params_msg;
+              cam_params_msg.header.stamp = ros::Time::now();
+              cam_params_msg.Tx = cam_params[0];
+              cam_params_msg.cx = cam_params[1];
+              cam_params_msg.cy = cam_params[2];
+              cam_params_msg.fx = cam_params[3];
+              pub_calibration_.publish(cam_params_msg);
+            }
 
             return true;
           }
@@ -608,22 +502,190 @@ namespace slam
     if (!fs.isOpened()) return cluster;
 
     int frame_id;
-    vector<cv::KeyPoint> kp;
+    vector<cv::KeyPoint> kp_l, kp_r;
     cv::Mat desc, pose, empty;
     vector<cv::Point3f> points;
     fs["frame_id"] >> frame_id;
     fs["desc"] >> desc;
     fs["points"] >> points;
-    cv::FileNode kp_node = fs["kp"];
-    read(kp_node, kp);
+    cv::FileNode kp_l_node = fs["kp_l"];
+    cv::FileNode kp_r_node = fs["kp_r"];
+    read(kp_l_node, kp_l);
+    read(kp_r_node, kp_r);
     fs.release();
 
     // Set the properties of the cluster
     tf::Transform vertex_camera_pose = graph_->getVertexCameraPose(id, true);
-    Cluster cluster_tmp(id, frame_id, vertex_camera_pose, kp, desc, empty, points);
+    Cluster cluster_tmp(id, frame_id, vertex_camera_pose, kp_l, kp_r, desc, empty, points);
     cluster = cluster_tmp;
 
     return cluster;
+  }
+
+  void LoopClosing::updateCalibration(vector<int> inliers,
+                                      vector<int> cand_matchings,
+                                      vector<cv::Point2f> matched_query_kp_l,
+                                      vector<cv::Point2f> matched_query_kp_r,
+                                      vector<cv::Point2f> matched_cand_kp_l,
+                                      vector<cv::Point2f> matched_cand_kp_r)
+  {
+    vector<Calibration::WorldPoint> world_points;
+
+    // Draw the matchings
+    for (uint i=0; i<inliers.size(); i++)
+    {
+      // Query/candidate identifiers
+      int cand_cluster = cand_matchings[inliers[i]];
+      int id_query = c_cluster_.getFrameId();
+      int id_cand = graph_->getVertexFrameId(cand_cluster);
+
+      // Query kp
+      cv::Point2d l_query = matched_query_kp_l[inliers[i]];
+      cv::Point2d r_query = matched_query_kp_r[inliers[i]];
+      double disp_query = l_query.x - r_query.x;
+
+      cv::Point2d l_cand = matched_cand_kp_l[inliers[i]];
+      cv::Point2d r_cand = matched_cand_kp_r[inliers[i]];
+      double disp_cand = l_cand.x - r_cand.x;
+
+      Calibration::WorldPoint p(id_query, id_cand, disp_query, disp_cand, l_query, l_cand);
+      world_points.push_back(p);
+    }
+
+    calib_->update(world_points);
+  }
+
+  void LoopClosing::drawLoopClosure(vector<int> cand_kfs,
+                                    vector<int> cand_matchings,
+                                    vector<int> inliers,
+                                    vector<int> definitive_inliers_per_pair,
+                                    vector< vector<int> > definitive_cluster_pairs,
+                                    vector<cv::Point2f> matched_query_kp_l,
+                                    vector<cv::Point2f> matched_cand_kp_l)
+  {
+    // Build image with loop closure matchings
+    cv::Mat lc_image;
+
+    // Read candidate keyframes
+    vector<int> idx_img_candidate_kfs;
+    cv::Mat img_candidate_kfs;
+    int baseline = 0;
+    for (uint i=0; i<cand_kfs.size(); i++)
+    {
+      string frame_id_str = Tools::convertTo5digits(cand_kfs[i]);
+      string keyframe_file = WORKING_DIRECTORY + "keyframes/" + frame_id_str + ".jpg";
+      cv::Mat kf = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
+
+      // Add the keyframe identifier
+      stringstream s;
+      s << " Keyframe " << cand_kfs[i];
+      cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1, 1, &baseline);
+      cv::Mat im_text = cv::Mat(kf.rows + text_size.height + 10, kf.cols, kf.type());
+      kf.copyTo(im_text.rowRange(0, kf.rows).colRange(0, kf.cols));
+      im_text.rowRange(kf.rows, im_text.rows).setTo(cv::Scalar(255,255,255));
+      cv::putText(im_text, s.str(), cv::Point(5, im_text.rows - 5), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,0), 1, 8);
+
+      if (img_candidate_kfs.cols == 0)
+        im_text.copyTo(img_candidate_kfs);
+      else
+        cv::hconcat(img_candidate_kfs, im_text, img_candidate_kfs);
+
+      // Store the index
+      idx_img_candidate_kfs.push_back(cand_kfs[i]);
+    }
+
+    // Read the current keyframe
+    string frame_id_str = Tools::convertTo5digits(c_cluster_.getFrameId());
+    string keyframe_file = WORKING_DIRECTORY + "keyframes/" + frame_id_str + ".jpg";
+    cv::Mat current_kf_tmp = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
+
+    // Add the keyframe identifier
+    stringstream s;
+    s << " Keyframe " << c_cluster_.getFrameId();
+    cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1, 1, &baseline);
+    cv::Mat current_kf_text = cv::Mat(current_kf_tmp.rows + text_size.height + 10, current_kf_tmp.cols, current_kf_tmp.type());
+    current_kf_tmp.copyTo(current_kf_text.rowRange(text_size.height + 10, current_kf_tmp.rows + text_size.height + 10).colRange(0, current_kf_tmp.cols));
+    current_kf_text.rowRange(0, text_size.height + 10).setTo(cv::Scalar(255,255,255));
+    cv::putText(current_kf_text, s.str(), cv::Point(5, 14), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,0), 1, 8);
+
+    // Compose current keyframe with candidate keyframes
+    cv::Mat current_kf(img_candidate_kfs.rows, img_candidate_kfs.cols, img_candidate_kfs.type(), cv::Scalar(0, 0, 0));
+    int x_offset = round(img_candidate_kfs.cols/2 - current_kf_text.cols/2);
+    current_kf_text.copyTo( current_kf( cv::Rect(x_offset, 0, current_kf_text.cols, current_kf_text.rows) ) );
+    cv::vconcat(current_kf, img_candidate_kfs, lc_image);
+
+    // Build the vector of colors
+    cv::RNG rng(12345);
+    vector<cv::Scalar> colors;
+    for (uint i=0; i<definitive_inliers_per_pair.size(); i++)
+    {
+      cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
+      colors.push_back(color);
+    }
+
+    // Draw the matchings
+    for (uint i=0; i<inliers.size(); i++)
+    {
+      // Extract the keypoint for the current keyframe
+      cv::Point2f current_kp = matched_query_kp_l[inliers[i]];
+      cv::Point2f candidate_kp = matched_cand_kp_l[inliers[i]];
+
+      // Candidate cluster identifier
+      int cand_cluster = cand_matchings[inliers[i]];
+      int cand_keyframe = graph_->getVertexFrameId(cand_cluster);
+
+      int position = -1;
+      for (uint j=0; j<idx_img_candidate_kfs.size(); j++)
+      {
+        if (idx_img_candidate_kfs[j] == cand_keyframe)
+        {
+          position = j;
+          break;
+        }
+      }
+
+      // Draw
+      if (position >= 0)
+      {
+        // Decide the color
+        int color_idx = -1;
+        for (uint n=0; n<definitive_inliers_per_pair.size(); n++)
+        {
+          if (definitive_cluster_pairs[n][1] == cand_cluster)
+          {
+            color_idx = n;
+            break;
+          }
+        }
+        if (color_idx >= 0)
+        {
+          cv::Point2f p_cur_kf = current_kp;
+          p_cur_kf.x = x_offset + p_cur_kf.x;
+
+          cv::Point2f p_cand_kf = candidate_kp;
+          p_cand_kf.y = p_cand_kf.y + current_kf.rows;
+          p_cand_kf.x = position*current_kf_text.cols + p_cand_kf.x;
+
+          cv::circle(lc_image, p_cur_kf, 4, colors[color_idx], -1);
+          cv::circle(lc_image, p_cand_kf, 4, colors[color_idx], -1);
+          cv::line(lc_image, p_cur_kf, p_cand_kf, colors[color_idx], 2, 8, 0);
+        }
+      }
+    }
+
+    // Save
+    string lc_file = loop_closures_dir_ + "/" + Tools::convertTo5digits(num_loop_closures_) + ".jpg";
+    cv::imwrite( lc_file, lc_image );
+
+    // Publish
+    if (pub_lc_matchings_.getNumSubscribers() > 0)
+    {
+      cv_bridge::CvImage ros_image;
+      ros_image.image = lc_image.clone();
+      ros_image.header.stamp = ros::Time::now();
+      ros_image.encoding = "bgr8";
+      pub_lc_matchings_.publish(ros_image.toImageMsg());
+    }
   }
 
   void LoopClosing::finalize()

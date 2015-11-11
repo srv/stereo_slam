@@ -198,8 +198,7 @@ private:
 
   tf::Transform last_fixed_frame_pose_; //!> Stores the last fixed frame pose
 
-  Eigen::Vector4f last_min_pt_; // Stores the last fixed frame minimum and maximum points
-  Eigen::Vector4f last_max_pt_;
+  Eigen::Vector4f last_min_pt_, last_max_pt_; // Stores the last fixed frame minimum and maximum points
 
   int frame_id_; //!> Processed frames counter
 

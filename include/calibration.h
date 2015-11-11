@@ -140,6 +140,11 @@ public:
    */
   void run();
 
+  /** \brief Returns the camera parameters
+   * @return The vector of camera parameters [Tx, cx, cy, fx]
+   */
+  vector<double> getCameraParams();
+
 private:
 
   vector<WorldPoint> all_points_; //!> Vector containing all world points

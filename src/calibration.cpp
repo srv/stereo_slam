@@ -32,16 +32,34 @@ namespace slam
       all_points_.insert(all_points_.end(), world_points.begin(), world_points.end());
   }
 
+  vector<double> Calibration::getCameraParams()
+  {
+    vector<double> out;
+    out.push_back(camera_params_[0]);
+    out.push_back(camera_params_[1]);
+    out.push_back(camera_params_[2]);
+    out.push_back(camera_params_[3]);
+    return out;
+  }
+
   void Calibration::run()
   {
+    // Ceres problem
     ceres::Problem problem;
+
+    // Get the points
+    vector<WorldPoint> all_points;
+    {
+      mutex::scoped_lock lock(mutex_points_);
+      all_points = all_points_;
+    }
 
     cout << "[Localization:] Optimizing camera parameters with " << all_points_.size() << " points." << endl;
     cout << "[Localization:] Initial parameters (Tx, cx, cy, fx): " << camera_params_[0] << ", " << camera_params_[1] << ", " << camera_params_[2] << ", " << camera_params_[3] << endl;
 
-    for (uint i=0; i<all_points_.size(); i++)
+    for (uint i=0; i<all_points.size(); i++)
     {
-      WorldPoint p = all_points_[i];
+      WorldPoint p = all_points[i];
 
       tf::Transform tf_a, tf_b;
       bool valid_a = graph_->getFramePose(p.frame_id_a, tf_a);
@@ -63,14 +81,18 @@ namespace slam
     }
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_SCHUR;
+    options.linear_solver_type = ceres::SPARSE_SCHUR;
+    options.max_num_iterations = 1000;
     options.minimizer_progress_to_stdout = false;
+    options.max_solver_time_in_seconds = 600;
+
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
     cout << "[Localization:] Final parameters (Tx, cx, cy, fx): " << camera_params_[0] << ", " << camera_params_[1] << ", " << camera_params_[2] << ", " << camera_params_[3] << endl;
     cout << endl << endl << endl;
-    cout << summary.FullReport() << "\n";
+
+    //cout << summary.FullReport() << "\n";
   }
 
 } //namespace slam

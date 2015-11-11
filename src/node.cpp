@@ -46,6 +46,7 @@ int main(int argc, char **argv)
   // Set the parameters for every object
   tracker.setParams(tracking_params);
   loop_closing.setGraph(&graph);
+  loop_closing.setCalibration(&calibration);
 
   // Launch threads
   boost::thread trackingThread(&slam::Tracking::run, &tracker);
@@ -61,9 +62,6 @@ int main(int argc, char **argv)
 
   // Loop closing object is the only one that needs finalization
   loop_closing.finalize();
-
-  // Optimize camera parameters
-  calibration.run();
 
   ros::shutdown();
 
