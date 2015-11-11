@@ -8,8 +8,8 @@ using namespace tools;
 namespace slam
 {
 
-  Tracking::Tracking(Publisher *f_pub, Graph *graph)
-    : f_pub_(f_pub), graph_(graph), frame_id_(0), jump_detected_(false), secs_to_filter_(10.0)
+  Tracking::Tracking(Publisher *f_pub, Graph *graph, Calibration *calibration)
+    : f_pub_(f_pub), graph_(graph), calib_(calibration), frame_id_(0), jump_detected_(false), secs_to_filter_(10.0)
   {}
 
   void Tracking::run()
@@ -87,6 +87,12 @@ namespace slam
       graph_->setCameraMatrix(camera_matrix_);
       graph_->setCameraModel(camera_model_.left());
 
+      // Set calibration properties
+      calib_->setCameraParameters(camera_model_.baseline(),
+                                  camera_matrix_.at<double>(0,2),
+                                  camera_matrix_.at<double>(1,2),
+                                  camera_matrix_.at<double>(0,0));
+
       // The initial frame
       c_frame_ = Frame(l_img, r_img, camera_model_, timestamp);
 
@@ -126,12 +132,14 @@ namespace slam
       tf::Transform odom_diff = odom_pose_history_[odom_pose_history_.size()-1].inverse() * c_camera_odom_pose;
 
       // Refine its position relative to the previous frame
+      vector<Calibration::WorldPoint> world_points;
       tf::Transform p2c_diff, c_camera_pose;
       int num_inliers = LC_MIN_INLIERS;
-      bool refine_ok = refinePose(p_frame_, c_frame_, p2c_diff, num_inliers);
-
+      bool succeed = refinePose(p_frame_, c_frame_, p2c_diff, world_points, num_inliers);
       double error = Tools::poseDiff3D(p2c_diff, odom_diff);
-      if (refine_ok && error < 0.2)
+      bool refine_valid = succeed && error < 0.2;
+
+      if (refine_valid)
         c_camera_pose = last_frame_pose * p2c_diff;
       else
         c_camera_pose = last_frame_pose * odom_diff;
@@ -146,6 +154,10 @@ namespace slam
         // Store the camera odometry for this keyframe
         tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
         odom_pose_history_.push_back(c_odom_camera);
+
+        // Store calibration information
+        if (refine_valid)
+          calib_->update(world_points);
       }
     }
 
@@ -319,10 +331,11 @@ namespace slam
     return false;
   }
 
-  bool Tracking::refinePose(Frame query, Frame candidate, tf::Transform& out, int& num_inliers)
+  bool Tracking::refinePose(Frame query, Frame candidate, tf::Transform& out, vector<Calibration::WorldPoint>& world_points, int& num_inliers)
   {
     // Init
     out.setIdentity();
+    world_points.clear();
     num_inliers = LC_MIN_INLIERS;
 
     // Sanity check
@@ -336,20 +349,33 @@ namespace slam
     if (matches.size() >= LC_MIN_INLIERS)
     {
       // Get the matched keypoints
-      vector<cv::KeyPoint> query_kp = query.getLeftKp();
-      vector<cv::Point3f> candidate_3d = candidate.getCameraPoints();
-      vector<cv::Point2f> query_matched_kp;
-      vector<cv::Point3f> candidate_matched_3d_points;
+      vector<cv::KeyPoint> query_kp_l = query.getLeftKp();
+      vector<cv::KeyPoint> query_kp_r = query.getRightKp();
+      vector<cv::Point3f> query_3d = query.getCameraPoints();
+      vector<cv::KeyPoint> cand_kp_l = candidate.getLeftKp();
+      vector<cv::KeyPoint> cand_kp_r = candidate.getRightKp();
+      vector<cv::Point3f> cand_3d = candidate.getCameraPoints();
+      vector<cv::Point2f> query_matched_kp_l, query_matched_kp_r;
+      vector<cv::Point2f> cand_matched_kp_l, cand_matched_kp_r;
+      vector<cv::Point3f> cand_matched_3d_points;
       for(uint i=0; i<matches.size(); i++)
       {
-        query_matched_kp.push_back(query_kp[matches[i].queryIdx].pt);
-        candidate_matched_3d_points.push_back(candidate_3d[matches[i].trainIdx]);
+        // Query keypoints
+        query_matched_kp_l.push_back(query_kp_l[matches[i].queryIdx].pt);
+        query_matched_kp_r.push_back(query_kp_r[matches[i].queryIdx].pt);
+
+        // Candidate keypoints
+        cand_matched_kp_l.push_back(cand_kp_l[matches[i].trainIdx].pt);
+        cand_matched_kp_r.push_back(cand_kp_r[matches[i].trainIdx].pt);
+
+        // 3d points
+        cand_matched_3d_points.push_back(cand_3d[matches[i].trainIdx]);
       }
 
       cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64FC1);
       cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);
       vector<int> inliers;
-      cv::solvePnPRansac(candidate_matched_3d_points, query_matched_kp, camera_matrix_,
+      cv::solvePnPRansac(cand_matched_3d_points, query_matched_kp_l, camera_matrix_,
                      cv::Mat(), rvec, tvec, false,
                      100, 1.3, LC_MAX_INLIERS, inliers);
 
@@ -360,7 +386,28 @@ namespace slam
       }
       else
       {
+        // Build output transform
         out = Tools::buildTransformation(rvec, tvec);
+
+        // Save the points for calibration
+        for (uint i=0; i<inliers.size(); i++)
+        {
+          int id_query = query.getId();
+          int id_cand = id_query + 1;
+
+          cv::Point2d l_query = query_matched_kp_l[inliers[i]];
+          cv::Point2d r_query = query_matched_kp_r[inliers[i]];
+          double disp_query = l_query.x - r_query.x;
+
+          cv::Point2d l_cand = cand_matched_kp_l[inliers[i]];
+          cv::Point2d r_cand = cand_matched_kp_r[inliers[i]];
+          double disp_cand = l_cand.x - r_cand.x;
+
+          Calibration::WorldPoint p(id_query, id_cand, disp_query, disp_cand, l_query, l_cand);
+          world_points.push_back(p);
+        }
+
+        // Save the inliers
         num_inliers = inliers.size();
         return true;
       }

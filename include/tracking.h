@@ -34,6 +34,7 @@
 #include "frame.h"
 #include "graph.h"
 #include "publisher.h"
+#include "calibration.h"
 
 using namespace std;
 using namespace boost;
@@ -49,6 +50,7 @@ namespace slam
 
 class Publisher;
 class Graph;
+class Calibration;
 
 class Tracking
 {
@@ -78,7 +80,7 @@ public:
    * \param Frame publisher object pointer
    * \param Graph object pointer
    */
-  Tracking(Publisher* f_pub, Graph* graph);
+  Tracking(Publisher* f_pub, Graph* graph, Calibration* calibration);
 
   /** \brief Set class params
    * \param the parameters struct
@@ -157,9 +159,10 @@ protected:
    * \param current frame
    * \param previous frame
    * \param the estimated transform
+   * \param the corresponding calibration world points for the inliers
    * \param number of inliers for the refined pose
    */
-  bool refinePose(Frame c_frame, Frame p_frame, tf::Transform& out, int& num_inliers);
+  bool refinePose(Frame c_frame, Frame p_frame, tf::Transform& out, vector<Calibration::WorldPoint>& world_points, int& num_inliers);
 
 private:
 
@@ -191,10 +194,11 @@ private:
 
   Graph* graph_; //!> Graph
 
+  Calibration* calib_; //!> Calibration object
+
   tf::Transform last_fixed_frame_pose_; //!> Stores the last fixed frame pose
 
-  Eigen::Vector4f last_min_pt_; // Stores the last fixed frame minimum and maximum points
-  Eigen::Vector4f last_max_pt_;
+  Eigen::Vector4f last_min_pt_, last_max_pt_; // Stores the last fixed frame minimum and maximum points
 
   int frame_id_; //!> Processed frames counter
 

@@ -22,6 +22,8 @@ Installation (Ubuntu + ROS Indigo)
 1) Install the dependencies
 ```bash
 sudo apt-get install ros-<your ros distro>-libg2o
+
+sudo apt-get install libceres-dev
 ```
 
 You also need to setup a stereo visual odometer (e.g. [viso2][link_viso2] or [fovis][link_fovis]).
@@ -54,19 +56,20 @@ You can run the node using the following launch file (please, for a better perfo
 ```bash
 <launch>
   <arg name="camera" default="/stereo"/>
-  
+
   <!-- Run the stereo image proc -->
   <node ns="$(arg camera)" pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc" />
-  
+
   <node pkg="viso2_ros" type="stereo_odometer" name="stereo_odometer">
     <remap from="stereo" to="$(arg camera)"/>
     <remap from="image" to="image_rect"/>
   </node>
-  
+
   <node pkg="stereo_slam" type="localization" name="stereo_slam" output="screen">
     <param name="odom_topic" value="/stereo_odometer/odometry"/>
     <param name="camera_topic" value="$(arg camera)"/>
   </node>
+</launch>
 ```
 
 Published Topics
@@ -80,6 +83,7 @@ Published Topics
 * `/stereo_slam/loop_closings` - Number of loop closings found (type std_msgs::String).
 * `/stereo_slam/pointcloud` - The pointcloud for every keyframe (type sensor_msgs::PointCloud2).
 * `/stereo_slam/tracking_overlap` - Image containing a representation of the traking overlap. Used to decide when to insert a new keyframe into the graph (type sensor_msgs::Image).
+* `/stereo_slam/camera_params` - The optimized (calibrated) camera parameters after every loop closure (type stereo_slam::CameraParams).
 
 
 Saved data

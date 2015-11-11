@@ -89,7 +89,8 @@ namespace slam
     vector<Cluster> clusters_to_close_loop;
     vector<Eigen::Vector4f> cluster_centroids = frame.getClusterCentroids();
     vector<cv::Point3f> points = frame.getCameraPoints();
-    vector<cv::KeyPoint> kp = frame.getLeftKp();
+    vector<cv::KeyPoint> kp_l = frame.getLeftKp();
+    vector<cv::KeyPoint> kp_r = frame.getRightKp();
     tf::Transform camera_pose = frame.getCameraPose();
     cv::Mat orb_desc = frame.getLeftDesc();
     for (uint i=0; i<clusters.size(); i++)
@@ -108,17 +109,18 @@ namespace slam
 
       // Build cluster
       cv::Mat c_desc_orb, c_desc_sift;
-      vector<cv::KeyPoint> c_kp;
+      vector<cv::KeyPoint> c_kp_l, c_kp_r;
       vector<cv::Point3f> c_points;
       for (uint j=0; j<clusters[i].size(); j++)
       {
         int idx = clusters[i][j];
-        c_kp.push_back(kp[idx]);
+        c_kp_l.push_back(kp_l[idx]);
+        c_kp_r.push_back(kp_r[idx]);
         c_points.push_back(points[idx]);
         c_desc_orb.push_back(orb_desc.row(idx));
         c_desc_sift.push_back(sift_desc.row(idx));
       }
-      Cluster cluster(id, frame_id_, camera_pose, c_kp, c_desc_orb, c_desc_sift, c_points);
+      Cluster cluster(id, frame_id_, camera_pose, c_kp_l, c_kp_r, c_desc_orb, c_desc_sift, c_points);
       clusters_to_close_loop.push_back(cluster);
     }
 

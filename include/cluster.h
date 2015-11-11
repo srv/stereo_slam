@@ -28,7 +28,7 @@ public:
 
   /** \brief Class constructor
    */
-  Cluster(int id, int frame_id, tf::Transform camera_pose, vector<cv::KeyPoint> kp, cv::Mat orb_desc, cv::Mat sift_desc, vector<cv::Point3f> points);
+  Cluster(int id, int frame_id, tf::Transform camera_pose, vector<cv::KeyPoint> kp_l, vector<cv::KeyPoint> kp_r, cv::Mat orb_desc, cv::Mat sift_desc, vector<cv::Point3f> points);
 
   /** \brief Computes and returns the 3D points in world coordinates
    * @return the 3D points in world coordinates
@@ -43,9 +43,13 @@ public:
    */
   inline int getFrameId() const {return frame_id_;}
 
-  /** \brief Get cv::KeyPoints
+  /** \brief Get left cv::KeyPoints
    */
-  inline vector<cv::KeyPoint> getKp() const {return kp_;}
+  inline vector<cv::KeyPoint> getLeftKp() const {return kp_l_;}
+
+  /** \brief Get right cv::KeyPoints
+   */
+  inline vector<cv::KeyPoint> getRightKp() const {return kp_r_;}
 
   /** \brief Get orb descriptors
    */
@@ -72,7 +76,9 @@ private:
 
   tf::Transform camera_pose_; //!> Camera world position
 
-  vector<cv::KeyPoint> kp_; //!> cv::KeyPoints.
+  vector<cv::KeyPoint> kp_l_; //!> left cv::KeyPoints.
+
+  vector<cv::KeyPoint> kp_r_; //!> left cv::KeyPoints.
 
   cv::Mat orb_desc_; //!> ORB descriptors
   cv::Mat sift_desc_; //!> Sift descriptors
