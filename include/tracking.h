@@ -129,15 +129,13 @@ protected:
 
   /** \brief Decide if new keyframe is needed
    * @return True if new keyframe will be inserted into the graph
-   * \param The current frame pointcloud
    */
-  bool needNewKeyFrame(PointCloudRGB::Ptr cloud);
+  bool needNewKeyFrame();
 
   /** \brief Add a frame to the graph if enough inliers
    * @return True if new keyframe will be inserted into the map
-   * \param The current frame pointcloud
    */
-  bool addFrameToMap(PointCloudRGB::Ptr cloud);
+  bool addFrameToMap();
 
 
   /** \brief Filters a pointcloud

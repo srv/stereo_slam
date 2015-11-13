@@ -9,9 +9,9 @@ using namespace tools;
 namespace slam
 {
 
-  Frame::Frame() {}
+  Frame::Frame() : pointcloud_(new PointCloudRGB) {}
 
-  Frame::Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp)
+  Frame::Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp) : pointcloud_(new PointCloudRGB)
   {
     // Init
     id_ = -1;
@@ -234,7 +234,7 @@ namespace slam
     // Compute the clusters centroids
     for (uint i=0; i<clusters_.size(); i++)
     {
-      Cloud::Ptr cluster_points(new Cloud);
+      PointCloudXYZ::Ptr cluster_points(new PointCloudXYZ);
       for (uint j=0; j<clusters_[i].size(); j++)
       {
         int idx = clusters_[i][j];

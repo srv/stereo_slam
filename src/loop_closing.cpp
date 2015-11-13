@@ -293,7 +293,7 @@ namespace slam
         cv::Mat rvec, tvec;
         solvePnPRansac(matched_cand_3d_points, matched_query_kp_l, graph_->getCameraMatrix(),
             cv::Mat(), rvec, tvec, false,
-            100, 5.0, LC_MAX_INLIERS, inliers);
+            100, 4.0, LC_MAX_INLIERS, inliers);
 
         // Loop found!
         if (inliers.size() >= LC_MIN_INLIERS)

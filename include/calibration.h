@@ -110,11 +110,6 @@ public:
       T y_b_w = T(tfb_10_) * x_b + T(tfb_11_) * y_b + T(tfb_12_) * z_b + T(tfb_13_);
       T z_b_w = T(tfb_20_) * x_b + T(tfb_21_) * y_b + T(tfb_22_) * z_b + T(tfb_23_);
 
-      // cout << "---------" << endl;
-      // cout << x_a_w << ", " << x_b_w << endl;
-      // cout << y_a_w << ", " << y_b_w << endl;
-      // cout << z_a_w << ", " << z_b_w << endl;
-
       residuals[0] = x_a_w - x_b_w;
       residuals[1] = y_a_w - y_b_w;
       residuals[2] = z_a_w - z_b_w;

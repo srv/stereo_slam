@@ -79,6 +79,27 @@ namespace slam
         return;
       }
 
+      // sensor_msgs::CameraInfo l_info = *l_info_msg;
+      // sensor_msgs::CameraInfo r_info = *r_info_msg;
+      // double Tx = 0.0772767408331;
+      // double cx = 229.183913752;
+      // double cy = 190.621675112;
+      // double fx = 261.925964761;
+      // l_info.P[0] = fx;
+      // l_info.P[2] = cx;
+      // l_info.P[5] = fx;
+      // l_info.P[6] = cy;
+      // l_info.binning_x = 1;
+      // l_info.binning_y = 1;
+      // r_info.P[0] = fx;
+      // r_info.P[2] = cx;
+      // r_info.P[3] = -fx * Tx;
+      // r_info.P[5] = fx;
+      // r_info.P[6] = cy;
+      // r_info.binning_x = 1;
+      // r_info.binning_y = 1;
+      // Tools::getCameraModel(l_info, r_info, camera_model_, camera_matrix_);
+
       // Camera parameters
       Tools::getCameraModel(*l_info_msg, *r_info_msg, camera_model_, camera_matrix_);
 
@@ -97,23 +118,26 @@ namespace slam
       c_frame_ = Frame(l_img, r_img, camera_model_, timestamp);
 
       // Filter cloud
-      PointCloudRGB::Ptr cloud_filtered;
+      PointCloudRGB::Ptr cloud_filtered(new PointCloudRGB);
       cloud_filtered = filterCloud(pcl_cloud);
-
-      // For the first frame, its estimated pose will coincide with odometry
-      tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
-      c_frame_.setCameraPose(c_odom_camera);
-      bool frame_ok = addFrameToMap(cloud_filtered);
-      if (!frame_ok) return;
-
-      // Store the odometry for this frame
-      odom_pose_history_.push_back(c_odom_camera);
+      c_frame_.setPointCloud(cloud_filtered);
 
       // No corrections apply yet
       prev_robot_pose_ = c_odom_robot;
 
-      // Mark as initialized
-      state_ = INITIALIZING;
+      // For the first frame, its estimated pose will coincide with odometry
+      tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
+      c_frame_.setCameraPose(c_odom_camera);
+
+      bool frame_ok = addFrameToMap();
+      if (frame_ok)
+      {
+        // Store the odometry for this frame
+        odom_pose_history_.push_back(c_odom_camera);
+
+        // Mark as initialized
+        state_ = INITIALIZING;
+      }
     }
     else
     {
@@ -122,10 +146,8 @@ namespace slam
 
       // Get the pose of the last frame id
       tf::Transform last_frame_pose;
-
-      bool ok = graph_->getFramePose(frame_id_ - 1, last_frame_pose);
-      if (!ok)
-        return;
+      bool graph_ready = graph_->getFramePose(frame_id_ - 1, last_frame_pose);
+      if (!graph_ready) return;
 
       // Previous/current frame odometry difference
       tf::Transform c_camera_odom_pose = c_odom_robot * odom2camera_;
@@ -144,11 +166,17 @@ namespace slam
       else
         c_camera_pose = last_frame_pose * odom_diff;
 
+      // Filter cloud
+      PointCloudRGB::Ptr cloud_filtered(new PointCloudRGB);
+      cloud_filtered = filterCloud(pcl_cloud);
+
+      // Set frame data
       c_frame_.setCameraPose(c_camera_pose);
       c_frame_.setInliersNumWithPreviousFrame(num_inliers);
+      c_frame_.setPointCloud(cloud_filtered);
 
       // Need new keyframe
-      bool is_new_keyframe = needNewKeyFrame(pcl_cloud);
+      bool is_new_keyframe = needNewKeyFrame();
       if (is_new_keyframe)
       {
         // Store the camera odometry for this keyframe
@@ -232,16 +260,12 @@ namespace slam
     return true;
   }
 
-  bool Tracking::needNewKeyFrame(PointCloudRGB::Ptr cloud)
+  bool Tracking::needNewKeyFrame()
   {
-    // Filter cloud
-    PointCloudRGB::Ptr cloud_filtered;
-    cloud_filtered = filterCloud(cloud);
-
     // Init initialization
     if (state_ == INITIALIZING)
     {
-      bool valid_frame = addFrameToMap(cloud_filtered);
+      bool valid_frame = addFrameToMap();
       if (valid_frame)
         state_ = WORKING;
       return valid_frame;
@@ -255,7 +279,7 @@ namespace slam
 
       // Speedup the process by converting the current pointcloud to xyz
       PointCloudXYZ::Ptr cloud_xyz(new PointCloudXYZ);
-      pcl::copyPointCloud(*cloud_filtered, *cloud_xyz);
+      pcl::copyPointCloud(*c_frame_.getPointCloud(), *cloud_xyz);
 
       // Transform the current pointcloud
       Eigen::Affine3d tf_eigen;
@@ -284,13 +308,13 @@ namespace slam
       // Add frame when overlap is less than...
       if (overlap < TRACKING_MIN_OVERLAP)
       {
-        return addFrameToMap(cloud_filtered);
+        return addFrameToMap();
       }
     }
     return false;
   }
 
-  bool Tracking::addFrameToMap(PointCloudRGB::Ptr cloud)
+  bool Tracking::addFrameToMap()
   {
     if (c_frame_.getLeftKp().size() > LC_MIN_INLIERS)
     {
@@ -307,6 +331,10 @@ namespace slam
 
         // Store previous frame
         p_frame_ = c_frame_;
+
+        // Get the cloud
+        PointCloudRGB::Ptr cloud(new PointCloudRGB);
+        pcl::copyPointCloud(*c_frame_.getPointCloud(), *cloud);
 
         // Store minimum and maximum values of last pointcloud
         pcl::getMinMax3D(*cloud, last_min_pt_, last_max_pt_);
