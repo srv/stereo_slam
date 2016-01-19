@@ -83,15 +83,14 @@ public:
     bool operator()(const T* const params, T* residuals) const
     {
       // Camera parameters
-      T Tx = params[0];
-      T cx = params[1];
-      T cy = params[2];
-      T fx = params[3];
+      T cx = params[0];
+      T cy = params[1];
+      T fx = params[2];
 
       // Compute the A world point
       T u_a = T(point_a_x_);
       T v_a = T(point_a_y_);
-      T W_A = (1.0 / Tx) * T(disp_a_);
+      T W_A = (1.0 / 0.121102) * T(disp_a_);
       T x_a = ( u_a - cx ) * (1.0 / W_A);
       T y_a = ( v_a - cy ) * (1.0 / W_A);
       T z_a = fx * (1.0 / W_A);
@@ -102,7 +101,7 @@ public:
       // Compute the B world point
       T u_b = T(point_b_x_);
       T v_b = T(point_b_y_);
-      T W_B = (1.0 / Tx) * T(disp_b_);
+      T W_B = (1.0 / 0.121102) * T(disp_b_);
       T x_b = ( u_b - cx ) * (1.0 / W_B);
       T y_b = ( v_b - cy ) * (1.0 / W_B);
       T z_b = fx * (1.0 / W_B);
@@ -110,9 +109,9 @@ public:
       T y_b_w = T(tfb_10_) * x_b + T(tfb_11_) * y_b + T(tfb_12_) * z_b + T(tfb_13_);
       T z_b_w = T(tfb_20_) * x_b + T(tfb_21_) * y_b + T(tfb_22_) * z_b + T(tfb_23_);
 
-      residuals[0] = x_a_w - x_b_w;
-      residuals[1] = y_a_w - y_b_w;
-      residuals[2] = z_a_w - z_b_w;
+      residuals[0] = 1.0 - ((x_a_w*x_a_w) / (x_b_w*x_b_w));
+      residuals[1] = 1.0 - ((y_a_w*y_a_w) / (y_b_w*y_b_w));
+      residuals[2] = 1.0 - ((z_a_w*z_a_w) / (z_b_w*z_b_w));
 
       return true;
     }
@@ -124,7 +123,7 @@ public:
     double disp_a_, disp_b_;
   };
 
-  void setCameraParameters(double Tx, double cx, double cy, double fx);
+  void setCameraParameters(double cx, double cy, double fx);
 
   /** \brief Adds a set of world points to the calibration process
    * \param vector of world points
@@ -136,7 +135,7 @@ public:
   void run();
 
   /** \brief Returns the camera parameters
-   * @return The vector of camera parameters [Tx, cx, cy, fx]
+   * @return The vector of camera parameters [cx, cy, fx]
    */
   vector<double> getCameraParams();
 
@@ -146,7 +145,7 @@ private:
 
   mutex mutex_points_; //!> Mutex for the vector of points manipulation
 
-  double* camera_params_; //!> Camera parameters vector [Tx, cx, cy, fx]
+  double* camera_params_; //!> Camera parameters vector [cx, cy, fx]
 
   Graph* graph_; //!> Graph
 

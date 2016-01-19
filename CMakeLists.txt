@@ -98,9 +98,11 @@ target_link_libraries(save_clouds
   ${eigen_LIBRARIES}
   ${MYSQL_LIBRARIES}
   ${catkin_LIBRARIES})
+add_dependencies(save_clouds stereo_slam_gencpp)
 
 add_executable(icp
   src/reconstruction/icp.cpp)
 target_link_libraries(icp
   ${eigen_LIBRARIES}
   ${catkin_LIBRARIES})
+add_dependencies(icp stereo_slam_gencpp)

@@ -81,10 +81,10 @@ namespace slam
 
       // sensor_msgs::CameraInfo l_info = *l_info_msg;
       // sensor_msgs::CameraInfo r_info = *r_info_msg;
-      // double Tx = 0.0772767408331;
-      // double cx = 229.183913752;
-      // double cy = 190.621675112;
-      // double fx = 261.925964761;
+      // double Tx = 0.121102;
+      // double cx = 236.867;
+      // double cy = 185.299;
+      // double fx = 332.315;
       // l_info.P[0] = fx;
       // l_info.P[2] = cx;
       // l_info.P[5] = fx;
@@ -108,9 +108,8 @@ namespace slam
       graph_->setCameraMatrix(camera_matrix_);
       graph_->setCameraModel(camera_model_.left());
 
-      // Set calibration properties
-      calib_->setCameraParameters(camera_model_.baseline(),
-                                  camera_matrix_.at<double>(0,2),
+      // Set calibration parameters
+      calib_->setCameraParameters(camera_matrix_.at<double>(0,2),
                                   camera_matrix_.at<double>(1,2),
                                   camera_matrix_.at<double>(0,0));
 
@@ -161,10 +160,12 @@ namespace slam
       double error = Tools::poseDiff3D(p2c_diff, odom_diff);
       bool refine_valid = succeed && error < 0.2;
 
+      tf::Transform correction;
       if (refine_valid)
-        c_camera_pose = last_frame_pose * p2c_diff;
+        correction = p2c_diff;
       else
-        c_camera_pose = last_frame_pose * odom_diff;
+        correction = odom_diff;
+      c_camera_pose = last_frame_pose * correction;
 
       // Filter cloud
       PointCloudRGB::Ptr cloud_filtered(new PointCloudRGB);

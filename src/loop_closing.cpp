@@ -291,7 +291,7 @@ namespace slam
         // Estimate the motion
         vector<int> inliers;
         cv::Mat rvec, tvec;
-        solvePnPRansac(matched_cand_3d_points, matched_query_kp_l, graph_->getCameraMatrix(),
+        cv::solvePnPRansac(matched_cand_3d_points, matched_query_kp_l, graph_->getCameraMatrix(),
             cv::Mat(), rvec, tvec, false,
             100, 4.0, LC_MAX_INLIERS, inliers);
 
@@ -422,10 +422,9 @@ namespace slam
               vector<double> cam_params = calib_->getCameraParams();
               stereo_slam::CameraParams cam_params_msg;
               cam_params_msg.header.stamp = ros::Time::now();
-              cam_params_msg.Tx = cam_params[0];
-              cam_params_msg.cx = cam_params[1];
-              cam_params_msg.cy = cam_params[2];
-              cam_params_msg.fx = cam_params[3];
+              cam_params_msg.cx = cam_params[0];
+              cam_params_msg.cy = cam_params[1];
+              cam_params_msg.fx = cam_params[2];
               pub_calibration_.publish(cam_params_msg);
             }
 
