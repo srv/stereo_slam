@@ -16,12 +16,11 @@ namespace slam
     camera_params_ = new double[6];
   }
 
-  void Calibration::setCameraParameters(double Tx, double cx, double cy, double fx)
+  void Calibration::setCameraParameters(double cx, double cy, double fx)
   {
-    camera_params_[0] = Tx;
-    camera_params_[1] = cx;
-    camera_params_[2] = cy;
-    camera_params_[3] = fx;
+    camera_params_[0] = cx;
+    camera_params_[1] = cy;
+    camera_params_[2] = fx;
   }
 
   void Calibration::update(vector<WorldPoint> world_points)
@@ -38,7 +37,6 @@ namespace slam
     out.push_back(camera_params_[0]);
     out.push_back(camera_params_[1]);
     out.push_back(camera_params_[2]);
-    out.push_back(camera_params_[3]);
     return out;
   }
 
@@ -55,7 +53,7 @@ namespace slam
     }
 
     ROS_INFO_STREAM("[Localization:] Optimizing camera parameters with " << all_points_.size() << " points.");
-    ROS_INFO_STREAM("[Localization:] Initial parameters (Tx, cx, cy, fx): " << camera_params_[0] << ", " << camera_params_[1] << ", " << camera_params_[2] << ", " << camera_params_[3]);
+    ROS_INFO_STREAM("[Localization:] Initial parameters (cx, cy, fx): " << camera_params_[0] << ", " << camera_params_[1] << ", " << camera_params_[2]);
 
     for (uint i=0; i<all_points.size(); i++)
     {
@@ -74,7 +72,7 @@ namespace slam
       double disp_b = p.disparity_b;
 
       ceres::CostFunction* cost_function =
-             new ceres::AutoDiffCostFunction<CalibCostFunctor, 3, 4>(
+             new ceres::AutoDiffCostFunction<CalibCostFunctor, 3, 3>(
                  new CalibCostFunctor(tf_a, tf_b, p_a, p_b, disp_a, disp_b));
 
       problem.AddResidualBlock(cost_function, new ceres::HuberLoss(0.2), camera_params_);
@@ -89,8 +87,9 @@ namespace slam
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
 
-    ROS_INFO_STREAM("[Localization:] Final parameters (Tx, cx, cy, fx): " << camera_params_[0] << ", " << camera_params_[1] << ", " << camera_params_[2] << ", " << camera_params_[3]);
-    //cout << summary.FullReport() << "\n";
+    ROS_INFO_STREAM("[Localization:] Final parameters (cx, cy, fx): " << camera_params_[0] << ", " << camera_params_[1] << ", " << camera_params_[2]);
+    ROS_INFO_STREAM("[Localization:] Initial cost: " << summary.initial_cost << ". Final cost: " << summary.final_cost);
+    // cout << summary.FullReport() << "\n";
   }
 
 } //namespace slam

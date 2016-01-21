@@ -1,8 +1,6 @@
 #include <ros/ros.h>
 
 #include <boost/thread.hpp>
-#include <boost/filesystem.hpp>
-
 #include "constants.h"
 #include "publisher.h"
 #include "tracking.h"
@@ -10,14 +8,11 @@
 #include "loop_closing.h"
 #include "calibration.h"
 
-namespace fs  = boost::filesystem;
-
 /** \brief Read the node parameters
   */
 void readParameters(slam::Tracking::Params &tracking_params)
 {
   ros::NodeHandle nhp("~");
-  string odom_topic, camera_topic;
   nhp.param("odom_topic",   tracking_params.odom_topic,   string(""));
   nhp.param("camera_topic", tracking_params.camera_topic, string(""));
 }

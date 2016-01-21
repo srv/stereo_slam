@@ -53,7 +53,6 @@ def rebase(base_vector, rebased_vector):
   min_idx_vec = np.array(min_idx_vec)
   return rebased_vector[min_idx_vec,:]
 
-
 def apply_tf_to_matrix(tf_delta, data):
   corrected_data = []
   for i in range(len(data)):

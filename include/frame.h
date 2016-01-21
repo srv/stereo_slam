@@ -22,7 +22,10 @@
 using namespace std;
 using namespace pcl;
 
-typedef PointCloud<PointXYZ> Cloud;
+typedef PointXYZ                     PointXYZ;
+typedef PointXYZRGB                  PointRGB;
+typedef PointCloud<PointXYZ>         PointCloudXYZ;
+typedef PointCloud<PointRGB>         PointCloudRGB;
 
 namespace slam
 {
@@ -89,6 +92,11 @@ public:
    */
   inline void setCameraPose(const tf::Transform& camera_pose){camera_pose_ = camera_pose;}
 
+  /** \brief Set pointcloud
+   * \param pointcloud
+   */
+  inline void setPointCloud(const PointCloudRGB::Ptr pointcloud){pointcloud_ = pointcloud;}
+
   /** \brief Set number of inliers with the previous frame
    * \param number of inliers between current frame and previous
    */
@@ -113,6 +121,10 @@ public:
   /** \brief Get frame timestamp
    */
   inline double getTimestamp() const {return stamp_;}
+
+  /** \brief Get frame pointcloud
+   */
+  inline PointCloudRGB::Ptr getPointCloud() const {return pointcloud_;}
 
   /** \brief Get frame timestamp
    */
@@ -160,7 +172,9 @@ private:
 
   double stamp_; //!> Store the frame timestamp
 
-  int num_inliers_with_prev_frame_;
+  PointCloudRGB::Ptr pointcloud_; //!> The pointcloud for this frame
+
+  int num_inliers_with_prev_frame_; //!> Number of inliers between this frame and the previous
 
 };
 
