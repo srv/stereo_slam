@@ -12,10 +12,11 @@
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 
+#include <libhaloc/lc.h>
+
 #include "constants.h"
 #include "cluster.h"
 #include "graph.h"
-#include "hash.h"
 #include "calibration.h"
 #include "stereo_slam/CameraParams.h"
 
@@ -138,7 +139,7 @@ private:
 
   mutex mutex_cluster_queue_; //!> Mutex for the insertion of new clusters
 
-  Hash hash_; //!> Hash object
+  haloc::Hash hash_; //!> Hash object
 
   vector< pair<int, vector<float> > > hash_table_;  //!> Hash table: stores a hash for every image. This is the unique variable that grows with the robot trajectory
 

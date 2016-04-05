@@ -13,6 +13,7 @@ import os
 from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
 import tf.transformations as tf
+from scipy.misc import imread
 
 # Global variables
 lock_file = ""
@@ -109,9 +110,9 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
     if (len(data.shape) == 1):
       data = np.array([data])
     if (plot_dim == 3):
-      ax_vertices = ax.plot(data[:,0], data[:,1], data[:,2], 'b', label='Stereo slam', marker='o')
+      ax_vertices = ax.plot(data[:,0], data[:,1], data[:,2], 'b', label='Stereo slam', marker='o', zorder=1)
     else:
-      ax_vertices = ax.plot(data[:,0], data[:,1], 'b', label='Stereo slam', marker='o')
+      ax_vertices = ax.plot(data[:,0], data[:,1], 'b', label='Stereo slam', marker='o', zorder=1)
 
   # Show the edges
   if (edges_shown == True):
@@ -124,7 +125,7 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
 
   # Show legend only once
   if (ax_vertices is not None and legend_edited is False):
-    ax.legend()
+    #ax.legend()
     legend_edited = True
 
 def draw_edges():
@@ -195,9 +196,9 @@ def draw_edges():
       vect.append([data[i,6], data[i,7], data[i,8]])
       vect =  np.array(vect)
       if (plot_dim == 3):
-        ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], color, linestyle='-')
+        ax_edge = ax.plot(vect[:,0], vect[:,1], vect[:,2], color, linestyle='-', zorder=1)
       else:
-        ax_edge = ax.plot(vect[:,0], vect[:,1], color, linestyle='-')
+        ax_edge = ax.plot(vect[:,0], vect[:,1], color, linestyle='-', zorder=1)
       ax_edges.append(ax_edge)
   edges_shown = True
   return
@@ -290,6 +291,10 @@ if __name__ == "__main__":
     ax.set_zlabel("z (m)")
   else:
     ax = fig.gca()
+    img = imread("/home/plnegre/Downloads/mosaic1.jpg")
+    ax.imshow(img, zorder=0, extent=[-13.5, 34.5, -17, 9])
+    ax.set_axis_bgcolor('black')
+
   ax.grid(True)
   # ax.set_title("Graph Viewer")
   ax.set_xlabel("x (m)")

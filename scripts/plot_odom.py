@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import roslib; roslib.load_manifest('cola2_ekf')
+import roslib; roslib.load_manifest('stereo_slam')
 import rospy
 import pylab
 import math
