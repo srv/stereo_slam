@@ -6,7 +6,6 @@
 #include "tracking.h"
 #include "graph.h"
 #include "loop_closing.h"
-#include "calibration.h"
 
 /** \brief Read the node parameters
   */
@@ -31,8 +30,7 @@ int main(int argc, char **argv)
   // Threads
   slam::LoopClosing loop_closing;
   slam::Graph graph(&loop_closing);
-  slam::Calibration calibration(&graph);
-  slam::Tracking tracker(&publisher, &graph, &calibration);
+  slam::Tracking tracker(&publisher, &graph);
 
   // Read parameters
   slam::Tracking::Params tracking_params;
@@ -41,7 +39,6 @@ int main(int argc, char **argv)
   // Set the parameters for every object
   tracker.setParams(tracking_params);
   loop_closing.setGraph(&graph);
-  loop_closing.setCalibration(&calibration);
 
   // Launch threads
   boost::thread trackingThread(&slam::Tracking::run, &tracker);

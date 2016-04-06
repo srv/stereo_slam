@@ -8,8 +8,8 @@ using namespace tools;
 namespace slam
 {
 
-  Tracking::Tracking(Publisher *f_pub, Graph *graph, Calibration *calibration)
-    : f_pub_(f_pub), graph_(graph), calib_(calibration), frame_id_(0), jump_detected_(false), secs_to_filter_(10.0)
+  Tracking::Tracking(Publisher *f_pub, Graph *graph)
+    : f_pub_(f_pub), graph_(graph), frame_id_(0), jump_detected_(false), secs_to_filter_(10.0)
   {}
 
   void Tracking::run()
@@ -79,27 +79,6 @@ namespace slam
         return;
       }
 
-      // sensor_msgs::CameraInfo l_info = *l_info_msg;
-      // sensor_msgs::CameraInfo r_info = *r_info_msg;
-      // double Tx = 0.121102;
-      // double cx = 236.867;
-      // double cy = 185.299;
-      // double fx = 332.315;
-      // l_info.P[0] = fx;
-      // l_info.P[2] = cx;
-      // l_info.P[5] = fx;
-      // l_info.P[6] = cy;
-      // l_info.binning_x = 1;
-      // l_info.binning_y = 1;
-      // r_info.P[0] = fx;
-      // r_info.P[2] = cx;
-      // r_info.P[3] = -fx * Tx;
-      // r_info.P[5] = fx;
-      // r_info.P[6] = cy;
-      // r_info.binning_x = 1;
-      // r_info.binning_y = 1;
-      // Tools::getCameraModel(l_info, r_info, camera_model_, camera_matrix_);
-
       // Camera parameters
       Tools::getCameraModel(*l_info_msg, *r_info_msg, camera_model_, camera_matrix_);
 
@@ -107,11 +86,6 @@ namespace slam
       graph_->setCamera2Odom(odom2camera_.inverse());
       graph_->setCameraMatrix(camera_matrix_);
       graph_->setCameraModel(camera_model_.left());
-
-      // Set calibration parameters
-      calib_->setCameraParameters(camera_matrix_.at<double>(0,2),
-                                  camera_matrix_.at<double>(1,2),
-                                  camera_matrix_.at<double>(0,0));
 
       // The initial frame
       c_frame_ = Frame(l_img, r_img, camera_model_, timestamp);
@@ -153,10 +127,9 @@ namespace slam
       tf::Transform odom_diff = odom_pose_history_[odom_pose_history_.size()-1].inverse() * c_camera_odom_pose;
 
       // Refine its position relative to the previous frame
-      vector<Calibration::WorldPoint> world_points;
       tf::Transform p2c_diff, c_camera_pose;
       int num_inliers = LC_MIN_INLIERS;
-      bool succeed = refinePose(p_frame_, c_frame_, p2c_diff, world_points, num_inliers);
+      bool succeed = refinePose(p_frame_, c_frame_, p2c_diff, num_inliers);
       double error = Tools::poseDiff3D(p2c_diff, odom_diff);
       bool refine_valid = succeed && error < 0.2;
 
@@ -183,10 +156,6 @@ namespace slam
         // Store the camera odometry for this keyframe
         tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
         odom_pose_history_.push_back(c_odom_camera);
-
-        // Store calibration information
-        if (refine_valid)
-          calib_->update(world_points);
       }
     }
 
@@ -360,11 +329,10 @@ namespace slam
     return false;
   }
 
-  bool Tracking::refinePose(Frame query, Frame candidate, tf::Transform& out, vector<Calibration::WorldPoint>& world_points, int& num_inliers)
+  bool Tracking::refinePose(Frame query, Frame candidate, tf::Transform& out, int& num_inliers)
   {
     // Init
     out.setIdentity();
-    world_points.clear();
     num_inliers = LC_MIN_INLIERS;
 
     // Sanity check
@@ -417,24 +385,6 @@ namespace slam
       {
         // Build output transform
         out = Tools::buildTransformation(rvec, tvec);
-
-        // Save the points for calibration
-        for (uint i=0; i<inliers.size(); i++)
-        {
-          int id_query = query.getId();
-          int id_cand = id_query + 1;
-
-          cv::Point2d l_query = query_matched_kp_l[inliers[i]];
-          cv::Point2d r_query = query_matched_kp_r[inliers[i]];
-          double disp_query = l_query.x - r_query.x;
-
-          cv::Point2d l_cand = cand_matched_kp_l[inliers[i]];
-          cv::Point2d r_cand = cand_matched_kp_r[inliers[i]];
-          double disp_cand = l_cand.x - r_cand.x;
-
-          Calibration::WorldPoint p(id_query, id_cand, disp_query, disp_cand, l_query, l_cand);
-          world_points.push_back(p);
-        }
 
         // Save the inliers
         num_inliers = inliers.size();

@@ -18,7 +18,6 @@ namespace slam
     pub_num_lc_ = nhp.advertise<std_msgs::String>("loop_closings", 2, true);
     pub_queue_ = nhp.advertise<std_msgs::String>("loop_closing_queue", 2, true);
     pub_lc_matchings_ = nhp.advertise<sensor_msgs::Image>("loop_closing_matchings", 2, true);
-    pub_calibration_ = nhp.advertise<stereo_slam::CameraParams>("camera_params", 1, true);
   }
 
   void LoopClosing::run()
@@ -403,31 +402,6 @@ namespace slam
                             definitive_cluster_pairs,
                             matched_query_kp_l,
                             matched_cand_kp_l);
-
-            // Update the calibration object
-            updateCalibration(inliers,
-                              cand_matchings,
-                              matched_query_kp_l,
-                              matched_query_kp_r,
-                              matched_cand_kp_l,
-                              matched_cand_kp_r);
-
-            // Execute and publish the camera calibration
-            if (pub_calibration_.getNumSubscribers() > 0)
-            {
-              // Calibrate
-              calib_->run();
-
-              // Publish
-              vector<double> cam_params = calib_->getCameraParams();
-              stereo_slam::CameraParams cam_params_msg;
-              cam_params_msg.header.stamp = ros::Time::now();
-              cam_params_msg.cx = cam_params[0];
-              cam_params_msg.cy = cam_params[1];
-              cam_params_msg.fx = cam_params[2];
-              pub_calibration_.publish(cam_params_msg);
-            }
-
             return true;
           }
         }
@@ -519,39 +493,6 @@ namespace slam
     cluster = cluster_tmp;
 
     return cluster;
-  }
-
-  void LoopClosing::updateCalibration(vector<int> inliers,
-                                      vector<int> cand_matchings,
-                                      vector<cv::Point2f> matched_query_kp_l,
-                                      vector<cv::Point2f> matched_query_kp_r,
-                                      vector<cv::Point2f> matched_cand_kp_l,
-                                      vector<cv::Point2f> matched_cand_kp_r)
-  {
-    vector<Calibration::WorldPoint> world_points;
-
-    // Draw the matchings
-    for (uint i=0; i<inliers.size(); i++)
-    {
-      // Query/candidate identifiers
-      int cand_cluster = cand_matchings[inliers[i]];
-      int id_query = c_cluster_.getFrameId();
-      int id_cand = graph_->getVertexFrameId(cand_cluster);
-
-      // Query kp
-      cv::Point2d l_query = matched_query_kp_l[inliers[i]];
-      cv::Point2d r_query = matched_query_kp_r[inliers[i]];
-      double disp_query = l_query.x - r_query.x;
-
-      cv::Point2d l_cand = matched_cand_kp_l[inliers[i]];
-      cv::Point2d r_cand = matched_cand_kp_r[inliers[i]];
-      double disp_cand = l_cand.x - r_cand.x;
-
-      Calibration::WorldPoint p(id_query, id_cand, disp_query, disp_cand, l_query, l_cand);
-      world_points.push_back(p);
-    }
-
-    calib_->update(world_points);
   }
 
   void LoopClosing::drawLoopClosure(vector<int> cand_kfs,

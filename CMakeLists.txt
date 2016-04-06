@@ -83,8 +83,7 @@ add_executable(localization
   src/tracking.cpp
   src/graph.cpp
   src/loop_closing.cpp
-  src/cluster.cpp
-  src/calibration.cpp)
+  src/cluster.cpp)
 target_link_libraries(localization
   ${eigen_LIBRARIES}
   ${libhaloc_LIBRARIES}

@@ -17,8 +17,6 @@
 #include "constants.h"
 #include "cluster.h"
 #include "graph.h"
-#include "calibration.h"
-#include "stereo_slam/CameraParams.h"
 
 using namespace std;
 using namespace boost;
@@ -28,7 +26,6 @@ namespace slam
 {
 
 class Graph;
-class Calibration;
 
 class LoopClosing
 {
@@ -43,11 +40,6 @@ public:
    * \param graph
    */
   inline void setGraph(Graph *graph){graph_ = graph;}
-
-  /** \brief Set the calibration object
-   * \param graph
-   */
-  inline void setCalibration(Calibration* calib){calib_ = calib;}
 
   /** \brief Starts graph
    */
@@ -116,21 +108,6 @@ protected:
                        vector<cv::Point2f> matched_query_kp_l,
                        vector<cv::Point2f> matched_cand_kp_l);
 
-  /** \brief Update the calibration object with new points
-   * \param The inlier indices
-   * \param The loop closing cluster identifiers
-   * \param All left matched keypoints of the current keyframe
-   * \param All right matched keypoints of the current keyframe
-   * \param All left matched keypoints of the candidate keyframes
-   * \param All right matched keypoints of the candidate keyframes
-   */
-  void updateCalibration(vector<int> inliers,
-                         vector<int> cand_matchings,
-                         vector<cv::Point2f> matched_query_kp_l,
-                         vector<cv::Point2f> matched_query_kp_r,
-                         vector<cv::Point2f> matched_cand_kp_l,
-                         vector<cv::Point2f> matched_cand_kp_r);
-
 private:
 
   Cluster c_cluster_; //!> Current cluster to be processed
@@ -153,8 +130,6 @@ private:
 
   Graph* graph_; //!> Graph pointer
 
-  Calibration* calib_; //!> Calibration object
-
   ros::Publisher pub_num_keyframes_; //!> Publishes the number of keyframes
 
   ros::Publisher pub_num_lc_; //!> Publishes the number of loop closings
@@ -162,8 +137,6 @@ private:
   ros::Publisher pub_queue_; //!> Publishes the loop closing queue size
 
   ros::Publisher pub_lc_matchings_; //!> Publishes the image with the loop closure matchings
-
-  ros::Publisher pub_calibration_; //!> Camera calibration publisher
 
   image_geometry::PinholeCameraModel camera_model_; //!> Camera model (left)
 
