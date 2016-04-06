@@ -47,9 +47,6 @@ find_package(SuiteSparse REQUIRED)
 # using -DG2O_INCLUDE_DIRS.
 find_package(G2O REQUIRED)
 
-# Dependencies - Ceres:
-find_package(Ceres REQUIRED)
-
 # Dependencies - Vtk
 find_package(VTK REQUIRED)
 
