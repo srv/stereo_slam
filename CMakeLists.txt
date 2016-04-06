@@ -19,7 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf_conversions)
 
 ## Declare ROS messages and services
-add_message_files(FILES GraphPoses.msg CameraParams.msg)
+add_message_files(FILES GraphPoses.msg)
 generate_messages(DEPENDENCIES std_msgs)
 
 ####################################################
@@ -53,9 +53,6 @@ find_package(Ceres REQUIRED)
 # Dependencies - Vtk
 find_package(VTK REQUIRED)
 
-# Dependencies - MySql
-find_package(mysqlclient REQUIRED)
-
 catkin_package(CATKIN_DEPENDS message_runtime)
 
 include_directories(include
@@ -67,10 +64,7 @@ include_directories(include
   ${G2O_INCLUDE_DIRS}
   ${CERES_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
-  ${VTK_INCLUDE_DIRS}
-  ${MYSQL_INCLUDE_DIRS})
-
-add_definitions(${MYSQL_DEFINITIONS})
+  ${VTK_INCLUDE_DIRS})
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall  -O3 -march=native")
