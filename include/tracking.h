@@ -9,6 +9,7 @@
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/Range.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
@@ -58,11 +59,15 @@ public:
   struct Params
   {
     string odom_topic;                //!> Odometry topic name.
-    string camera_topic;              //!> Name of the base camera topic
+    string range_topic;               //!> Range topic name.
+    string camera_topic;              //!> Name of the base camera topic.
+    double min_range;                 //!> Min range altitude
+    double max_range;                 //!> Max range altitude
 
     // Default settings
     Params () {
       odom_topic   = "/odom";
+      odom_topic   = "/range";
       camera_topic = "/usb_cam";
     }
   };
@@ -109,6 +114,7 @@ protected:
    * \param pointcloud
    */
   void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
+                    const sensor_msgs::Range::ConstPtr& range_msg,
                     const sensor_msgs::ImageConstPtr& l_img_msg,
                     const sensor_msgs::ImageConstPtr& r_img_msg,
                     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
@@ -128,12 +134,12 @@ protected:
   /** \brief Decide if new keyframe is needed
    * @return True if new keyframe will be inserted into the graph
    */
-  bool needNewKeyFrame();
+  bool needNewKeyFrame(double range);
 
   /** \brief Add a frame to the graph if enough inliers
    * @return True if new keyframe will be inserted into the map
    */
-  bool addFrameToMap();
+  bool addFrameToMap(double range);
 
 
   /** \brief Filters a pointcloud
@@ -195,6 +201,8 @@ private:
 
   int frame_id_; //!> Processed frames counter
 
+  int kf_id_; //!> Processed keyframes counter
+
   vector<tf::Transform> odom_pose_history_; //!> Stores the odometry poses, relative to camera frame
 
   tf::Transform prev_robot_pose_; //!> Stores the previous corrected odometry pose
@@ -207,6 +215,7 @@ private:
 
   // Topic sync
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,
+                                                          sensor_msgs::Range,
                                                           sensor_msgs::Image,
                                                           sensor_msgs::Image,
                                                           sensor_msgs::CameraInfo,

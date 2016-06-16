@@ -4,6 +4,7 @@ lib/*
 data/*
 doc/*
 etc/*
+launch/*
 keyframes/*
 loop_closures/*
 pointclouds/*

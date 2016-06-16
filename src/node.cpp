@@ -13,7 +13,10 @@ void readParameters(slam::Tracking::Params &tracking_params)
 {
   ros::NodeHandle nhp("~");
   nhp.param("odom_topic",   tracking_params.odom_topic,   string(""));
+  nhp.param("range_topic",  tracking_params.range_topic,  string(""));
   nhp.param("camera_topic", tracking_params.camera_topic, string(""));
+  nhp.param("min_range", tracking_params.min_range, 1.5);
+  nhp.param("max_range", tracking_params.max_range, 3.5);
 }
 
 /** \brief Main entry point

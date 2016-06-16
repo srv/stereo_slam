@@ -9,7 +9,7 @@ namespace slam
 {
 
   Tracking::Tracking(Publisher *f_pub, Graph *graph)
-    : f_pub_(f_pub), graph_(graph), frame_id_(0), jump_detected_(false), secs_to_filter_(10.0)
+    : f_pub_(f_pub), graph_(graph), frame_id_(0), kf_id_(0), jump_detected_(false), secs_to_filter_(10.0)
   {}
 
   void Tracking::run()
@@ -29,18 +29,20 @@ namespace slam
     image_transport::SubscriberFilter left_sub, right_sub;
     message_filters::Subscriber<sensor_msgs::CameraInfo> left_info_sub, right_info_sub;
     message_filters::Subscriber<nav_msgs::Odometry> odom_sub;
+    message_filters::Subscriber<sensor_msgs::Range> range_sub;
     message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub;
 
     // Message sync
     boost::shared_ptr<Sync> sync;
     odom_sub      .subscribe(nh, params_.odom_topic, 20);
+    range_sub     .subscribe(nh, params_.range_topic, 20);
     left_sub      .subscribe(it, params_.camera_topic+"/left/image_rect_color", 3);
     right_sub     .subscribe(it, params_.camera_topic+"/right/image_rect_color", 3);
     left_info_sub .subscribe(nh, params_.camera_topic+"/left/camera_info",  3);
     right_info_sub.subscribe(nh, params_.camera_topic+"/right/camera_info", 3);
     cloud_sub     .subscribe(nh, params_.camera_topic+"/points2", 5);
-    sync.reset(new Sync(SyncPolicy(5), odom_sub, left_sub, right_sub, left_info_sub, right_info_sub, cloud_sub) );
-    sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5, _6));
+    sync.reset(new Sync(SyncPolicy(5), odom_sub, range_sub, left_sub, right_sub, left_info_sub, right_info_sub, cloud_sub) );
+    sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5, _6, _7));
 
     // Create directory to store the keyframes
     string keyframes_dir = WORKING_DIRECTORY + "keyframes";
@@ -50,10 +52,20 @@ namespace slam
     if (!fs::create_directory(dir1))
       ROS_ERROR("[Localization:] ERROR -> Impossible to create the keyframes directory.");
 
+    // Create the directory to store the pointcloud
+    string pointclouds_dir = WORKING_DIRECTORY + "pointclouds";
+    if (fs::is_directory(pointclouds_dir))
+      fs::remove_all(pointclouds_dir);
+    fs::path dir2(pointclouds_dir);
+    if (!fs::create_directory(dir2))
+      ROS_ERROR("[Localization:] ERROR -> Impossible to create the pointclouds directory.");
+
     ros::spin();
   }
 
-  void Tracking::msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
+  void Tracking::msgsCallback(
+      const nav_msgs::Odometry::ConstPtr& odom_msg,
+      const sensor_msgs::Range::ConstPtr& range_msg,
       const sensor_msgs::ImageConstPtr& l_img_msg,
       const sensor_msgs::ImageConstPtr& r_img_msg,
       const sensor_msgs::CameraInfoConstPtr& l_info_msg,
@@ -102,7 +114,7 @@ namespace slam
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
       c_frame_.setCameraPose(c_odom_camera);
 
-      bool frame_ok = addFrameToMap();
+      bool frame_ok = addFrameToMap(range_msg->range);
       if (frame_ok)
       {
         // Store the odometry for this frame
@@ -150,7 +162,7 @@ namespace slam
       c_frame_.setPointCloud(cloud_filtered);
 
       // Need new keyframe
-      bool is_new_keyframe = needNewKeyFrame();
+      bool is_new_keyframe = needNewKeyFrame(range_msg->range);
       if (is_new_keyframe)
       {
         // Store the camera odometry for this keyframe
@@ -230,12 +242,12 @@ namespace slam
     return true;
   }
 
-  bool Tracking::needNewKeyFrame()
+  bool Tracking::needNewKeyFrame(double range)
   {
     // Init initialization
     if (state_ == INITIALIZING)
     {
-      bool valid_frame = addFrameToMap();
+      bool valid_frame = addFrameToMap(range);
       if (valid_frame)
         state_ = WORKING;
       return valid_frame;
@@ -278,13 +290,13 @@ namespace slam
       // Add frame when overlap is less than...
       if (overlap < TRACKING_MIN_OVERLAP)
       {
-        return addFrameToMap();
+        return addFrameToMap(range);
       }
     }
     return false;
   }
 
-  bool Tracking::addFrameToMap()
+  bool Tracking::addFrameToMap(double range)
   {
     if (c_frame_.getLeftKp().size() > LC_MIN_INLIERS)
     {
@@ -305,6 +317,15 @@ namespace slam
         // Get the cloud
         PointCloudRGB::Ptr cloud(new PointCloudRGB);
         pcl::copyPointCloud(*c_frame_.getPointCloud(), *cloud);
+
+        // Save cloud
+        if (range > params_.min_range && range < params_.max_range)
+        {
+          string pointclouds_dir = WORKING_DIRECTORY + "pointclouds/";
+          string pc_filename = pointclouds_dir + lexical_cast<string>(kf_id_) + ".pcd";
+          pcl::io::savePCDFileBinary(pc_filename, *cloud);
+          kf_id_++;
+        }
 
         // Store minimum and maximum values of last pointcloud
         pcl::getMinMax3D(*cloud, last_min_pt_, last_max_pt_);
