@@ -63,12 +63,16 @@ public:
     string camera_topic;              //!> Name of the base camera topic.
     double min_range;                 //!> Min range altitude
     double max_range;                 //!> Max range altitude
+    bool refine;                      //!> Refine odometry
 
     // Default settings
     Params () {
       odom_topic   = "/odom";
       odom_topic   = "/range";
       camera_topic = "/usb_cam";
+      min_range = 1.5;
+      max_range = 3.0;
+      refine = false;
     }
   };
 

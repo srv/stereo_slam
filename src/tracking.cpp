@@ -36,12 +36,12 @@ namespace slam
     boost::shared_ptr<Sync> sync;
     odom_sub      .subscribe(nh, params_.odom_topic, 20);
     range_sub     .subscribe(nh, params_.range_topic, 20);
-    left_sub      .subscribe(it, params_.camera_topic+"/left/image_rect_color", 3);
-    right_sub     .subscribe(it, params_.camera_topic+"/right/image_rect_color", 3);
-    left_info_sub .subscribe(nh, params_.camera_topic+"/left/camera_info",  3);
-    right_info_sub.subscribe(nh, params_.camera_topic+"/right/camera_info", 3);
+    left_sub      .subscribe(it, params_.camera_topic+"/left/image_rect_color", 5);
+    right_sub     .subscribe(it, params_.camera_topic+"/right/image_rect_color", 5);
+    left_info_sub .subscribe(nh, params_.camera_topic+"/left/camera_info",  5);
+    right_info_sub.subscribe(nh, params_.camera_topic+"/right/camera_info", 5);
     cloud_sub     .subscribe(nh, params_.camera_topic+"/points2", 5);
-    sync.reset(new Sync(SyncPolicy(5), odom_sub, range_sub, left_sub, right_sub, left_info_sub, right_info_sub, cloud_sub) );
+    sync.reset(new Sync(SyncPolicy(10), odom_sub, range_sub, left_sub, right_sub, left_info_sub, right_info_sub, cloud_sub) );
     sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5, _6, _7));
 
     // Create directory to store the keyframes
@@ -139,17 +139,25 @@ namespace slam
       tf::Transform odom_diff = odom_pose_history_[odom_pose_history_.size()-1].inverse() * c_camera_odom_pose;
 
       // Refine its position relative to the previous frame
-      tf::Transform p2c_diff, c_camera_pose;
-      int num_inliers = LC_MIN_INLIERS;
-      bool succeed = refinePose(p_frame_, c_frame_, p2c_diff, num_inliers);
-      double error = Tools::poseDiff3D(p2c_diff, odom_diff);
-      bool refine_valid = succeed && error < 0.2;
-
       tf::Transform correction;
-      if (refine_valid)
-        correction = p2c_diff;
+      tf::Transform c_camera_pose;
+      int num_inliers = LC_MIN_INLIERS;
+      if (params_.refine)
+      {
+        tf::Transform p2c_diff;
+        bool succeed = refinePose(p_frame_, c_frame_, p2c_diff, num_inliers);
+        double error = Tools::poseDiff3D(p2c_diff, odom_diff);
+        bool refine_valid = succeed && error < 0.2;
+
+        if (refine_valid)
+          correction = p2c_diff;
+        else
+          correction = odom_diff;
+      }
       else
+      {
         correction = odom_diff;
+      }
       c_camera_pose = last_frame_pose * correction;
 
       // Filter cloud

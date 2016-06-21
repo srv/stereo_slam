@@ -11,7 +11,10 @@ namespace slam
 
   Frame::Frame() : pointcloud_(new PointCloudRGB) {}
 
-  Frame::Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp) : pointcloud_(new PointCloudRGB)
+  Frame::Frame(cv::Mat l_img,
+               cv::Mat r_img,
+               image_geometry::StereoCameraModel camera_model,
+               double timestamp) : pointcloud_(new PointCloudRGB)
   {
     // Init
     id_ = -1;

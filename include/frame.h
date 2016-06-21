@@ -174,6 +174,8 @@ private:
 
   PointCloudRGB::Ptr pointcloud_; //!> The pointcloud for this frame
 
+  ros::Publisher kp_pub_; //!> Keypoints publisher
+
   int num_inliers_with_prev_frame_; //!> Number of inliers between this frame and the previous
 
 };
