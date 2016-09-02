@@ -103,4 +103,4 @@ target_link_libraries(localization
   ${CERES_LIBRARIES}
   cholmod
   ${catkin_LIBRARIES})
-add_dependencies(localization stereo_slam_gencpp)
+add_dependencies(localization ${catkin_EXPORTED_TARGETS})
