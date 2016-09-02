@@ -29,18 +29,13 @@ namespace slam
     cv::cvtColor(l_img, l_img_gray, CV_RGB2GRAY);
     cv::cvtColor(r_img, r_img_gray, CV_RGB2GRAY);
 
-    // Detect keypoints
-    vector<cv::KeyPoint> l_kp, r_kp;
-    cv::ORB orb(1500, 1.2, 8, 10, 0, 2, 0, 10);
-    orb(l_img_gray, cv::noArray(), l_kp, cv::noArray(), false);
-    orb(r_img_gray, cv::noArray(), r_kp, cv::noArray(), false);
-
-    // Extract descriptors
+    // Keypoints and descriptors
     cv::Mat l_desc, r_desc;
-    cv::Ptr<cv::DescriptorExtractor> cv_extractor;
-    cv_extractor = cv::DescriptorExtractor::create("ORB");
-    cv_extractor->compute(l_img_gray, l_kp, l_desc);
-    cv_extractor->compute(r_img_gray, r_kp, r_desc);
+    cv::Ptr<cv::Feature2D> orb;
+    vector<cv::KeyPoint> l_kp, r_kp;
+    orb = cv::ORB::create(1500, 1.2, 8, 10, 0, 2, 0, 10);
+    orb->detectAndCompute (l_img_gray, cv::noArray(), l_kp, l_desc);
+    orb->detectAndCompute (r_img_gray, cv::noArray(), r_kp, r_desc);
 
     // Left/right matching
     vector<cv::DMatch> matches, matches_filtered;
@@ -89,9 +84,8 @@ namespace slam
     if (l_img_.cols == 0)
       return sift;
 
-    cv::initModule_nonfree();
-    cv::Ptr<cv::DescriptorExtractor> cv_extractor;
-    cv_extractor = cv::DescriptorExtractor::create("SIFT");
+    cv::Ptr<cv::Feature2D> cv_extractor;
+    cv_extractor = cv::xfeatures2d::SIFT::create();
     cv_extractor->compute(l_img_, l_kp_, sift);
 
     return sift;
