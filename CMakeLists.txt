@@ -103,4 +103,4 @@ target_link_libraries(localization
   ${CERES_LIBRARIES}
   cholmod
   ${catkin_LIBRARIES})
-add_dependencies(localization ${catkin_EXPORTED_TARGETS})
+add_dependencies(localization ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
