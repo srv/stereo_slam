@@ -39,6 +39,10 @@ namespace slam
     orb->detectAndCompute (l_img_gray, cv::noArray(), l_kp, l_desc);
     orb->detectAndCompute (r_img_gray, cv::noArray(), r_kp, r_desc);
 
+    // Stores non-filtered keypoints
+    l_nonfiltered_kp_ = l_kp;
+    r_nonfiltered_kp_ = r_kp;
+
     // SIFT
     // cv::Ptr<cv::Feature2D> sift;
     // sift = cv::xfeatures2d::SIFT::create();
@@ -46,14 +50,15 @@ namespace slam
     // sift->detectAndCompute(r_img_gray, cv::noArray(), r_kp, r_desc);
 
     // Left/right matching
-    vector<cv::DMatch> matches, matches_filtered;
+    vector<cv::DMatch> matches;
     Tools::ratioMatching(l_desc, r_desc, 0.8, matches);
 
-    // Filter matches by epipolar
+    // Filter matches by epipolar+
+    matches_filtered_.clear();
     for (size_t i=0; i<matches.size(); ++i)
     {
       if (abs(l_kp[matches[i].queryIdx].pt.y - r_kp[matches[i].trainIdx].pt.y) < 1.5)
-        matches_filtered.push_back(matches[i]);
+        matches_filtered_.push_back(matches[i]);
     }
 
     // Compute 3D points
@@ -62,11 +67,11 @@ namespace slam
     camera_points_.clear();
     l_desc_.release();
     r_desc_.release();
-    for (size_t i=0; i<matches_filtered.size(); ++i)
+    for (size_t i=0; i<matches_filtered_.size(); ++i)
     {
       cv::Point3d world_point;
-      int l_idx = matches_filtered[i].queryIdx;
-      int r_idx = matches_filtered[i].trainIdx;
+      int l_idx = matches_filtered_[i].queryIdx;
+      int r_idx = matches_filtered_[i].trainIdx;
 
       cv::Point2d l_point = l_kp[l_idx].pt;
       cv::Point2d r_point = r_kp[r_idx].pt;

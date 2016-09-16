@@ -111,6 +111,9 @@ namespace slam
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
       c_frame_.setCameraPose(c_odom_camera);
 
+      // Publish stereo matches
+      f_pub_->publishStereoMatches(c_frame_);
+
       bool frame_ok = addFrameToMap();
       if (frame_ok)
       {
@@ -125,6 +128,9 @@ namespace slam
     {
       // The current frame
       c_frame_ = Frame(l_img, r_img, camera_model_, timestamp);
+
+      // Publish stereo matches
+      f_pub_->publishStereoMatches(c_frame_);
 
       // Get the pose of the last frame id
       tf::Transform last_frame_pose;

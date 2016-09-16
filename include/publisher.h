@@ -11,6 +11,7 @@
 #include <cv_bridge/cv_bridge.h>
 
 #include <opencv2/opencv.hpp>
+#include <opencv2/features2d.hpp>
 
 #include "tracking.h"
 #include "frame.h"
@@ -32,9 +33,14 @@ public:
   Publisher();
 
   /** \brief Publish the clustering debug images
-   * \param The tracker object contains all the information needed to draw the image
+   * \param The frame object contains all the information needed to draw the image
    */
   void publishClustering(const Frame frame);
+
+  /** \brief Publish the stereo matching debug image
+   * \param The frame object contains all the information needed to draw the image
+   */
+  void publishStereoMatches(const Frame frame);
 
 protected:
 
@@ -43,9 +49,15 @@ protected:
    */
   void drawKeypointsClustering(const Frame frame);
 
+  /** \brief Draw and publish the stereo matches
+   * \param The frame containing the clustering information
+   */
+  void drawStereoMatches(const Frame frame);
+
 private:
 
-  ros::Publisher pub_clustering_; //!> Publisher for the tracker matching (fixed to current frame).
+  ros::Publisher pub_clustering_; //!> Publisher for the frame clustering
+  ros::Publisher pub_stereo_matches_; //!> Publisher for the frame stereo matches
 
 };
 

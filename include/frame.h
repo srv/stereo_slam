@@ -63,6 +63,14 @@ public:
    */
   inline vector<cv::KeyPoint> getRightKp() const {return r_kp_;}
 
+  /** \brief Get left non-filtered keypoints
+   */
+  inline vector<cv::KeyPoint> getNonFilteredLeftKp() const {return l_nonfiltered_kp_;}
+
+  /** \brief Get right non-filtered keypoints
+   */
+  inline vector<cv::KeyPoint> getNonFilteredRightKp() const {return r_nonfiltered_kp_;}
+
   /** \brief Get left descriptors
    */
   inline cv::Mat getLeftDesc() const {return l_desc_;}
@@ -71,6 +79,10 @@ public:
    * \param vector of descriptors
    */
   inline void setLeftDesc(const cv::Mat& l_desc){l_desc_ = l_desc;}
+
+  /** \brief Get stereo matches
+   */
+  inline vector<cv::DMatch> getMatches() const {return matches_filtered_;}
 
   /** \brief Get 3D in camera frame
    */
@@ -157,9 +169,14 @@ private:
 
   vector<cv::KeyPoint> l_kp_; //!> Left keypoints.
   vector<cv::KeyPoint> r_kp_; //!> Right keypoints.
+                              //!
+  vector<cv::KeyPoint> l_nonfiltered_kp_; //!> Left non-filtered keypoints.
+  vector<cv::KeyPoint> r_nonfiltered_kp_; //!> Right non-filtered keypoints.
 
   cv::Mat l_desc_; //!> Left descriptors.
   cv::Mat r_desc_; //!> Right descriptors.
+
+  vector<cv::DMatch> matches_filtered_; //!> Filtered stereo matches
 
   vector<cv::Point3f> camera_points_; //!> Stereo 3D points in camera frame
 
