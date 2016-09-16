@@ -21,9 +21,13 @@ namespace slam
 
   static const int LC_NEIGHBORS = 6;
 
-  static const int LC_DISCARD_WINDOW = 5;
+  static const int LC_DISCARD_WINDOW = 10;
+
+  static const float LC_MAX_EDGE_DIFF = 10.0;
 
   static const float TRACKING_MIN_OVERLAP = 85;
+
+  static const int MIN_CLOUD_SIZE = 100;
 
   /*
   DEFAULT VALUES ARE:

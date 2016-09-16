@@ -9,7 +9,7 @@ namespace slam
 {
 
   Tracking::Tracking(Publisher *f_pub, Graph *graph)
-    : f_pub_(f_pub), graph_(graph), frame_id_(0), kf_id_(0), jump_detected_(false), secs_to_filter_(10.0)
+    : f_pub_(f_pub), graph_(graph), frame_id_(0), jump_detected_(false), secs_to_filter_(10.0)
   {}
 
   void Tracking::run()
@@ -29,20 +29,18 @@ namespace slam
     image_transport::SubscriberFilter left_sub, right_sub;
     message_filters::Subscriber<sensor_msgs::CameraInfo> left_info_sub, right_info_sub;
     message_filters::Subscriber<nav_msgs::Odometry> odom_sub;
-    message_filters::Subscriber<sensor_msgs::Range> range_sub;
     message_filters::Subscriber<sensor_msgs::PointCloud2> cloud_sub;
 
     // Message sync
     boost::shared_ptr<Sync> sync;
     odom_sub      .subscribe(nh, params_.odom_topic, 20);
-    range_sub     .subscribe(nh, params_.range_topic, 20);
     left_sub      .subscribe(it, params_.camera_topic+"/left/image_rect_color", 5);
     right_sub     .subscribe(it, params_.camera_topic+"/right/image_rect_color", 5);
     left_info_sub .subscribe(nh, params_.camera_topic+"/left/camera_info",  5);
     right_info_sub.subscribe(nh, params_.camera_topic+"/right/camera_info", 5);
     cloud_sub     .subscribe(nh, params_.camera_topic+"/points2", 5);
-    sync.reset(new Sync(SyncPolicy(10), odom_sub, range_sub, left_sub, right_sub, left_info_sub, right_info_sub, cloud_sub) );
-    sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5, _6, _7));
+    sync.reset(new Sync(SyncPolicy(10), odom_sub, left_sub, right_sub, left_info_sub, right_info_sub, cloud_sub) );
+    sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5, _6));
 
     // Create directory to store the keyframes
     string keyframes_dir = WORKING_DIRECTORY + "keyframes";
@@ -65,7 +63,6 @@ namespace slam
 
   void Tracking::msgsCallback(
       const nav_msgs::Odometry::ConstPtr& odom_msg,
-      const sensor_msgs::Range::ConstPtr& range_msg,
       const sensor_msgs::ImageConstPtr& l_img_msg,
       const sensor_msgs::ImageConstPtr& r_img_msg,
       const sensor_msgs::CameraInfoConstPtr& l_info_msg,
@@ -114,7 +111,7 @@ namespace slam
       tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
       c_frame_.setCameraPose(c_odom_camera);
 
-      bool frame_ok = addFrameToMap(range_msg->range);
+      bool frame_ok = addFrameToMap();
       if (frame_ok)
       {
         // Store the odometry for this frame
@@ -133,6 +130,7 @@ namespace slam
       tf::Transform last_frame_pose;
       bool graph_ready = graph_->getFramePose(frame_id_ - 1, last_frame_pose);
       if (!graph_ready) return;
+
 
       // Previous/current frame odometry difference
       tf::Transform c_camera_odom_pose = c_odom_robot * odom2camera_;
@@ -164,13 +162,14 @@ namespace slam
       PointCloudRGB::Ptr cloud_filtered(new PointCloudRGB);
       cloud_filtered = filterCloud(pcl_cloud);
 
+
       // Set frame data
       c_frame_.setCameraPose(c_camera_pose);
       c_frame_.setInliersNumWithPreviousFrame(num_inliers);
       c_frame_.setPointCloud(cloud_filtered);
 
       // Need new keyframe
-      bool is_new_keyframe = needNewKeyFrame(range_msg->range);
+      bool is_new_keyframe = needNewKeyFrame();
       if (is_new_keyframe)
       {
         // Store the camera odometry for this keyframe
@@ -193,6 +192,7 @@ namespace slam
     {
       jump_detected_ = false;
     }
+
 
     tf::Transform pose = robot_pose;
     if (jump_detected_)
@@ -217,11 +217,13 @@ namespace slam
       pose.setOrigin(filtered_pose);
     }
 
+
     // Publish
     nav_msgs::Odometry pose_msg = *odom_msg;
     tf::poseTFToMsg(pose, pose_msg.pose.pose);
     pose_pub_.publish(pose_msg);
     tf_broadcaster_.sendTransform(tf::StampedTransform(pose, odom_msg->header.stamp, "map", odom_msg->child_frame_id));
+
 
     // Store
     prev_robot_pose_ = pose;
@@ -250,62 +252,75 @@ namespace slam
     return true;
   }
 
-  bool Tracking::needNewKeyFrame(double range)
+  bool Tracking::needNewKeyFrame()
   {
     // Init initialization
     if (state_ == INITIALIZING)
     {
-      bool valid_frame = addFrameToMap(range);
+      bool valid_frame = addFrameToMap();
       if (valid_frame)
         state_ = WORKING;
       return valid_frame;
     }
     else
     {
-      // Compute overlap to decide if new keyframe is needed.
-
-      // The transformation between last and current keyframe
-      tf::Transform last_2_current = p_frame_.getCameraPose().inverse() * c_frame_.getCameraPose();
-
-      // Speedup the process by converting the current pointcloud to xyz
-      PointCloudXYZ::Ptr cloud_xyz(new PointCloudXYZ);
-      pcl::copyPointCloud(*c_frame_.getPointCloud(), *cloud_xyz);
-
-      // Transform the current pointcloud
-      Eigen::Affine3d tf_eigen;
-      transformTFToEigen(last_2_current, tf_eigen);
-      PointCloudXYZ::Ptr cloud_xyz_moved(new PointCloudXYZ);
-      pcl::transformPointCloud(*cloud_xyz, *cloud_xyz_moved, tf_eigen);
-
-      // Remove the points that are outside the current pointcloud
-      PointCloudXYZ::Ptr output(new PointCloudXYZ);
-      pcl::CropBox<PointXYZ> crop_filter;
-      crop_filter.setInputCloud(cloud_xyz_moved);
-      crop_filter.setMin(last_min_pt_);
-      crop_filter.setMax(last_max_pt_);
-      crop_filter.filter(*output);
-
-      // The overlap estimation
-      float overlap = output->points.size() * 100 / cloud_xyz_moved->points.size();
-
-      // Safety factor
-      overlap = (0.002 * overlap + 0.8) * overlap;
-
-      // Publish debugging image
-      if (overlapping_pub_.getNumSubscribers() > 0)
-        publishOverlap(cloud_xyz, last_2_current, overlap);
-
-      // Add frame when overlap is less than...
-      if (overlap < TRACKING_MIN_OVERLAP)
+      // Check odometry distance
+      double pose_diff = Tools::poseDiff3D(p_frame_.getCameraPose(), c_frame_.getCameraPose());
+      if (pose_diff > 0.3)
       {
-        return addFrameToMap(range);
+
+        // Compute overlap to decide if new keyframe is needed.
+        float overlap = TRACKING_MIN_OVERLAP - 0.1;
+        if (c_frame_.getPointCloud()->points.size() > MIN_CLOUD_SIZE)
+        {
+          // The transformation between last and current keyframe
+          tf::Transform last_2_current = p_frame_.getCameraPose().inverse() * c_frame_.getCameraPose();
+
+          // Speedup the process by converting the current pointcloud to xyz
+          PointCloudXYZ::Ptr cloud_xyz(new PointCloudXYZ);
+          pcl::copyPointCloud(*c_frame_.getPointCloud(), *cloud_xyz);
+
+          // Transform the current pointcloud
+          Eigen::Affine3d tf_eigen;
+          transformTFToEigen(last_2_current, tf_eigen);
+          PointCloudXYZ::Ptr cloud_xyz_moved(new PointCloudXYZ);
+          pcl::transformPointCloud(*cloud_xyz, *cloud_xyz_moved, tf_eigen);
+
+          // Remove the points that are outside the current pointcloud
+          PointCloudXYZ::Ptr output(new PointCloudXYZ);
+          pcl::CropBox<PointXYZ> crop_filter;
+          crop_filter.setInputCloud(cloud_xyz_moved);
+          crop_filter.setMin(last_min_pt_);
+          crop_filter.setMax(last_max_pt_);
+          crop_filter.filter(*output);
+
+          if (cloud_xyz_moved->points.size() > 0)
+          {
+            // The overlap estimation
+            float overlap = output->points.size() * 100 / cloud_xyz_moved->points.size();
+
+            // Safety factor
+            overlap = (0.002 * overlap + 0.8) * overlap;
+          }
+
+          // Publish debugging image
+          if (overlapping_pub_.getNumSubscribers() > 0)
+            publishOverlap(cloud_xyz, last_2_current, overlap);
+        }
+
+        // Add frame when overlap is less than...
+        if (overlap < TRACKING_MIN_OVERLAP)
+        {
+          return addFrameToMap();
+        }
       }
     }
     return false;
   }
 
-  bool Tracking::addFrameToMap(double range)
+  bool Tracking::addFrameToMap()
   {
+
     if (c_frame_.getLeftKp().size() > LC_MIN_INLIERS)
     {
       c_frame_.regionClustering();
@@ -327,19 +342,18 @@ namespace slam
         pcl::copyPointCloud(*c_frame_.getPointCloud(), *cloud);
 
         // Save cloud
-        if (range > params_.min_range && range < params_.max_range)
+        if (cloud->points.size() > MIN_CLOUD_SIZE)
         {
           string pointclouds_dir = WORKING_DIRECTORY + "pointclouds/";
-          string pc_filename = pointclouds_dir + lexical_cast<string>(kf_id_) + ".pcd";
+          string pc_filename = pointclouds_dir + lexical_cast<string>(frame_id_) + ".pcd";
           pcl::io::savePCDFileBinary(pc_filename, *cloud);
-          kf_id_++;
         }
 
         // Store minimum and maximum values of last pointcloud
         pcl::getMinMax3D(*cloud, last_min_pt_, last_max_pt_);
 
         // Publish cloud
-        if (pc_pub_.getNumSubscribers() > 0 && cloud->points.size() > 0)
+        if (pc_pub_.getNumSubscribers() > 0 && cloud->points.size() > MIN_CLOUD_SIZE)
         {
           // Publish
           string frame_id_str = Tools::convertTo5digits(frame_id_);
@@ -349,12 +363,19 @@ namespace slam
           pc_pub_.publish(cloud_msg);
         }
 
+        ROS_INFO_STREAM("[Localization:] Adding keyframe " << frame_id_ + 1);
+
         // Increase the frame id counter
         frame_id_++;
         return true;
       }
+      else
+      {
+        ROS_WARN("[Localization:] Image produces 0 clusters.");
+      }
     }
 
+    ROS_WARN_STREAM("[Localization:] Not enough keypoints in this frame (" << c_frame_.getLeftKp().size() << ")");
     return false;
   }
 
@@ -402,8 +423,8 @@ namespace slam
       cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);
       vector<int> inliers;
       cv::solvePnPRansac(cand_matched_3d_points, query_matched_kp_l, camera_matrix_,
-                     cv::Mat(), rvec, tvec, false,
-                     100, 1.3, LC_MAX_INLIERS, inliers);
+                         cv::Mat(), rvec, tvec, false,
+                         100, 2.0, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
 
       // Inliers threshold
       if (inliers.size() < LC_MIN_INLIERS)

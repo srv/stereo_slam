@@ -31,11 +31,19 @@ namespace slam
 
     // Keypoints and descriptors
     cv::Mat l_desc, r_desc;
-    cv::Ptr<cv::Feature2D> orb;
     vector<cv::KeyPoint> l_kp, r_kp;
-    orb = cv::ORB::create(1500, 1.2, 8, 10, 0, 2, 0, 10);
+
+    // ORB from Opencv
+    cv::Ptr<cv::Feature2D> orb;
+    orb = cv::ORB::create(2000, 1.2, 8, 10, 0, 2, cv::ORB::HARRIS_SCORE, 10);
     orb->detectAndCompute (l_img_gray, cv::noArray(), l_kp, l_desc);
     orb->detectAndCompute (r_img_gray, cv::noArray(), r_kp, r_desc);
+
+    // SIFT
+    // cv::Ptr<cv::Feature2D> sift;
+    // sift = cv::xfeatures2d::SIFT::create();
+    // sift->detectAndCompute(l_img_gray, cv::noArray(), l_kp, l_desc);
+    // sift->detectAndCompute(r_img_gray, cv::noArray(), r_kp, r_desc);
 
     // Left/right matching
     vector<cv::DMatch> matches, matches_filtered;

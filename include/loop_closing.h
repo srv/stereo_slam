@@ -76,8 +76,9 @@ protected:
   /** \brief Tries to close a loop between two clusters
    * @return true if loop closing
    * \param Candidate cluster
+   * \param Type of search (proximity or hash)
    */
-  bool closeLoopWithCluster(Cluster candidate);
+  bool closeLoopWithCluster(Cluster candidate, string search_method);
 
   /** \brief Get the best candidates to close a loop by hash
    * \param Cluster identifier

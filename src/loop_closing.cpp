@@ -140,10 +140,7 @@ namespace slam
       if (candidate.getOrb().rows == 0)
         continue;
 
-      bool valid = closeLoopWithCluster(candidate);
-
-      if (valid)
-        ROS_INFO("[Localization:] Loop closure by proximity.");
+      closeLoopWithCluster(candidate, "proximity");
     }
   }
 
@@ -161,17 +158,14 @@ namespace slam
       if (candidate.getOrb().rows == 0)
         continue;
 
-      bool valid = closeLoopWithCluster(candidate);
+      bool valid = closeLoopWithCluster(candidate, "hash");
 
       if (valid)
-      {
-        ROS_INFO("[Localization:] Loop closure by hash.");
         break;
-      }
     }
   }
 
-  bool LoopClosing::closeLoopWithCluster(Cluster candidate)
+  bool LoopClosing::closeLoopWithCluster(Cluster candidate, string search_method)
   {
     // Init
     const float matching_th = 0.8;
@@ -290,15 +284,24 @@ namespace slam
         // Estimate the motion
         vector<int> inliers;
         cv::Mat rvec, tvec;
-        cv::solvePnPRansac(matched_cand_3d_points, matched_query_kp_l, graph_->getCameraMatrix(),
-            cv::Mat(), rvec, tvec, false,
-            100, 4.0, LC_MAX_INLIERS, inliers);
+        cv::solvePnPRansac(matched_cand_3d_points, matched_query_kp_l,
+          graph_->getCameraMatrix(), cv::Mat(), rvec, tvec,
+          false, 100, 8.0, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
 
         // Loop found!
         if (inliers.size() >= LC_MIN_INLIERS)
         {
           tf::Transform estimated_transform = Tools::buildTransformation(rvec, tvec);
           estimated_transform = estimated_transform.inverse();
+
+          tf::Transform idnty;
+          idnty.setIdentity();
+          float pose_diff = (float)Tools::poseDiff3D(estimated_transform, idnty);
+          if (pose_diff > LC_MAX_EDGE_DIFF)
+          {
+            ROS_WARN_STREAM("[Localization:] Loop closure discarded. The estimated transform is too big (" << pose_diff << " / " << LC_MAX_EDGE_DIFF << ")");
+            return false;
+          }
 
           // Get the inliers per cluster pair
           vector< vector<int> > cluster_pairs;
@@ -347,6 +350,18 @@ namespace slam
               inliers_per_pair.push_back(1);
             }
           }
+
+          // Log
+          stringstream s;
+          for (uint i=0; i<cand_kfs.size()-1; i++)
+            s << cand_kfs[i] << ", ";
+          s << cand_kfs[cand_kfs.size()-1];
+          ROS_INFO("[Localization:] ---------------------------");
+          ROS_INFO("[Localization:]         LOOP CLOSURE       ");
+          ROS_INFO_STREAM("[Localization:] Between keyframe " << c_cluster_.getFrameId() << " AND " << s.str() );
+          ROS_INFO_STREAM("[Localization:] Method: " << search_method);
+          ROS_INFO_STREAM("[Localization:] Inliers: " << inliers.size());
+          ROS_INFO("[Localization:] ---------------------------");
 
           // Add the corresponding edges
           vector< vector<int> > definitive_cluster_pairs;
