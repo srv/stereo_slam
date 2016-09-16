@@ -8,15 +8,18 @@
 
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
+#include <std_msgs/Int32.h>
 #include <cv_bridge/cv_bridge.h>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/features2d.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include "tracking.h"
 #include "frame.h"
 
 using namespace std;
+using namespace boost;
 
 namespace slam
 {
@@ -57,7 +60,8 @@ protected:
 private:
 
   ros::Publisher pub_clustering_; //!> Publisher for the frame clustering
-  ros::Publisher pub_stereo_matches_; //!> Publisher for the frame stereo matches
+  ros::Publisher pub_stereo_matches_img_; //!> Publisher for the frame stereo matches
+  ros::Publisher pub_stereo_matches_num_; //!> Publisher for the frame stereo matches
 
 };
 
