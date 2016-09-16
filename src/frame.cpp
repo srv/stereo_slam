@@ -51,13 +51,15 @@ namespace slam
 
     // Left/right matching
     vector<cv::DMatch> matches;
-    Tools::ratioMatching(l_desc, r_desc, 0.8, matches);
+    // Tools::ratioMatching(l_desc, r_desc, 0.8, matches);
+    cv::Mat match_mask;
+    Tools::crossCheckThresholdMatching(l_desc, r_desc, 0.8, match_mask, matches);
 
     // Filter matches by epipolar+
     matches_filtered_.clear();
     for (size_t i=0; i<matches.size(); ++i)
     {
-      if (abs(l_kp[matches[i].queryIdx].pt.y - r_kp[matches[i].trainIdx].pt.y) < 1.5)
+      if (abs(l_kp[matches[i].queryIdx].pt.y - r_kp[matches[i].trainIdx].pt.y) < 2.0)
         matches_filtered_.push_back(matches[i]);
     }
 

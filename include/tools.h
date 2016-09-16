@@ -292,6 +292,102 @@ public:
     }
   }
 
+  /** \brief match descriptors of 2 images by threshold
+    * @return
+    * \param descriptors1 descriptors of image1
+    * \param descriptors2 descriptors of image2
+    * \param threshold to determine correct matchings
+    * \param match_mask mask for matchings
+    * \param matches output vector with the matches
+    */
+  static void thresholdMatching(const cv::Mat& descriptors1, const cv::Mat& descriptors2,
+    double threshold, const cv::Mat& match_mask, vector<cv::DMatch>& matches)
+  {
+    matches.clear();
+    if (descriptors1.empty() || descriptors2.empty())
+      return;
+    assert(descriptors1.type() == descriptors2.type());
+    assert(descriptors1.cols == descriptors2.cols);
+
+    const int knn = 2;
+    cv::Ptr<cv::DescriptorMatcher> descriptor_matcher;
+    // choose matcher based on feature type
+    if (descriptors1.type() == CV_8U)
+    {
+      descriptor_matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
+    }
+    else
+    {
+      descriptor_matcher = cv::DescriptorMatcher::create("BruteForce");
+    }
+    vector<vector<cv::DMatch> > knn_matches;
+    descriptor_matcher->knnMatch(descriptors1, descriptors2,
+            knn_matches, knn, match_mask);
+
+    for (size_t m = 0; m < knn_matches.size(); m++)
+    {
+      if (knn_matches[m].size() < 2) continue;
+      float dist1 = knn_matches[m][0].distance;
+      float dist2 = knn_matches[m][1].distance;
+      if (dist1 / dist2 < threshold)
+      {
+        matches.push_back(knn_matches[m][0]);
+      }
+    }
+  }
+
+  /** \brief filter matches of cross check matching
+    * @return
+    * \param matches1to2 matches from image 1 to 2
+    * \param matches2to1 matches from image 2 to 1
+    * \param matches output vector with filtered matches
+    */
+  static void crossCheckFilter(
+      const vector<cv::DMatch>& matches1to2,
+      const vector<cv::DMatch>& matches2to1,
+      vector<cv::DMatch>& checked_matches)
+  {
+    checked_matches.clear();
+    for (size_t i = 0; i < matches1to2.size(); ++i)
+    {
+      bool match_found = false;
+      const cv::DMatch& forward_match = matches1to2[i];
+      for (size_t j = 0; j < matches2to1.size() && match_found == false; ++j)
+      {
+        const cv::DMatch& backward_match = matches2to1[j];
+        if (forward_match.trainIdx == backward_match.queryIdx &&
+            forward_match.queryIdx == backward_match.trainIdx)
+        {
+          checked_matches.push_back(forward_match);
+          match_found = true;
+        }
+      }
+    }
+  }
+
+  /** \brief match descriptors of 2 images by threshold
+    * @return
+    * \param descriptors1 descriptors of image 1
+    * \param descriptors2 descriptors of image 2
+    * \param threshold to determine correct matchings
+    * \param match_mask mask for matchings
+    * \param matches output vector with the matches
+    */
+  static void crossCheckThresholdMatching(
+    const cv::Mat& descriptors1, const cv::Mat& descriptors2,
+    double threshold, const cv::Mat& match_mask,
+    vector<cv::DMatch>& matches)
+  {
+    vector<cv::DMatch> query_to_train_matches;
+    thresholdMatching(descriptors1, descriptors2, threshold, match_mask, query_to_train_matches);
+    vector<cv::DMatch> train_to_query_matches;
+    cv::Mat match_mask_t;
+    if (!match_mask.empty()) match_mask_t = match_mask.t();
+    thresholdMatching(descriptors2, descriptors1, threshold, match_mask_t, train_to_query_matches);
+
+    crossCheckFilter(query_to_train_matches, train_to_query_matches, matches);
+  }
+
   static string convertTo5digits(int in)
   {
     uint val = (uint)in;
