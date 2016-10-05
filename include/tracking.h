@@ -157,9 +157,10 @@ protected:
    * \param current frame
    * \param previous frame
    * \param the estimated transform
+   * \param covariance of the transformation
    * \param number of inliers for the refined pose
    */
-  bool refinePose(Frame c_frame, Frame p_frame, tf::Transform& out, int& num_inliers);
+  bool refinePose(Frame c_frame, Frame p_frame, tf::Transform& out, cv::Mat& sigma, int& num_inliers);
 
 private:
 

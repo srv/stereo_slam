@@ -19,7 +19,8 @@ namespace slam
     // Init
     id_ = -1;
     stamp_ = timestamp;
-    num_inliers_with_prev_frame_ = LC_MIN_INLIERS;
+    num_inliers_with_prev_frame_ = 0;
+    sigma_with_prev_frame_ = cv::Mat::eye(6, 6, CV_64F);
 
     l_img.copyTo(l_img_);
     r_img.copyTo(r_img_);
@@ -34,32 +35,30 @@ namespace slam
     vector<cv::KeyPoint> l_kp, r_kp;
 
     // ORB from Opencv
-    cv::Ptr<cv::Feature2D> orb;
-    orb = cv::ORB::create(2000, 1.2, 8, 10, 0, 2, cv::ORB::HARRIS_SCORE, 10);
-    orb->detectAndCompute (l_img_gray, cv::noArray(), l_kp, l_desc);
-    orb->detectAndCompute (r_img_gray, cv::noArray(), r_kp, r_desc);
+    // cv::Ptr<cv::Feature2D> orb;
+    // orb = cv::ORB::create(1500, 1.2, 8, 10, 0, 2, cv::ORB::HARRIS_SCORE, 10);
+    // orb->detectAndCompute (l_img_gray, cv::noArray(), l_kp, l_desc);
+    // orb->detectAndCompute (r_img_gray, cv::noArray(), r_kp, r_desc);
+
+    // SIFT
+    cv::Ptr<cv::Feature2D> sift;
+    sift = cv::xfeatures2d::SIFT::create();
+    sift->detectAndCompute(l_img_gray, cv::noArray(), l_kp, l_desc);
+    sift->detectAndCompute(r_img_gray, cv::noArray(), r_kp, r_desc);
 
     // Stores non-filtered keypoints
     l_nonfiltered_kp_ = l_kp;
     r_nonfiltered_kp_ = r_kp;
 
-    // SIFT
-    // cv::Ptr<cv::Feature2D> sift;
-    // sift = cv::xfeatures2d::SIFT::create();
-    // sift->detectAndCompute(l_img_gray, cv::noArray(), l_kp, l_desc);
-    // sift->detectAndCompute(r_img_gray, cv::noArray(), r_kp, r_desc);
-
     // Left/right matching
     vector<cv::DMatch> matches;
-    // Tools::ratioMatching(l_desc, r_desc, 0.8, matches);
-    cv::Mat match_mask;
-    Tools::crossCheckThresholdMatching(l_desc, r_desc, 0.8, match_mask, matches);
+    Tools::ratioMatching(l_desc, r_desc, 0.8, matches);
 
     // Filter matches by epipolar+
     matches_filtered_.clear();
     for (size_t i=0; i<matches.size(); ++i)
     {
-      if (abs(l_kp[matches[i].queryIdx].pt.y - r_kp[matches[i].trainIdx].pt.y) < 2.0)
+      if (abs(l_kp[matches[i].queryIdx].pt.y - r_kp[matches[i].trainIdx].pt.y) < STEREO_EPIPOLAR_THRESH)
         matches_filtered_.push_back(matches[i]);
     }
 
@@ -128,6 +127,7 @@ namespace slam
       clustered.push_back(false);
       visited.push_back(false);
     }
+    clusters_ = clusters;
 
     c = -1;
 
@@ -234,7 +234,7 @@ namespace slam
     }
 
     // If 1 cluster, add all keypoints
-    if (clusters_.size() == 1)
+    if (clusters_.size() <= 1)
     {
       vector<int> cluster_tmp;
       for (uint i=0; i<l_kp_.size(); i++)

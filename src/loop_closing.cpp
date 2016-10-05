@@ -17,7 +17,10 @@ namespace slam
     pub_num_keyframes_ = nhp.advertise<std_msgs::Int32>("keyframes", 2, true);
     pub_num_lc_ = nhp.advertise<std_msgs::Int32>("loop_closings", 2, true);
     pub_queue_ = nhp.advertise<std_msgs::Int32>("loop_closing_queue", 2, true);
-    pub_lc_matchings_ = nhp.advertise<sensor_msgs::Image>("loop_closing_matchings", 2, true);
+    pub_matchings_num_ = nhp.advertise<std_msgs::Int32>("loop_closing_matches_num", 2, true);
+    pub_inliers_num_ = nhp.advertise<std_msgs::Int32>("loop_closing_inliers_num", 2, true);
+    pub_inliers_img_ = nhp.advertise<sensor_msgs::Image>("loop_closing_inliers_img", 2, true);
+    pub_matchings_percentage_ = nhp.advertise<std_msgs::Int32>("loop_closing_matches_percentage", 2, true);
   }
 
   void LoopClosing::run()
@@ -40,17 +43,19 @@ namespace slam
     camera_model_ = graph_->getCameraModel();
     num_loop_closures_ = 0;
 
-    // Publish first loop closure image
-    stringstream s;
-    s << " No Loop Closures ";
-    cv::Mat no_loops = cv::Mat(384, 512, CV_8UC3);
-    no_loops.rowRange(0, no_loops.rows).setTo(cv::Scalar(0,0,0));
-    cv::putText(no_loops, s.str(), cv::Point(95, 200), cv::FONT_HERSHEY_PLAIN, 2, cv::Scalar(255,255,255), 2, 8);
-    cv_bridge::CvImage ros_image;
-    ros_image.image = no_loops.clone();
-    ros_image.header.stamp = ros::Time::now();
-    ros_image.encoding = "bgr8";
-    pub_lc_matchings_.publish(ros_image.toImageMsg());
+    if (pub_inliers_img_.getNumSubscribers() > 0)
+    {
+      stringstream s;
+      s << " No Inliers ";
+      cv::Mat no_loops = cv::Mat(384, 512, CV_8UC3);
+      no_loops.rowRange(0, no_loops.rows).setTo(cv::Scalar(0,0,0));
+      cv::putText(no_loops, s.str(), cv::Point(95, 200), cv::FONT_HERSHEY_PLAIN, 2, cv::Scalar(255,255,255), 2, 8);
+      cv_bridge::CvImage ros_image;
+      ros_image.image = no_loops.clone();
+      ros_image.header.stamp = ros::Time::now();
+      ros_image.encoding = "bgr8";
+      pub_inliers_img_.publish(ros_image.toImageMsg());
+    }
 
     // Loop
     ros::Rate r(50);
@@ -159,7 +164,6 @@ namespace slam
         continue;
 
       bool valid = closeLoopWithCluster(candidate, "hash");
-
       if (valid)
         break;
     }
@@ -168,19 +172,14 @@ namespace slam
   bool LoopClosing::closeLoopWithCluster(Cluster candidate, string search_method)
   {
     // Init
-    const float matching_th = 0.8;
+    const float matching_th = 0.7;
 
     // Descriptor matching
     vector<cv::DMatch> matches_1;
     Tools::ratioMatching(c_cluster_.getOrb(), candidate.getOrb(), matching_th, matches_1);
 
-    // Compute the percentage of matchings
-    int size_c = c_cluster_.getOrb().rows;
-    int size_n = candidate.getOrb().rows;
-    int m_percentage = round(100.0 * (float) matches_1.size() / (float) min(size_c, size_n) );
-
     // Get the neighbor clusters if enough matching percentage
-    if (m_percentage > 35)
+    if (matches_1.size() > (int)(LC_MIN_INLIERS / 2))
     {
       // Init accumulated data
       vector<int> cluster_query_list;
@@ -257,6 +256,13 @@ namespace slam
       vector<cv::DMatch> matches_2;
       Tools::ratioMatching(all_query_desc, all_cand_desc, matching_th, matches_2);
 
+      if (pub_matchings_num_.getNumSubscribers() > 0)
+      {
+        std_msgs::Int32 msg;
+        msg.data = lexical_cast<int>(matches_2.size());
+        pub_matchings_num_.publish(msg);
+      }
+
       if (matches_2.size() >= LC_MIN_INLIERS)
       {
         // Store matchings
@@ -285,23 +291,21 @@ namespace slam
         vector<int> inliers;
         cv::Mat rvec, tvec;
         cv::solvePnPRansac(matched_cand_3d_points, matched_query_kp_l,
-          graph_->getCameraMatrix(), cv::Mat(), rvec, tvec,
-          false, 100, 8.0, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
+            graph_->getCameraMatrix(), cv::Mat(), rvec, tvec,
+            false, 100, LC_EPIPOLAR_THRESH, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
+
+        if (pub_inliers_num_.getNumSubscribers() > 0)
+        {
+          std_msgs::Int32 msg;
+          msg.data = lexical_cast<int>(inliers.size());
+          pub_matchings_num_.publish(msg);
+        }
 
         // Loop found!
         if (inliers.size() >= LC_MIN_INLIERS)
         {
           tf::Transform estimated_transform = Tools::buildTransformation(rvec, tvec);
           estimated_transform = estimated_transform.inverse();
-
-          tf::Transform idnty;
-          idnty.setIdentity();
-          float pose_diff = (float)Tools::poseDiff3D(estimated_transform, idnty);
-          if (pose_diff > LC_MAX_EDGE_DIFF)
-          {
-            ROS_WARN_STREAM("[Localization:] Loop closure discarded. The estimated transform is too big (" << pose_diff << " / " << LC_MAX_EDGE_DIFF << ")");
-            return false;
-          }
 
           // Get the inliers per cluster pair
           vector< vector<int> > cluster_pairs;
@@ -351,18 +355,6 @@ namespace slam
             }
           }
 
-          // Log
-          stringstream s;
-          for (uint i=0; i<cand_kfs.size()-1; i++)
-            s << cand_kfs[i] << ", ";
-          s << cand_kfs[cand_kfs.size()-1];
-          ROS_INFO("[Localization:] ---------------------------");
-          ROS_INFO("[Localization:]         LOOP CLOSURE       ");
-          ROS_INFO_STREAM("[Localization:] Between keyframe " << c_cluster_.getFrameId() << " AND " << s.str() );
-          ROS_INFO_STREAM("[Localization:] Method: " << search_method);
-          ROS_INFO_STREAM("[Localization:] Inliers: " << inliers.size());
-          ROS_INFO("[Localization:] ---------------------------");
-
           // Add the corresponding edges
           vector< vector<int> > definitive_cluster_pairs;
           vector<int> definitive_inliers_per_pair;
@@ -384,12 +376,24 @@ namespace slam
               }
               if (lc_found) continue;
 
+              // Compute correct transform between edges
               tf::Transform candidate_cluster_pose = graph_->getVertexPose(cluster_pairs[i][1]);
               tf::Transform frame_cluster_pose_relative_to_camera = graph_->getVertexPoseRelativeToCamera(cluster_pairs[i][0]);
               tf::Transform edge_1 = candidate_cluster_pose.inverse() * estimated_transform * frame_cluster_pose_relative_to_camera;
 
+              // Estimate the covariance
+              cv::Mat J;
+              cv::Mat sigma;
+              vector<cv::Point2f> p;
+              vector<cv::Point3f> inliers_3d_points;
+              for (uint i=0; i<inliers.size(); i++)
+                inliers_3d_points.push_back(matched_cand_3d_points[inliers[i]]);
+              cv::projectPoints(inliers_3d_points, rvec, tvec, graph_->getCameraMatrix(), cv::Mat(), p, J);
+              cv::Mat tmp = cv::Mat(J.t() * J, cv::Rect(0,0,6,6)).inv();
+              cv::sqrt(cv::abs(tmp), sigma);
+
               // Add this edge to the graph
-              graph_->addEdge(cluster_pairs[i][1], cluster_pairs[i][0], edge_1, inliers_per_pair[i]);
+              graph_->addEdge(cluster_pairs[i][1], cluster_pairs[i][0], edge_1, sigma, inliers_per_pair[i]);
               vector<int> pair;
               pair.push_back(cluster_pairs[i][0]);
               pair.push_back(cluster_pairs[i][1]);
@@ -417,6 +421,14 @@ namespace slam
                             definitive_cluster_pairs,
                             matched_query_kp_l,
                             matched_cand_kp_l);
+
+            ROS_INFO("[Localization:] ---------------------------");
+            ROS_INFO_STREAM("[Localization:]      LOOP CLOSURE " << num_loop_closures_);
+            ROS_INFO_STREAM("[Localization:] Between keyframe " << c_cluster_.getFrameId() << " AND " << candidate.getFrameId() );
+            ROS_INFO_STREAM("[Localization:] Method: " << search_method);
+            ROS_INFO_STREAM("[Localization:] Inliers: " << inliers.size());
+            ROS_INFO("[Localization:] ---------------------------");
+
             return true;
           }
         }
@@ -556,7 +568,7 @@ namespace slam
 
     // Add the keyframe identifier
     stringstream s;
-    s << " Keyframe " << c_cluster_.getFrameId();
+    s << " Keyframe " << c_cluster_.getFrameId() << " has " << inliers.size() << " inliers.";
     cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1, 1, &baseline);
     cv::Mat current_kf_text = cv::Mat(current_kf_tmp.rows + text_size.height + 10, current_kf_tmp.cols, current_kf_tmp.type());
     current_kf_tmp.copyTo(current_kf_text.rowRange(text_size.height + 10, current_kf_tmp.rows + text_size.height + 10).colRange(0, current_kf_tmp.cols));
@@ -633,13 +645,13 @@ namespace slam
     cv::imwrite( lc_file, lc_image );
 
     // Publish
-    if (pub_lc_matchings_.getNumSubscribers() > 0)
+    if (pub_inliers_img_.getNumSubscribers() > 0)
     {
       cv_bridge::CvImage ros_image;
       ros_image.image = lc_image.clone();
       ros_image.header.stamp = ros::Time::now();
       ros_image.encoding = "bgr8";
-      pub_lc_matchings_.publish(ros_image.toImageMsg());
+      pub_inliers_img_.publish(ros_image.toImageMsg());
     }
   }
 

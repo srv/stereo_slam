@@ -137,7 +137,11 @@ private:
 
   ros::Publisher pub_queue_; //!> Publishes the loop closing queue size
 
-  ros::Publisher pub_lc_matchings_; //!> Publishes the image with the loop closure matchings
+  ros::Publisher pub_matchings_num_; //!> Publishes the image with the loop closure matchings
+
+  ros::Publisher pub_inliers_img_, pub_inliers_num_; //!> Publishes the image with the loop closure inliers
+
+  ros::Publisher pub_matchings_percentage_; //!> Matching percentage
 
   image_geometry::PinholeCameraModel camera_model_; //!> Camera model (left)
 

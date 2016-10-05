@@ -13,6 +13,7 @@
 
 #include <cv.h>
 #include <highgui.h>
+#include <opencv2/core.hpp>
 
 #include <g2o/core/sparse_optimizer.h>
 #include <g2o/core/block_solver.h>
@@ -42,6 +43,20 @@ class Graph
 
 public:
 
+  struct Edge
+  {
+    int vertice_a;
+    int vertice_b;
+    int inliers;
+
+    // Default settings
+    Edge (int a, int b, int inlier) {
+      vertice_a  = a;
+      vertice_b  = b;
+      inliers = inlier;
+    }
+  };
+
 	/** \brief Class constructor
    * \param Loop closing object pointer
    */
@@ -65,8 +80,9 @@ public:
    * \param Index of vertex 2
    * \param Transformation between vertices
    * \param Sigma information
+   * \param Inliers
    */
-  void addEdge(int i, int j, tf::Transform edge, int sigma);
+  void addEdge(int i, int j, tf::Transform edge, cv::Mat sigma, int inliers);
 
   /** \brief Optimize the graph
    */
@@ -231,6 +247,8 @@ private:
   ros::Publisher pose_pub_; //!> Camera pose publisher
 
   ros::Publisher graph_pub_; //!> Graph publisher
+
+  vector<Edge> edges_information_; // Edges information
 };
 
 } // namespace

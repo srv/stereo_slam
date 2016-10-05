@@ -143,7 +143,8 @@ namespace slam
         tf::Transform pose_b = getVertexPose(id_b);
 
         tf::Transform edge = pose_a.inverse() * pose_b;
-        addEdge(id_a, id_b, edge, LC_MAX_INLIERS);
+        cv::Mat eye = cv::Mat::eye(6, 6, CV_64F);
+        addEdge(id_a, id_b, edge, eye, 0);
       }
     }
 
@@ -183,8 +184,14 @@ namespace slam
 
       if (closest_vertices.size() > 0)
       {
+        cv::Mat eye = cv::Mat::eye(6, 6, CV_64F);
         tf::Transform edge = closest_poses[0].inverse() * closest_poses[1];
-        addEdge(closest_vertices[0], closest_vertices[1], edge, frame.getInliersNumWithPreviousFrame());
+        addEdge(closest_vertices[0], closest_vertices[1], edge, frame.getSigmaWithPreviousFrame(), frame.getInliersNumWithPreviousFrame());
+
+        int frame_i = Graph::getVertexFrameId(closest_vertices[0]);
+        int frame_j = Graph::getVertexFrameId(closest_vertices[1]);
+        Edge ee(frame_i, frame_j, frame.getInliersNumWithPreviousFrame());
+        edges_information_.push_back(ee);
       }
       else
         ROS_ERROR("[Localization:] Impossible to connect current and previous frame. Graph will have non-connected parts!");
@@ -270,19 +277,73 @@ namespace slam
     return id;
   }
 
-  void Graph::addEdge(int i, int j, tf::Transform edge, int sigma)
+  void Graph::addEdge(int i, int j, tf::Transform edge, cv::Mat sigma, int inliers)
   {
     mutex::scoped_lock lock(mutex_graph_);
 
-    // Sanity check
-    if (sigma > LC_MAX_INLIERS)
-      sigma = LC_MAX_INLIERS;
+    // Store edge information
+    int frame_i = Graph::getVertexFrameId(i);
+    int frame_j = Graph::getVertexFrameId(j);
+    bool lc_found = false;
+    for (uint i=0; i<edges_information_.size(); i++)
+    {
+      Edge ee = edges_information_[i];
+      if ( (ee.vertice_a == frame_i && ee.vertice_b == frame_j) ||
+           (ee.vertice_a == frame_j && ee.vertice_b == frame_i) )
+      {
+        lc_found = true;
+        edges_information_[i].inliers = ee.inliers + inliers;
+        break;
+      }
+    }
+
+    if (!lc_found)
+    {
+      Edge e_info(frame_i, frame_j, inliers);
+      edges_information_.push_back(e_info);
+    }
+
+    // Eigen::Matrix<double, 6, 6> information;
+    // information(0,0) = sigma.at<double>(0,0);
+    // information(0,1) = sigma.at<double>(0,1);
+    // information(0,2) = sigma.at<double>(0,2);
+    // information(0,3) = sigma.at<double>(0,3);
+    // information(0,4) = sigma.at<double>(0,4);
+    // information(0,5) = sigma.at<double>(0,5);
+    // information(1,0) = sigma.at<double>(1,0);
+    // information(1,1) = sigma.at<double>(1,1);
+    // information(1,2) = sigma.at<double>(1,2);
+    // information(1,3) = sigma.at<double>(1,3);
+    // information(1,4) = sigma.at<double>(1,4);
+    // information(1,5) = sigma.at<double>(1,5);
+    // information(2,0) = sigma.at<double>(2,0);
+    // information(2,1) = sigma.at<double>(2,1);
+    // information(2,2) = sigma.at<double>(2,2);
+    // information(2,3) = sigma.at<double>(2,3);
+    // information(2,4) = sigma.at<double>(2,4);
+    // information(2,5) = sigma.at<double>(2,5);
+    // information(3,0) = sigma.at<double>(3,0);
+    // information(3,1) = sigma.at<double>(3,1);
+    // information(3,2) = sigma.at<double>(3,2);
+    // information(3,3) = sigma.at<double>(3,3);
+    // information(3,4) = sigma.at<double>(3,4);
+    // information(3,5) = sigma.at<double>(3,5);
+    // information(4,0) = sigma.at<double>(4,0);
+    // information(4,1) = sigma.at<double>(4,1);
+    // information(4,2) = sigma.at<double>(4,2);
+    // information(4,3) = sigma.at<double>(4,3);
+    // information(4,4) = sigma.at<double>(4,4);
+    // information(4,5) = sigma.at<double>(4,5);
+    // information(5,0) = sigma.at<double>(5,0);
+    // information(5,1) = sigma.at<double>(5,1);
+    // information(5,2) = sigma.at<double>(5,2);
+    // information(5,3) = sigma.at<double>(5,3);
+    // information(5,4) = sigma.at<double>(5,4);
+    // information(5,5) = sigma.at<double>(5,5);
 
     // Get the vertices
     g2o::VertexSE3* v_i = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[i]);
     g2o::VertexSE3* v_j = dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[j]);
-
-    Eigen::Matrix<double, 6, 6> information = Eigen::Matrix<double, 6, 6>::Identity() * (double)sigma;
 
     // Add the new edge to graph
     g2o::EdgeSE3* e = new g2o::EdgeSE3();
@@ -290,7 +351,8 @@ namespace slam
     e->setVertex(0, v_i);
     e->setVertex(1, v_j);
     e->setMeasurement(t);
-    e->setInformation(information);
+    // e->setInformation(information);
+
     graph_optimizer_.addEdge(e);
   }
 
@@ -334,7 +396,7 @@ namespace slam
     if ((int)neighbor_distances.size() < best_n)
       best_n = neighbor_distances.size();
 
-    for (int i=0; i<best_n; i++)
+    for (int i=0; i<=best_n; i++)
       neighbors.push_back(neighbor_distances[i].first);
   }
 
@@ -483,6 +545,9 @@ namespace slam
 
     mutex::scoped_lock lock(mutex_graph_);
 
+    // First line
+    f_vertices << "% timestamp, frame id, x, y, z, qx, qy, qz, qw" << endl;
+
     vector<int> processed_frames;
 
     // Output the vertices file
@@ -502,7 +567,7 @@ namespace slam
       if (found) continue;
       processed_frames.push_back(id);
 
-      tf::Transform pose = getVertexCameraPose(i, false);//*camera2odom_;
+      tf::Transform pose = getVertexCameraPose(i, false)*camera2odom_;
       f_vertices << fixed <<
         setprecision(6) <<
         frame_stamps_[id] << "," <<
@@ -516,6 +581,9 @@ namespace slam
         pose.getRotation().w() <<  endl;
     }
     f_vertices.close();
+
+    // First line
+    f_edges << "% frame a, frame b, inliers, ax, ay, az, aqx, aqy, aqz, aqw, bx, by, bz, bqx, bqy, bqz, bqw" << endl;
 
     // Output the edges file
     for ( g2o::OptimizableGraph::EdgeSet::iterator it=graph_optimizer_.edges().begin();
@@ -531,14 +599,21 @@ namespace slam
         if (abs(frame_a - frame_b) > 1 )
         {
 
-          tf::Transform pose_0 = getVertexCameraPose(e->vertices()[0]->id(), false);//*camera2odom_;
-          tf::Transform pose_1 = getVertexCameraPose(e->vertices()[1]->id(), false);//*camera2odom_;
+          tf::Transform pose_0 = getVertexCameraPose(e->vertices()[0]->id(), false)*camera2odom_;
+          tf::Transform pose_1 = getVertexCameraPose(e->vertices()[1]->id(), false)*camera2odom_;
 
           // Extract the inliers
-          Eigen::Matrix<double, 6, 6> information = e->information();
           int inliers = 0;
-          if (information(0,0) > 0.0001)
-            inliers = (int)information(0,0);
+          for (uint i=0; i<edges_information_.size(); i++)
+          {
+            Edge ee = edges_information_[i];
+            if ( (ee.vertice_a == frame_a && ee.vertice_b == frame_b) ||
+                 (ee.vertice_a == frame_b && ee.vertice_b == frame_a) )
+            {
+              inliers = edges_information_[i].inliers;
+              break;
+            }
+          }
 
           // Write
           f_edges <<

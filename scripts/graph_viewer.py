@@ -67,7 +67,7 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
     if (len(size) > 12):
       data = pylab.loadtxt(gt_file, delimiter=',', skiprows=1, usecols=(0,5,6,7,8,9,10,11))
     else:
-      data = pylab.loadtxt(gt_file, delimiter=',', usecols=(0,1,2,3,4,5,6,7))
+      data = pylab.loadtxt(gt_file, delimiter=',', skiprows=1, usecols=(0,1,2,3,4,5,6,7))
 
     # Plot
     if (len(data.shape) == 1):
@@ -102,7 +102,7 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
 
     # Read the data
     try:
-      data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=0, usecols=(2,3,4,5,6,7,8))
+      data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=1, usecols=(2,3,4,5,6,7,8))
     except:
       return;
 

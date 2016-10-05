@@ -278,10 +278,16 @@ public:
     matches.clear();
     if (desc_1.rows < 10 || desc_2.rows < 10) return;
 
+    assert(desc_1.type() == desc_2.type());
+    assert(desc_1.cols == desc_2.cols);
+
     cv::Mat match_mask;
     const int knn = 2;
     cv::Ptr<cv::DescriptorMatcher> descriptor_matcher;
-    descriptor_matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
+    if (desc_1.type() == CV_8U)
+      descriptor_matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
+    else
+      descriptor_matcher = cv::DescriptorMatcher::create("BruteForce");
     vector<vector<cv::DMatch> > knn_matches;
     descriptor_matcher->knnMatch(desc_1, desc_2, knn_matches, knn, match_mask);
     for (uint m=0; m<knn_matches.size(); m++)
@@ -313,13 +319,9 @@ public:
     cv::Ptr<cv::DescriptorMatcher> descriptor_matcher;
     // choose matcher based on feature type
     if (descriptors1.type() == CV_8U)
-    {
       descriptor_matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
-    }
     else
-    {
       descriptor_matcher = cv::DescriptorMatcher::create("BruteForce");
-    }
     vector<vector<cv::DMatch> > knn_matches;
     descriptor_matcher->knnMatch(descriptors1, descriptors2,
             knn_matches, knn, match_mask);
@@ -375,9 +377,10 @@ public:
     */
   static void crossCheckThresholdMatching(
     const cv::Mat& descriptors1, const cv::Mat& descriptors2,
-    double threshold, const cv::Mat& match_mask,
-    vector<cv::DMatch>& matches)
+    double threshold, vector<cv::DMatch>& matches)
   {
+    const cv::Mat match_mask;
+
     vector<cv::DMatch> query_to_train_matches;
     thresholdMatching(descriptors1, descriptors2, threshold, match_mask, query_to_train_matches);
     vector<cv::DMatch> train_to_query_matches;

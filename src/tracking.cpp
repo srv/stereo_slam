@@ -145,18 +145,28 @@ namespace slam
       // Refine its position relative to the previous frame
       tf::Transform correction;
       tf::Transform c_camera_pose;
-      int num_inliers = LC_MIN_INLIERS;
+      int num_inliers = 0;
       if (params_.refine)
       {
+        cv::Mat sigma;
         tf::Transform p2c_diff;
-        bool succeed = refinePose(p_frame_, c_frame_, p2c_diff, num_inliers);
+        bool succeed = refinePose(p_frame_, c_frame_, p2c_diff, sigma, num_inliers);
         double error = Tools::poseDiff3D(p2c_diff, odom_diff);
-        bool refine_valid = succeed && error < 0.2;
+        bool refine_valid = succeed && error < 0.3;
 
         if (refine_valid)
+        {
+          ROS_INFO_STREAM("[Localization:] Pose refine successful, error: " << error << ", inliers: " << num_inliers);
+
+          c_frame_.setInliersNumWithPreviousFrame(num_inliers);
+          c_frame_.setSigmaWithPreviousFrame(sigma);
           correction = p2c_diff;
+        }
         else
+        {
+          ROS_WARN_STREAM("[Localization:] Pose refine fails, error: " << error);
           correction = odom_diff;
+        }
       }
       else
       {
@@ -171,7 +181,6 @@ namespace slam
 
       // Set frame data
       c_frame_.setCameraPose(c_camera_pose);
-      c_frame_.setInliersNumWithPreviousFrame(num_inliers);
       c_frame_.setPointCloud(cloud_filtered);
 
       // Need new keyframe
@@ -378,6 +387,7 @@ namespace slam
       else
       {
         ROS_WARN("[Localization:] Image produces 0 clusters.");
+        return false;
       }
     }
 
@@ -385,7 +395,7 @@ namespace slam
     return false;
   }
 
-  bool Tracking::refinePose(Frame query, Frame candidate, tf::Transform& out, int& num_inliers)
+  bool Tracking::refinePose(Frame query, Frame candidate, tf::Transform& out, cv::Mat& sigma, int& num_inliers)
   {
     // Init
     out.setIdentity();
@@ -430,7 +440,7 @@ namespace slam
       vector<int> inliers;
       cv::solvePnPRansac(cand_matched_3d_points, query_matched_kp_l, camera_matrix_,
                          cv::Mat(), rvec, tvec, false,
-                         100, 2.0, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
+                         100, LC_EPIPOLAR_THRESH, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
 
       // Inliers threshold
       if (inliers.size() < LC_MIN_INLIERS)
@@ -441,6 +451,16 @@ namespace slam
       {
         // Build output transform
         out = Tools::buildTransformation(rvec, tvec);
+
+        // Estimate the covariance
+        cv::Mat J;
+        vector<cv::Point2f> p;
+        vector<cv::Point3f> inliers_3d_points;
+        for (uint i=0; i<inliers.size(); i++)
+          inliers_3d_points.push_back(cand_matched_3d_points[inliers[i]]);
+        cv::projectPoints(inliers_3d_points, rvec, tvec, camera_matrix_, cv::Mat(), p, J);
+        cv::Mat tmp = cv::Mat(J.t() * J, cv::Rect(0,0,6,6)).inv();
+        cv::sqrt(cv::abs(tmp), sigma);
 
         // Save the inliers
         num_inliers = inliers.size();

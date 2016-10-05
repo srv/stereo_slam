@@ -14,6 +14,7 @@ void readParameters(slam::Tracking::Params &tracking_params)
   ros::NodeHandle nhp("~");
   nhp.param("odom_topic",   tracking_params.odom_topic,   string(""));
   nhp.param("camera_topic", tracking_params.camera_topic, string(""));
+  nhp.param("refine",       tracking_params.refine,       false);
 }
 
 /** \brief Main entry point

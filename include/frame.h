@@ -113,6 +113,11 @@ public:
    */
   inline void setInliersNumWithPreviousFrame(const int& num_inliers){num_inliers_with_prev_frame_ = num_inliers;}
 
+  /** \brief Set sigma with the previous frame
+   * \param sigma matrix between current frame and previous
+   */
+  inline void setSigmaWithPreviousFrame(const cv::Mat& sigma){sigma_with_prev_frame_ = sigma;}
+
   /** \brief Get frame id
    */
   inline int getId() const {return id_;}
@@ -137,9 +142,13 @@ public:
    */
   inline PointCloudRGB::Ptr getPointCloud() const {return pointcloud_;}
 
-  /** \brief Get frame timestamp
+  /** \brief Get frame inliers with previous frame
    */
   inline int getInliersNumWithPreviousFrame() const {return num_inliers_with_prev_frame_;}
+
+  /** \brief Get frame sigma with previous frame
+   */
+  inline cv::Mat getSigmaWithPreviousFrame() const {return sigma_with_prev_frame_;}
 
   /** \brief Compute sift descriptors
    * @return the matrix of sift descriptors
@@ -193,6 +202,8 @@ private:
   ros::Publisher kp_pub_; //!> Keypoints publisher
 
   int num_inliers_with_prev_frame_; //!> Number of inliers between this frame and the previous
+
+  cv::Mat sigma_with_prev_frame_; //!> The sigma value with previous frame
 
 };
 
