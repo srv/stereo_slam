@@ -24,8 +24,32 @@ namespace slam
     pc_pub_ = nhp.advertise<sensor_msgs::PointCloud2>("pointcloud", 5);
     overlapping_pub_ = nhp.advertise<sensor_msgs::Image>("tracking_overlap", 1, true);
 
-    image_transport::ImageTransport it(nh);
+    // Create directory to store the keyframes
+    string keyframes_dir = WORKING_DIRECTORY + "keyframes";
+    if (fs::is_directory(keyframes_dir))
+      fs::remove_all(keyframes_dir);
+    fs::path dir1(keyframes_dir);
+    if (!fs::create_directory(dir1))
+      ROS_ERROR("[Localization:] ERROR -> Impossible to create the keyframes directory.");
 
+    // Create directory to store the clusters
+    string clusters_dir = WORKING_DIRECTORY + "clusters";
+    if (fs::is_directory(clusters_dir))
+      fs::remove_all(clusters_dir);
+    fs::path dir2(clusters_dir);
+    if (!fs::create_directory(dir2))
+      ROS_ERROR("[Localization:] ERROR -> Impossible to create the clusters directory.");
+
+    // Create the directory to store the pointcloud
+    string pointclouds_dir = WORKING_DIRECTORY + "pointclouds";
+    if (fs::is_directory(pointclouds_dir))
+      fs::remove_all(pointclouds_dir);
+    fs::path dir3(pointclouds_dir);
+    if (!fs::create_directory(dir3))
+      ROS_ERROR("[Localization:] ERROR -> Impossible to create the pointclouds directory.");
+
+    // Subscribers
+    image_transport::ImageTransport it(nh);
     image_transport::SubscriberFilter left_sub, right_sub;
     message_filters::Subscriber<sensor_msgs::CameraInfo> left_info_sub, right_info_sub;
     message_filters::Subscriber<nav_msgs::Odometry> odom_sub;
@@ -41,22 +65,6 @@ namespace slam
     cloud_sub     .subscribe(nh, params_.camera_topic+"/points2", 5);
     sync.reset(new Sync(SyncPolicy(10), odom_sub, left_sub, right_sub, left_info_sub, right_info_sub, cloud_sub) );
     sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5, _6));
-
-    // Create directory to store the keyframes
-    string keyframes_dir = WORKING_DIRECTORY + "keyframes";
-    if (fs::is_directory(keyframes_dir))
-      fs::remove_all(keyframes_dir);
-    fs::path dir1(keyframes_dir);
-    if (!fs::create_directory(dir1))
-      ROS_ERROR("[Localization:] ERROR -> Impossible to create the keyframes directory.");
-
-    // Create the directory to store the pointcloud
-    string pointclouds_dir = WORKING_DIRECTORY + "pointclouds";
-    if (fs::is_directory(pointclouds_dir))
-      fs::remove_all(pointclouds_dir);
-    fs::path dir2(pointclouds_dir);
-    if (!fs::create_directory(dir2))
-      ROS_ERROR("[Localization:] ERROR -> Impossible to create the pointclouds directory.");
 
     ros::spin();
   }
@@ -379,6 +387,9 @@ namespace slam
         }
 
         ROS_INFO_STREAM("[Localization:] Adding keyframe " << frame_id_ + 1);
+
+        // Save the keyframe
+
 
         // Increase the frame id counter
         frame_id_++;

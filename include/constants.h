@@ -13,7 +13,7 @@ using namespace std;
 namespace slam
 {
 
-  static const string WORKING_DIRECTORY = ros::package::getPath("stereo_slam") + "/";
+  static const string WORKING_DIRECTORY = ros::package::getPath("stereo_slam") + "/output/";
 
   static const int LC_MIN_INLIERS = 50;
 

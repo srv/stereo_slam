@@ -203,9 +203,8 @@ protected:
 
   /** \brief Save the frame to the default location
    * \param the frame to be drawn
-   * \param true to draw the clusters over the frame
    */
-  void saveFrame(Frame frame, bool draw_clusters = false);
+  void saveFrame(Frame frame);
 
   /** \brief Publishes the graph camera pose
    * \param Camera pose

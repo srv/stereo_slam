@@ -499,31 +499,35 @@ namespace slam
     return vertex_pose * local_cluster_poses_[id].inverse();
   }
 
-  void Graph::saveFrame(Frame frame, bool draw_clusters)
+  void Graph::saveFrame(Frame frame)
   {
-    cv::Mat img;
-    frame.getLeftImg().copyTo(img);
-    if (img.cols == 0)
+    cv::Mat l_img, r_img, c_img;
+    frame.getLeftImg().copyTo(l_img);
+    frame.getRightImg().copyTo(r_img);
+    frame.getLeftImg().copyTo(c_img);
+    if (l_img.cols == 0 || r_img.cols == 0)
       return;
 
-    if (draw_clusters)
-    {
-      // Draw the clusters
-      vector< vector<int> > clusters = frame.getClusters();
-      vector<cv::KeyPoint> kp = frame.getLeftKp();
-      cv::RNG rng(12345);
-      for (uint i=0; i<clusters.size(); i++)
-      {
-        cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
-        for (uint j=0; j<clusters[i].size(); j++)
-          cv::circle(img, kp[clusters[i][j]].pt, 5, color, -1);
-      }
-    }
-
-    // Save
     string frame_id_str = Tools::convertTo5digits(frame.getId());
-    string keyframe_file = WORKING_DIRECTORY + "keyframes/" + frame_id_str + ".jpg";
-    cv::imwrite( keyframe_file, img );
+
+    // Save keyframe
+    string l_kf = WORKING_DIRECTORY + "keyframes/" + frame_id_str + "_left.jpg";
+    string r_kf = WORKING_DIRECTORY + "keyframes/" + frame_id_str + "_right.jpg";
+    cv::imwrite(l_kf, l_img);
+    cv::imwrite(r_kf, r_img);
+
+    // Save keyframe with clusters
+    vector< vector<int> > clusters = frame.getClusters();
+    vector<cv::KeyPoint> kp = frame.getLeftKp();
+    cv::RNG rng(12345);
+    for (uint i=0; i<clusters.size(); i++)
+    {
+      cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
+      for (uint j=0; j<clusters[i].size(); j++)
+        cv::circle(c_img, kp[clusters[i][j]].pt, 5, color, -1);
+    }
+    string clusters_file = WORKING_DIRECTORY + "clusters/" + frame_id_str + ".jpg";
+    cv::imwrite(clusters_file, c_img);
   }
 
   void Graph::saveGraph()

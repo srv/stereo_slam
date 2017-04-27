@@ -1,15 +1,18 @@
 #include <ros/ros.h>
 
 #include <boost/thread.hpp>
+#include <boost/filesystem.hpp>
 #include "constants.h"
 #include "publisher.h"
 #include "tracking.h"
 #include "graph.h"
 #include "loop_closing.h"
 
+namespace fs = boost::filesystem;
+
 /** \brief Read the node parameters
   */
-void readParameters(slam::Tracking::Params &tracking_params)
+void readTrackingParams(slam::Tracking::Params &tracking_params)
 {
   ros::NodeHandle nhp("~");
   nhp.param("odom_topic",   tracking_params.odom_topic,   string(""));
@@ -25,6 +28,18 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "stereo_slam");
   ros::start();
 
+  // Create the output directory
+  string output_dir = slam::WORKING_DIRECTORY;
+  if (fs::is_directory(output_dir))
+  {
+    ROS_ERROR_STREAM("[Localization:] ERROR -> The output directory already exists: " <<
+      output_dir);
+    return 0;
+  }
+  fs::path dir0(output_dir);
+  if (!fs::create_directory(dir0))
+    ROS_ERROR("[Localization:] ERROR -> Impossible to create the output directory.");
+
   // For debugging purposes
   slam::Publisher publisher;
 
@@ -35,7 +50,7 @@ int main(int argc, char **argv)
 
   // Read parameters
   slam::Tracking::Params tracking_params;
-  readParameters(tracking_params);
+  readTrackingParams(tracking_params);
 
   // Set the parameters for every object
   tracker.setParams(tracking_params);
