@@ -5,7 +5,7 @@ stereo_slam is a [ROS][link_ros] node to execute Simultaneous Localization And M
 
 You can see it in action here:
 
-[![Alt text for your video](http://img.youtube.com/vi/h3FfXafuOvE/0.jpg)](http://www.youtube.com/watch?v=h3FfXafuOvE)
+[![Stereo-SLAM video](http://img.youtube.com/vi/S_eVKCKLFQc/0.jpg)](https://www.youtube.com/watch?v=S_eVKCKLFQc)
 
 Specially designed for underwater scenarios:
 
@@ -15,6 +15,27 @@ More videos...
 
 [Video: Stereo SLAM and 3D reconstruction ][link_yt_1] and
 [Video: Stereo SLAM at UIB outdoor pond][link_yt_2]
+
+
+Related papers
+-------
+[ICRA'16, nominated for the best student paper award][paper]
+
+CITATION:
+```bash
+@INPROCEEDINGS{7487416,
+  author={P. L. Negre and F. Bonin-Font and G. Oliver},
+  booktitle={2016 IEEE International Conference on Robotics and Automation (ICRA)},
+  title={Cluster-based loop closing detection for underwater slam in feature-poor regions},
+  year={2016},
+  pages={2589-2595},
+  keywords={SLAM (robots);autonomous underwater vehicles;feature extraction;image matching;image registration;mobile robots;object detection;path planning;robot vision;AUV navigation;Balearic Islands;autonomous underwater vehicle;cluster-based loop closing detection;feature matching;feature-poor underwater environment;marine environments;sandbanks;seagrass;simultaneous localization and mapping;underwater SLAM;vision-based localization systems;visual features;visual information;visual keypoint clustering;visual registration;Cameras;Feature extraction;Image edge detection;Pipelines;Rocks;Simultaneous localization and mapping;Visualization},
+  doi={10.1109/ICRA.2016.7487416},
+  month={May}
+}
+```
+
+
 
 Installation (Ubuntu + ROS Indigo)
 -------
@@ -142,6 +163,7 @@ This script perform a set of operations in order to evaluate the performance of 
 3) Plot the error vs trajectory distance.
 
 
+[paper]: http://ieeexplore.ieee.org/document/7487416/
 [link_ros]: http://www.ros.org/
 [link_viso2]: http://wiki.ros.org/viso2_ros
 [link_fovis]: http://wiki.ros.org/fovis_ros
