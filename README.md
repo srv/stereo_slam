@@ -17,7 +17,7 @@ More videos...
 [Video: Stereo SLAM at UIB outdoor pond][link_yt_2]
 
 
-Related papers
+Related paper
 -------
 [ICRA'16, nominated for the best student paper award][paper]
 
