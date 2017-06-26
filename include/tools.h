@@ -178,8 +178,10 @@ public:
     {
       camera_matrix.at<double>(0,0) = camera_matrix.at<double>(0,0) / binning_x;
       camera_matrix.at<double>(0,2) = camera_matrix.at<double>(0,2) / binning_x;
+      camera_matrix.at<double>(0,3) = camera_matrix.at<double>(0,3) / binning_x;
       camera_matrix.at<double>(1,1) = camera_matrix.at<double>(1,1) / binning_y;
       camera_matrix.at<double>(1,2) = camera_matrix.at<double>(1,2) / binning_y;
+      camera_matrix.at<double>(1,3) = camera_matrix.at<double>(1,3) / binning_y;
     }
   }
 
