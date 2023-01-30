@@ -59,12 +59,14 @@ public:
   {
     string odom_topic;                //!> Odometry topic name.
     string camera_topic;              //!> Name of the base camera topic.
+    string image_scale;               //!> Scaling type (e.g. /scaled_x2 or /scaled_x4)
     bool refine;                      //!> Refine odometry
 
     // Default settings
     Params () {
       odom_topic   = "/odom";
       camera_topic = "/usb_cam";
+      image_scale  = "";
       refine = false;
     }
   };

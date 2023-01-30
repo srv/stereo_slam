@@ -120,8 +120,10 @@ namespace slam
 
     // Initialize hash
     if (!hash_.isInitialized())
+    {
       hash_.init(c_cluster_.getSift());
-
+    }
+      
     // Save hash to table
     hash_table_.push_back(make_pair(c_cluster_.getId(), hash_.getHash(c_cluster_.getSift())));
 

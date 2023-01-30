@@ -17,6 +17,7 @@ void readTrackingParams(slam::Tracking::Params &tracking_params)
   ros::NodeHandle nhp("~");
   nhp.param("odom_topic",   tracking_params.odom_topic,   string(""));
   nhp.param("camera_topic", tracking_params.camera_topic, string(""));
+  nhp.param("image_scale",  tracking_params.image_scale,  string(""));
   nhp.param("refine",       tracking_params.refine,       false);
 }
 
@@ -32,13 +33,15 @@ int main(int argc, char **argv)
   string output_dir = slam::WORKING_DIRECTORY;
   if (fs::is_directory(output_dir))
   {
-    ROS_ERROR_STREAM("[Localization:] ERROR -> The output directory already exists: " <<
-      output_dir);
+    ROS_ERROR_STREAM("[Localization:] ERROR -> The output directory already exists: " << output_dir);
     return 0;
   }
   fs::path dir0(output_dir);
   if (!fs::create_directory(dir0))
+  {
     ROS_ERROR("[Localization:] ERROR -> Impossible to create the output directory.");
+    return 0;
+  }
 
   // For debugging purposes
   slam::Publisher publisher;

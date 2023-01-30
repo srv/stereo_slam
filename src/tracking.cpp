@@ -58,11 +58,11 @@ namespace slam
     // Message sync
     boost::shared_ptr<Sync> sync;
     odom_sub      .subscribe(nh, params_.odom_topic, 20);
-    left_sub      .subscribe(it, params_.camera_topic+"/left/image_rect_color", 5);
-    right_sub     .subscribe(it, params_.camera_topic+"/right/image_rect_color", 5);
-    left_info_sub .subscribe(nh, params_.camera_topic+"/left/camera_info",  5);
-    right_info_sub.subscribe(nh, params_.camera_topic+"/right/camera_info", 5);
-    cloud_sub     .subscribe(nh, params_.camera_topic+"/points2", 5);
+    left_sub      .subscribe(it, params_.camera_topic+params_.image_scale+"/left"+"/image_rect_color", 5);
+    right_sub     .subscribe(it, params_.camera_topic+params_.image_scale+"/right"+"/image_rect_color", 5);
+    left_info_sub .subscribe(nh, params_.camera_topic+params_.image_scale+"/left"+"/camera_info",  5);
+    right_info_sub.subscribe(nh, params_.camera_topic+params_.image_scale+"/right"+"/camera_info", 5);
+    cloud_sub     .subscribe(nh, params_.camera_topic+params_.image_scale+"/points2", 5);
     sync.reset(new Sync(SyncPolicy(10), odom_sub, left_sub, right_sub, left_info_sub, right_info_sub, cloud_sub) );
     sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5, _6));
 
@@ -145,7 +145,6 @@ namespace slam
       bool graph_ready = graph_->getFramePose(frame_id_ - 1, last_frame_pose);
       if (!graph_ready) return;
 
-
       // Previous/current frame odometry difference
       tf::Transform c_camera_odom_pose = c_odom_robot * odom2camera_;
       tf::Transform odom_diff = odom_pose_history_[odom_pose_history_.size()-1].inverse() * c_camera_odom_pose;
@@ -186,7 +185,6 @@ namespace slam
       PointCloudRGB::Ptr cloud_filtered(new PointCloudRGB);
       cloud_filtered = filterCloud(pcl_cloud);
 
-
       // Set frame data
       c_frame_.setCameraPose(c_camera_pose);
       c_frame_.setPointCloud(cloud_filtered);
@@ -216,7 +214,6 @@ namespace slam
       jump_detected_ = false;
     }
 
-
     tf::Transform pose = robot_pose;
     if (jump_detected_)
     {
@@ -239,7 +236,6 @@ namespace slam
       tf::Vector3 filtered_pose(x, y, z);
       pose.setOrigin(filtered_pose);
     }
-
 
     // Publish
     nav_msgs::Odometry pose_msg = *odom_msg;
@@ -291,7 +287,6 @@ namespace slam
       double pose_diff = Tools::poseDiff3D(p_frame_.getCameraPose(), c_frame_.getCameraPose());
       if (pose_diff > 0.3)
       {
-
         // Compute overlap to decide if new keyframe is needed.
         float overlap = TRACKING_MIN_OVERLAP - 0.1;
         if (c_frame_.getPointCloud()->points.size() > MIN_CLOUD_SIZE)
