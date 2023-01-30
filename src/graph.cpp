@@ -16,11 +16,9 @@ namespace slam
   void Graph::init()
   {
     // Initialize the g2o graph optimizer
-    g2o::BlockSolverX::LinearSolverType * linear_solver_ptr;
-    linear_solver_ptr = new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>();
-    g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(linear_solver_ptr);
-    g2o::OptimizationAlgorithmLevenberg * solver =
-      new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+    std::unique_ptr<g2o::BlockSolverX::LinearSolverType> linear_solver_ptr (new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>());
+    std::unique_ptr<g2o::BlockSolverX> solver_ptr (new g2o::BlockSolverX(std::move(linear_solver_ptr)));
+    g2o::OptimizationAlgorithmLevenberg * solver = new g2o::OptimizationAlgorithmLevenberg(std::move(solver_ptr));
     graph_optimizer_.setAlgorithm(solver);
 
     // Remove locking file if exists
@@ -377,7 +375,7 @@ namespace slam
     vector< pair< int,double > > neighbor_distances;
     for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
     {
-      if ( (int)i == vertex_id ) continue;
+      if ((int)i == vertex_id ) continue;
       if ((int)i > window_center-window && (int)i < window_center+window) continue;
 
       // Get the node pose

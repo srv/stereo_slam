@@ -6,6 +6,8 @@
 #ifndef GRAPH_H
 #define GRAPH_H
 
+#include <memory>
+
 #include <ros/ros.h>
 #include <tf/transform_broadcaster.h>
 #include <image_geometry/pinhole_camera_model.h>
