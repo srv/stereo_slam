@@ -54,9 +54,6 @@ find_package(PkgConfig)
 # Dependencies - Eigen:
 find_package(Eigen3 REQUIRED)
 
-# Dependencies - Libhaloc:
-find_package(libhaloc REQUIRED)
-
 # Dependencies - PCL:
 find_package(PCL REQUIRED)
 
@@ -81,7 +78,6 @@ include_directories(include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
-  ${libhaloc_INCLUDE_DIRS}
   ${SUITESPARSE_INCLUDE_DIRS}
   ${G2O_INCLUDE_DIRS}
   ${CERES_INCLUDE_DIRS}
@@ -99,10 +95,10 @@ add_executable(localization
   src/tracking.cpp
   src/graph.cpp
   src/loop_closing.cpp
-  src/cluster.cpp)
+  src/cluster.cpp
+  src/hash.cpp)
 target_link_libraries(localization
   ${EIGEN3_LIBRARIES}
-  ${libhaloc_LIBRARIES}
   ${OpenCV_LIBRARIES}
   ${SUITESPARSE_LIBRARIES}
   ${G2O_LIBRARIES}

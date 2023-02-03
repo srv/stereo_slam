@@ -481,19 +481,19 @@ namespace slam
 
   PointCloudRGB::Ptr Tracking::filterCloud(PointCloudRGB::Ptr in_cloud)
   {
-    // Remove nans
-    vector<int> indicies;
-    PointCloudRGB::Ptr cloud(new PointCloudRGB);
-    pcl::removeNaNFromPointCloud(*in_cloud, *cloud, indicies);
+    // // Remove nans
+    // vector<int> indicies;
+    // PointCloudRGB::Ptr cloud(new PointCloudRGB);
+    // pcl::removeNaNFromPointCloud(*in_cloud, *cloud, indicies);
 
-    // Voxel grid filter (used as x-y surface extraction. Note that leaf in z is very big)
-    pcl::ApproximateVoxelGrid<PointRGB> grid;
-    grid.setLeafSize(0.08, 0.08, 0.1);
-    grid.setDownsampleAllData(true);
-    grid.setInputCloud(cloud);
-    grid.filter(*cloud);
+    // // Voxel grid filter (used as x-y surface extraction. Note that leaf in z is very big)
+    // pcl::ApproximateVoxelGrid<PointRGB> grid;
+    // grid.setLeafSize(0.08, 0.08, 0.1);
+    // grid.setDownsampleAllData(true);
+    // grid.setInputCloud(cloud);
+    // grid.filter(*cloud);
 
-    return cloud;
+    return in_cloud;
   }
 
   void Tracking::publishOverlap(PointCloudXYZ::Ptr cloud, tf::Transform movement, float overlap)

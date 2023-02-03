@@ -12,8 +12,7 @@
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include <libhaloc/lc.h>
-
+#include "hash.h"
 #include "constants.h"
 #include "cluster.h"
 #include "graph.h"
