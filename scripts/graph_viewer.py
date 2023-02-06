@@ -104,7 +104,7 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
     try:
       data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=1, usecols=(2,3,4,5,6,7,8))
     except:
-      return;
+      return
 
     # Plot
     if (len(data.shape) == 1):
@@ -189,7 +189,7 @@ def draw_edges():
           blue += '0'
         color = '#' + red + '00' + blue
       else:
-        color = 'b';
+        color = 'b'
 
       vect = []
       vect.append([data[i,3], data[i,4], data[i,5]])

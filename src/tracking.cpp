@@ -47,11 +47,11 @@ namespace slam
 
     // Message sync
     boost::shared_ptr<Sync> sync;
-    odom_sub      .subscribe(nh, params_.odom_topic, 20);
-    left_sub      .subscribe(it, params_.camera_topic+params_.image_scale+"/left"+"/image_rect_color", 5);
-    right_sub     .subscribe(it, params_.camera_topic+params_.image_scale+"/right"+"/image_rect_color", 5);
-    left_info_sub .subscribe(nh, params_.camera_topic+params_.image_scale+"/left"+"/camera_info",  5);
-    right_info_sub.subscribe(nh, params_.camera_topic+params_.image_scale+"/right"+"/camera_info", 5);
+    odom_sub      .subscribe(nh, "odom", 20);
+    left_sub      .subscribe(it, "left_image_rect_color", 5);
+    right_sub     .subscribe(it, "right_image_rect_color", 5);
+    left_info_sub .subscribe(nh, "left_camera_info",  5);
+    right_info_sub.subscribe(nh, "right_camera_info", 5);
     sync.reset(new Sync(SyncPolicy(10), odom_sub, left_sub, right_sub, left_info_sub, right_info_sub) );
     sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5));
 
@@ -261,7 +261,7 @@ namespace slam
     {
       // Check odometry distance
       double pose_diff = Tools::poseDiff3D(p_frame_.getCameraPose(), c_frame_.getCameraPose());
-      if (pose_diff > 0.3)
+      if (pose_diff > params_.dist_keyframes)
       {
         return addFrameToMap();
       }

@@ -15,10 +15,8 @@ namespace fs = boost::filesystem;
 void readTrackingParams(slam::Tracking::Params &tracking_params)
 {
   ros::NodeHandle nhp("~");
-  nhp.param("odom_topic",   tracking_params.odom_topic,   string(""));
-  nhp.param("camera_topic", tracking_params.camera_topic, string(""));
-  nhp.param("image_scale",  tracking_params.image_scale,  string(""));
-  nhp.param("refine",       tracking_params.refine,       false);
+  nhp.param("refine",                     tracking_params.refine,         false);
+  nhp.param("distance_between_kayframes", tracking_params.dist_keyframes, 0.5);
 }
 
 /** \brief Main entry point
