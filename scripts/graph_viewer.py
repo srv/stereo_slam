@@ -146,7 +146,7 @@ def draw_edges():
     try:
       data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(0,1,2,3,4,5,10,11,12))
     except:
-      return;
+      return
 
     # Sanity check
     if (len(data.shape) == 1):
@@ -274,10 +274,10 @@ if __name__ == "__main__":
   if (global_dir != ""):
     if (global_dir[:-1] != "/"):
       global_dir += "/"
-    visual_odometry_file = global_dir + "odom.txt"
-    graph_vertices_file = global_dir + "graph_vertices.txt"
-    graph_edges_file = global_dir + "graph_edges.txt"
-    ground_truth_file = global_dir + "gt.txt"
+    visual_odometry_file = global_dir + args.o
+    graph_vertices_file = global_dir + args.v
+    graph_edges_file = global_dir + args.e
+    ground_truth_file = global_dir + args.gt
   if not os.path.exists(ground_truth_file):
     ground_truth_file = "none"
 
@@ -291,7 +291,7 @@ if __name__ == "__main__":
     ax.set_zlabel("z (m)")
   else:
     ax = fig.gca()
-    img = imread("/home/plnegre/Downloads/mosaic1.jpg")
+    img = imread("/home/bomiquel/SLAM_ws/src/stereo_slam/output/mosaic1.jpg")
     ax.imshow(img, zorder=0, extent=[-13.5, 34.5, -17, 9])
     ax.set_axis_bgcolor('black')
 
