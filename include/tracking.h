@@ -18,14 +18,6 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 
-#include <pcl_ros/point_cloud.h>
-#include <pcl_ros/transforms.h>
-#include <pcl/point_types.h>
-#include <pcl/common/common.h>
-#include <pcl/filters/filter.h>
-#include <pcl/filters/approximate_voxel_grid.h>
-#include <pcl/filters/crop_box.h>
-
 #include <opencv2/opencv.hpp>
 
 #include <boost/filesystem.hpp>
@@ -38,11 +30,6 @@
 using namespace std;
 using namespace boost;
 namespace fs  = filesystem;
-
-typedef pcl::PointXYZ                     PointXYZ;
-typedef pcl::PointXYZRGB                  PointRGB;
-typedef pcl::PointCloud<PointXYZ>         PointCloudXYZ;
-typedef pcl::PointCloud<PointRGB>         PointCloudRGB;
 
 namespace slam
 {
@@ -110,14 +97,12 @@ protected:
    * \param r_img right stereo image message of type sensor_msgs::Image
    * \param l_info left stereo info message of type sensor_msgs::CameraInfo
    * \param r_info right stereo info message of type sensor_msgs::CameraInfo
-   * \param pointcloud
-   */
-  void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
+   */  
+    void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                     const sensor_msgs::ImageConstPtr& l_img_msg,
                     const sensor_msgs::ImageConstPtr& r_img_msg,
                     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-                    const sensor_msgs::CameraInfoConstPtr& r_info_msg,
-                    const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
+                    const sensor_msgs::CameraInfoConstPtr& r_info_msg);
 
   /** \brief Get the transform between odometry frame and camera frame
    * @return true if valid transform, false otherwise
@@ -144,7 +129,6 @@ protected:
    * @return filtered cloud
    * \param input cloud
    */
-  PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr in_cloud);
 
   /** \brief Publishes the overlapping debug image
    * @return
@@ -152,7 +136,6 @@ protected:
    * \param the transformation of current pointcloud to the last fixed frame
    * \param the overlap
    */
-  void publishOverlap(PointCloudXYZ::Ptr cloud, tf::Transform movement, float overlap);
 
   /** \brief Refine the keyframe to keyframe position using SolvePnP
    * @return True if a valid transform was found
@@ -181,8 +164,6 @@ private:
   cv::Mat camera_matrix_; //!> Camera matrix
 
   Publisher* f_pub_; //!> Frame publisher
-
-  ros::Publisher pc_pub_; //!> Pointcloud publisher
 
   ros::Publisher pose_pub_; //!> Corrected pose publisher
 
@@ -215,8 +196,7 @@ private:
                                                           sensor_msgs::Image,
                                                           sensor_msgs::Image,
                                                           sensor_msgs::CameraInfo,
-                                                          sensor_msgs::CameraInfo,
-                                                          sensor_msgs::PointCloud2> SyncPolicy;
+                                                          sensor_msgs::CameraInfo> SyncPolicy;
   typedef message_filters::Synchronizer<SyncPolicy> Sync;
 
 };
