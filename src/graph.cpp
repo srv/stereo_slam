@@ -22,7 +22,7 @@ namespace slam
     graph_optimizer_.setAlgorithm(solver);
 
     // Remove locking file if exists
-    string lock_file = WORKING_DIRECTORY + ".graph.lock";
+    string lock_file = params_.working_directory + ".graph.lock";
     if (fs::exists(lock_file))
       remove(lock_file.c_str());
 
@@ -509,8 +509,8 @@ namespace slam
     string frame_id_str = Tools::convertTo5digits(frame.getId());
 
     // Save keyframe
-    string l_kf = WORKING_DIRECTORY + "keyframes/" + frame_id_str + "_left.jpg";
-    string r_kf = WORKING_DIRECTORY + "keyframes/" + frame_id_str + "_right.jpg";
+    string l_kf = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
+    string r_kf = params_.working_directory + "keyframes/" + frame_id_str + "_right.jpg";
     cv::imwrite(l_kf, l_img);
     cv::imwrite(r_kf, r_img);
 
@@ -524,16 +524,16 @@ namespace slam
       for (uint j=0; j<clusters[i].size(); j++)
         cv::circle(c_img, kp[clusters[i][j]].pt, 5, color, -1);
     }
-    string clusters_file = WORKING_DIRECTORY + "clusters/" + frame_id_str + ".jpg";
+    string clusters_file = params_.working_directory + "clusters/" + frame_id_str + ".jpg";
     cv::imwrite(clusters_file, c_img);
   }
 
   void Graph::saveGraph()
   {
     string lock_file, vertices_file, edges_file;
-    vertices_file = WORKING_DIRECTORY + "graph_vertices.txt";
-    edges_file = WORKING_DIRECTORY + "graph_edges.txt";
-    lock_file = WORKING_DIRECTORY + ".graph.lock";
+    vertices_file = params_.working_directory + "graph_vertices.txt";
+    edges_file = params_.working_directory + "graph_edges.txt";
+    lock_file = params_.working_directory + ".graph.lock";
 
     // Wait until lock file has been released
     while(fs::exists(lock_file));

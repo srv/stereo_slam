@@ -24,7 +24,7 @@ namespace slam
     overlapping_pub_ = nhp.advertise<sensor_msgs::Image>("tracking_overlap", 1, true);
 
     // Create directory to store the keyframes
-    string keyframes_dir = WORKING_DIRECTORY + "keyframes";
+    string keyframes_dir = params_.working_directory + "keyframes";
     if (fs::is_directory(keyframes_dir))
       fs::remove_all(keyframes_dir);
     fs::path dir1(keyframes_dir);
@@ -32,7 +32,7 @@ namespace slam
       ROS_ERROR("[Localization:] ERROR -> Impossible to create the keyframes directory.");
 
     // Create directory to store the clusters
-    string clusters_dir = WORKING_DIRECTORY + "clusters";
+    string clusters_dir = params_.working_directory + "clusters";
     if (fs::is_directory(clusters_dir))
       fs::remove_all(clusters_dir);
     fs::path dir2(clusters_dir);

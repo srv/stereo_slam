@@ -43,14 +43,17 @@ class Tracking
 public:
 
   struct Params
-  {
+  { 
     bool refine;                        //!> Refine odometry.
     double dist_keyframes;              //!> Distance between keyframes.
+    string working_directory;           //!> Directory where all output files will be stored.
 
     // Default settings
-    Params () {
-      refine         = false;
-      dist_keyframes = 0.5;
+    Params () 
+    {
+      refine            = false;
+      dist_keyframes    = 0.5;
+      working_directory = "";
     }
   };
 
@@ -68,7 +71,7 @@ public:
   Tracking(Publisher* f_pub, Graph* graph);
 
   /** \brief Set class params
-   * \param the parameters struct
+   *  \param the parameters struct
    */
   inline void setParams(const Params& params){params_ = params;}
 

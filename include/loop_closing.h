@@ -31,6 +31,17 @@ class LoopClosing
 
 public:
 
+  struct Params
+  {
+    string working_directory; //!> Directory where all output files will be stored.
+
+    // Default settings
+    Params ()
+    {
+      working_directory = "";
+    }
+  };
+
   /** \brief Class constructor
    */
   LoopClosing();
@@ -39,6 +50,15 @@ public:
    * \param graph
    */
   inline void setGraph(Graph *graph){graph_ = graph;}
+
+  /** \brief Set class params
+   *  \param the parameters struct
+   */
+  inline void setParams(const Params& params){params_ = params;}
+
+  /** \brief Get class params
+   */
+  inline Params getParams() const {return params_;}
 
   /** \brief Starts graph
    */
@@ -109,6 +129,8 @@ protected:
                        vector<cv::Point2f> matched_cand_kp_l);
 
 private:
+
+  Params params_; //!> Stores parameters.
 
   Cluster c_cluster_; //!> Current cluster to be processed
 

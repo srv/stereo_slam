@@ -13,7 +13,7 @@ using namespace std;
 namespace slam
 {
 
-  static const string WORKING_DIRECTORY = ros::package::getPath("stereo_slam") + "/output/";
+  // static const string WORKING_DIRECTORY = ros::package::getPath("stereo_slam") + "/output/";
 
   static const int LC_MIN_INLIERS = 50; //50
 
@@ -25,9 +25,9 @@ namespace slam
 
   static const float LC_MAX_EDGE_DIFF = 10.0;
 
-  static const float TRACKING_MIN_OVERLAP = 80; //80
+  // static const float TRACKING_MIN_OVERLAP = 80; //80
 
-  static const int MIN_CLOUD_SIZE = 100;
+  // static const int MIN_CLOUD_SIZE = 100;
 
   static const float LC_EPIPOLAR_THRESH = 2.0;
 

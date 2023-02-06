@@ -45,6 +45,17 @@ class Graph
 
 public:
 
+  struct Params
+  {
+    string working_directory; //!> Directory where all output files will be stored.
+
+    // Default settings
+    Params ()
+    {
+      working_directory = "";
+    }
+  };
+
   struct Edge
   {
     int vertice_a;
@@ -174,6 +185,15 @@ public:
    */
   inline int getFrameNum() const {return frame_id_+1;}
 
+  /** \brief Set class params
+   *  \param the parameters struct
+   */
+  inline void setParams(const Params& params){params_ = params;}
+
+  /** \brief Get class params
+   */
+  inline Params getParams() const {return params_;}
+
 protected:
 
   /** \brief Correct a cluster pose with the information of the updated graph
@@ -218,6 +238,8 @@ protected:
   void publishGraph();
 
 private:
+
+  Params params_; //!> Stores parameters.
 
   g2o::SparseOptimizer graph_optimizer_; //!> G2O graph optimizer
 

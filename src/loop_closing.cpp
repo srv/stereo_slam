@@ -26,14 +26,14 @@ namespace slam
   void LoopClosing::run()
   {
     // Init
-    execution_dir_ = WORKING_DIRECTORY + "haloc";
+    execution_dir_ = params_.working_directory + "haloc";
     if (fs::is_directory(execution_dir_))
       fs::remove_all(execution_dir_);
     fs::path dir1(execution_dir_);
     if (!fs::create_directory(dir1))
       ROS_ERROR("[Localization:] ERROR -> Impossible to create the loop_closing directory.");
 
-    loop_closures_dir_ = WORKING_DIRECTORY + "loop_closures";
+    loop_closures_dir_ = params_.working_directory + "loop_closures";
     if (fs::is_directory(loop_closures_dir_))
       fs::remove_all(loop_closures_dir_);
     fs::path dir2(loop_closures_dir_);
@@ -542,7 +542,7 @@ namespace slam
     for (uint i=0; i<cand_kfs.size(); i++)
     {
       string frame_id_str = Tools::convertTo5digits(cand_kfs[i]);
-      string keyframe_file = WORKING_DIRECTORY + "keyframes/" + frame_id_str + ".jpg";
+      string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + ".jpg";
       cv::Mat kf = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
 
       // Add the keyframe identifier
@@ -565,7 +565,7 @@ namespace slam
 
     // Read the current keyframe
     string frame_id_str = Tools::convertTo5digits(c_cluster_.getFrameId());
-    string keyframe_file = WORKING_DIRECTORY + "keyframes/" + frame_id_str + ".jpg";
+    string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + ".jpg";
     cv::Mat current_kf_tmp = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
 
     // Add the keyframe identifier
