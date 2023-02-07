@@ -260,7 +260,7 @@ namespace slam
     else
     {
       // Check odometry distance
-      double pose_diff = Tools::poseDiff3D(p_frame_.getCameraPose(), c_frame_.getCameraPose());
+      double pose_diff = Tools::poseDiff2D(p_frame_.getCameraPose(), c_frame_.getCameraPose());
       if (pose_diff > params_.dist_keyframes)
       {
         return addFrameToMap();
