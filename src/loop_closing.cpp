@@ -415,6 +415,8 @@ namespace slam
             // Update the graph with the new edges
             graph_->update();
 
+            ROS_INFO_STREAM("Finish  graph_->update();");
+
             // Draw the loop closure to image
             drawLoopClosure(cand_kfs,
                             cand_matchings,
@@ -542,7 +544,7 @@ namespace slam
     for (uint i=0; i<cand_kfs.size(); i++)
     {
       string frame_id_str = Tools::convertTo5digits(cand_kfs[i]);
-      string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + ".jpg";
+      string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
       cv::Mat kf = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
 
       // Add the keyframe identifier
@@ -565,7 +567,7 @@ namespace slam
 
     // Read the current keyframe
     string frame_id_str = Tools::convertTo5digits(c_cluster_.getFrameId());
-    string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + ".jpg";
+    string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
     cv::Mat current_kf_tmp = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
 
     // Add the keyframe identifier
