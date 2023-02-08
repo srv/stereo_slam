@@ -140,7 +140,7 @@ namespace slam
   void LoopClosing::searchByProximity()
   {
     vector<int> cand_neighbors;
-    graph_->findClosestVertices(c_cluster_.getId(), c_cluster_.getId(), LC_DISCARD_WINDOW, 3, cand_neighbors);
+    graph_->findClosestVertices(c_cluster_.getId(), c_cluster_.getId(), params_.lc_discard_window, 3, cand_neighbors);
     for (uint i=0; i<cand_neighbors.size(); i++)
     {
       Cluster candidate = readCluster(cand_neighbors[i]);
@@ -181,7 +181,7 @@ namespace slam
     Tools::ratioMatching(c_cluster_.getOrb(), candidate.getOrb(), matching_th, matches_1);
 
     // Get the neighbor clusters if enough matching percentage
-    if (matches_1.size() > (int)(LC_MIN_INLIERS / 2))
+    if (matches_1.size() > (int)(params_.lc_min_inliers / 2))
     {
       // Init accumulated data
       vector<int> cluster_query_list;
@@ -204,7 +204,7 @@ namespace slam
 
       // Increase the probability to close loop by extracting the candidate neighbors
       vector<int> cand_neighbors;
-      graph_->findClosestVertices(candidate.getId(), c_cluster_.getId(), LC_DISCARD_WINDOW, LC_NEIGHBORS, cand_neighbors);
+      graph_->findClosestVertices(candidate.getId(), c_cluster_.getId(), params_.lc_discard_window, params_.lc_neighbors, cand_neighbors);
       for (uint j=0; j<cand_neighbors.size(); j++)
       {
         Cluster cand_neighbor = readCluster(cand_neighbors[j]);
@@ -265,7 +265,7 @@ namespace slam
         pub_matchings_num_.publish(msg);
       }
 
-      if (matches_2.size() >= LC_MIN_INLIERS)
+      if (matches_2.size() >= params_.lc_min_inliers)
       {
         // Store matchings
         vector<int> query_matchings;
@@ -294,7 +294,7 @@ namespace slam
         cv::Mat rvec, tvec;
         cv::solvePnPRansac(matched_cand_3d_points, matched_query_kp_l,
             graph_->getCameraMatrix(), cv::Mat(), rvec, tvec,
-            false, 100, LC_EPIPOLAR_THRESH, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
+            false, 100, params_.lc_epipolar_thresh, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
 
         if (pub_inliers_num_.getNumSubscribers() > 0)
         {
@@ -304,7 +304,7 @@ namespace slam
         }
 
         // Loop found!
-        if (inliers.size() >= LC_MIN_INLIERS)
+        if (inliers.size() >= params_.lc_min_inliers)
         {
           tf::Transform estimated_transform = Tools::buildTransformation(rvec, tvec);
           estimated_transform = estimated_transform.inverse();
@@ -415,8 +415,6 @@ namespace slam
             // Update the graph with the new edges
             graph_->update();
 
-            ROS_INFO_STREAM("Finish  graph_->update();");
-
             // Draw the loop closure to image
             drawLoopClosure(cand_kfs,
                             cand_matchings,
@@ -448,7 +446,7 @@ namespace slam
     candidates.clear();
 
     // Check if enough neighbors
-    if ((int)hash_table_.size() <= LC_DISCARD_WINDOW) return;
+    if ((int)hash_table_.size() <= params_.lc_discard_window) return;
 
     // Create a list with the non-possible candidates (because they are already loop closings)
     vector<int> no_candidates;
@@ -468,7 +466,7 @@ namespace slam
     for (uint i=0; i<hash_table_.size(); i++)
     {
       // Discard window
-      if (hash_table_[i].first > cluster_id-LC_DISCARD_WINDOW && hash_table_[i].first < cluster_id+LC_DISCARD_WINDOW) continue;
+      if (hash_table_[i].first > cluster_id-params_.lc_discard_window && hash_table_[i].first < cluster_id+params_.lc_discard_window) continue;
 
       // Do not compute the hash matching with itself
       if (hash_table_[i].first == cluster_id) continue;

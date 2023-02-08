@@ -272,7 +272,7 @@ namespace slam
   bool Tracking::addFrameToMap()
   {
 
-    if (c_frame_.getLeftKp().size() > LC_MIN_INLIERS)
+    if (c_frame_.getLeftKp().size() > params_.lc_min_inliers)
     {
       c_frame_.regionClustering();
 
@@ -310,7 +310,7 @@ namespace slam
   {
     // Init
     out.setIdentity();
-    num_inliers = LC_MIN_INLIERS;
+    num_inliers = params_.lc_min_inliers;
 
     // Sanity check
     if (query.getLeftDesc().rows == 0 || candidate.getLeftDesc().rows == 0)
@@ -320,7 +320,7 @@ namespace slam
     vector<cv::DMatch> matches;
     Tools::ratioMatching(query.getLeftDesc(), candidate.getLeftDesc(), 0.8, matches);
 
-    if (matches.size() >= LC_MIN_INLIERS)
+    if (matches.size() >= params_.lc_min_inliers)
     {
       // Get the matched keypoints
       vector<cv::KeyPoint> query_kp_l = query.getLeftKp();
@@ -351,10 +351,10 @@ namespace slam
       vector<int> inliers;
       cv::solvePnPRansac(cand_matched_3d_points, query_matched_kp_l, camera_matrix_,
                          cv::Mat(), rvec, tvec, false,
-                         100, LC_EPIPOLAR_THRESH, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
+                         100, params_.lc_epipolar_thresh, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
 
       // Inliers threshold
-      if (inliers.size() < LC_MIN_INLIERS)
+      if (inliers.size() < params_.lc_min_inliers)
       {
         return false;
       }

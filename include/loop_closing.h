@@ -33,12 +33,20 @@ public:
 
   struct Params
   {
-    string working_directory; //!> Directory where all output files will be stored.
+    int lc_neighbors;          //!> Number of neighbours to recover in order to increase the possibility of closing the loop.
+    int lc_min_inliers;        //!> Minimum number of inliers to close a loop.
+    int lc_discard_window;     //!> Window size of discarded vertices.
+    double lc_epipolar_thresh; //!> Maximum reprojection error allowed.
+    string working_directory;  //!> Directory where all output files will be stored.
 
     // Default settings
     Params ()
     {
-      working_directory = "";
+      lc_neighbors       = 4;
+      lc_min_inliers     = 40;
+      lc_discard_window  = 15;
+      lc_epipolar_thresh = 2.0;
+      working_directory  = "";
     }
   };
 

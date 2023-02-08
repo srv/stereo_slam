@@ -45,15 +45,19 @@ public:
   struct Params
   { 
     bool refine;                        //!> Refine odometry.
+    int lc_min_inliers;                 //!> Minimum number of inliers to close a loop.
+    double lc_epipolar_thresh;          //!> Maximum reprojection error allowed.
     double dist_keyframes;              //!> Distance between keyframes.
     string working_directory;           //!> Directory where all output files will be stored.
 
     // Default settings
     Params () 
     {
-      refine            = false;
-      dist_keyframes    = 0.5;
-      working_directory = "";
+      refine             = false;
+      lc_min_inliers     = 40;
+      lc_epipolar_thresh = 2.0;
+      dist_keyframes     = 0.5;
+      working_directory  = "";
     }
   };
 

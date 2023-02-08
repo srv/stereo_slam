@@ -15,16 +15,28 @@ namespace fs = boost::filesystem;
 void readParams(slam::Tracking::Params &tracking_params, slam::Graph::Params &graph_params, slam::LoopClosing::Params &loop_closing_params)
 {
   ros::NodeHandle nhp("~");
-  nhp.param("refine",                     tracking_params.refine,            false);
-  nhp.param("distance_between_kayframes", tracking_params.dist_keyframes,    0.5);
-  nhp.param("working_directory",          tracking_params.working_directory, ros::package::getPath("stereo_slam") + "/output/");
+  nhp.param("refine",                     tracking_params.refine,                 false);
+  nhp.param("distance_between_keyframes", tracking_params.dist_keyframes,         0.5);
+  nhp.param("working_directory",          tracking_params.working_directory,      ros::package::getPath("stereo_slam") + "/output/");
+  nhp.param("lc_min_inliers",             tracking_params.lc_min_inliers,         30);
+  nhp.param("lc_epipolar_thresh",         tracking_params.lc_epipolar_thresh,     1.0);
+  nhp.param("lc_neighbors",               loop_closing_params.lc_neighbors,       5); 
+  nhp.param("lc_discard_window",          loop_closing_params.lc_discard_window,  20); 
 
-  graph_params.working_directory = tracking_params.working_directory;
-  loop_closing_params.working_directory = tracking_params.working_directory;
-  ROS_INFO_STREAM("TRACKING WORKING DIRECTORY: " << tracking_params.working_directory);
-  ROS_INFO_STREAM("GRAPH WORKING DIRECTORY: " << graph_params.working_directory);
-  ROS_INFO_STREAM("LOOP CLOSING WORKING DIRECTORY: " << loop_closing_params.working_directory);
-  ROS_INFO_STREAM("distance_between_kayframes: " << tracking_params.dist_keyframes);
+  graph_params.working_directory         = tracking_params.working_directory;
+  loop_closing_params.working_directory  = tracking_params.working_directory;
+  loop_closing_params.lc_min_inliers     = tracking_params.lc_min_inliers;
+  loop_closing_params.lc_epipolar_thresh = tracking_params.lc_epipolar_thresh;
+
+  ROS_INFO_STREAM("PARAMETER SETTING:               " << std::endl <<
+                  "TRACKING WORKING DIRECTORY     = " << tracking_params.working_directory << std::endl <<
+                  "GRAPH WORKING DIRECTORY        = " << graph_params.working_directory << std::endl <<
+                  "LOOP CLOSING WORKING DIRECTORY = " << loop_closing_params.working_directory << std::endl <<
+                  "DISTANCE BETWEEN KEYFRAMES     = " << tracking_params.dist_keyframes << std::endl <<
+                  "LC MIN INLIERS                 = " << loop_closing_params.lc_min_inliers << std::endl <<
+                  "LC EPIPOLAR THRESHOLD          = " << loop_closing_params.lc_epipolar_thresh << std::endl <<
+                  "LC NEIGHBORS                   = " << loop_closing_params.lc_neighbors << std::endl <<
+                  "LC DISCARD WINDOW              = " << loop_closing_params.lc_discard_window) ;
   }
 
 /** \brief Main entry point

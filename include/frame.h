@@ -205,6 +205,8 @@ private:
 
   cv::Mat sigma_with_prev_frame_; //!> The sigma value with previous frame
 
+  static constexpr float STEREO_EPIPOLAR_THRESH = 1.0; //!> Stereo epipolar threshold
+
 };
 
 } // namespace
