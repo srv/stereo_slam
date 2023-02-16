@@ -548,7 +548,7 @@ namespace slam
     mutex::scoped_lock lock(mutex_graph_);
 
     // First line
-    f_vertices << "% timestamp, frame id, x, y, z, qx, qy, qz, qw" << endl;
+    f_vertices << "% timestamp,frame id,x,y,z,qx,qy,qz,qw" << endl;
 
     vector<int> processed_frames;
 
@@ -571,7 +571,7 @@ namespace slam
 
       tf::Transform pose = getVertexCameraPose(i, false)*camera2odom_;
       f_vertices << fixed <<
-        setprecision(6) <<
+        setprecision(9) <<
         frame_stamps_[id] << "," <<
         id << "," <<
         pose.getOrigin().x() << "," <<
@@ -585,7 +585,7 @@ namespace slam
     f_vertices.close();
 
     // First line
-    f_edges << "% frame a, frame b, inliers, ax, ay, az, aqx, aqy, aqz, aqw, bx, by, bz, bqx, bqy, bqz, bqw" << endl;
+    f_edges << "% frame a,frame b,inliers,ax,ay,az,aqx,aqy,aqz,aqw,bx,by,bz,bqx,bqy,bqz,bqw" << endl;
 
     // Output the edges file
     for ( g2o::OptimizableGraph::EdgeSet::iterator it=graph_optimizer_.edges().begin();
@@ -622,7 +622,7 @@ namespace slam
             e->vertices()[0]->id() << "," <<
             e->vertices()[1]->id() << "," <<
             inliers << "," <<
-            setprecision(6) <<
+            setprecision(9) <<
             pose_0.getOrigin().x() << "," <<
             pose_0.getOrigin().y() << "," <<
             pose_0.getOrigin().z() << "," <<
