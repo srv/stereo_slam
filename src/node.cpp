@@ -8,6 +8,7 @@
 #include "graph.h"
 #include "loop_closing.h"
 
+using namespace std;
 namespace fs = boost::filesystem;
 
 /** \brief Read the node parameters
@@ -15,13 +16,15 @@ namespace fs = boost::filesystem;
 void readParams(slam::Tracking::Params &tracking_params, slam::Graph::Params &graph_params, slam::LoopClosing::Params &loop_closing_params)
 {
   ros::NodeHandle nhp("~");
-  nhp.param("refine",                     tracking_params.refine,                 false);
-  nhp.param("distance_between_keyframes", tracking_params.dist_keyframes,         0.5);
-  nhp.param("working_directory",          tracking_params.working_directory,      ros::package::getPath("stereo_slam") + "/output/");
-  nhp.param("lc_min_inliers",             tracking_params.lc_min_inliers,         30);
-  nhp.param("lc_epipolar_thresh",         tracking_params.lc_epipolar_thresh,     1.0);
-  nhp.param("lc_neighbors",               loop_closing_params.lc_neighbors,       5); 
-  nhp.param("lc_discard_window",          loop_closing_params.lc_discard_window,  20); 
+  nhp.param("refine",                     tracking_params.refine,                     false);
+  nhp.param("distance_between_keyframes", tracking_params.dist_keyframes,             0.5);
+  nhp.param("working_directory",          tracking_params.working_directory,          ros::package::getPath("stereo_slam") + "/output/");
+  nhp.param("feature_detector_selection", tracking_params.feature_detector_selection, string("ORB"));
+  nhp.param("lc_min_inliers",             tracking_params.lc_min_inliers,             30);
+  nhp.param("lc_epipolar_thresh",         tracking_params.lc_epipolar_thresh,         1.0);
+  nhp.param("lc_neighbors",               loop_closing_params.lc_neighbors,           5); 
+  nhp.param("lc_discard_window",          loop_closing_params.lc_discard_window,      20); 
+  
 
   graph_params.working_directory         = tracking_params.working_directory;
   loop_closing_params.working_directory  = tracking_params.working_directory;
@@ -32,6 +35,7 @@ void readParams(slam::Tracking::Params &tracking_params, slam::Graph::Params &gr
                   "TRACKING WORKING DIRECTORY     = " << tracking_params.working_directory << std::endl <<
                   "GRAPH WORKING DIRECTORY        = " << graph_params.working_directory << std::endl <<
                   "LOOP CLOSING WORKING DIRECTORY = " << loop_closing_params.working_directory << std::endl <<
+                  "FEATURE DETECTOR               = " << tracking_params.feature_detector_selection << std::endl <<
                   "DISTANCE BETWEEN KEYFRAMES     = " << tracking_params.dist_keyframes << std::endl <<
                   "LC MIN INLIERS                 = " << loop_closing_params.lc_min_inliers << std::endl <<
                   "LC EPIPOLAR THRESHOLD          = " << loop_closing_params.lc_epipolar_thresh << std::endl <<

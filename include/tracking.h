@@ -49,15 +49,17 @@ public:
     double lc_epipolar_thresh;          //!> Maximum reprojection error allowed.
     double dist_keyframes;              //!> Distance between keyframes.
     string working_directory;           //!> Directory where all output files will be stored.
+    string feature_detector_selection;  //!> Name of the feature detector to be used.
 
     // Default settings
     Params () 
     {
-      refine             = false;
-      lc_min_inliers     = 40;
-      lc_epipolar_thresh = 2.0;
-      dist_keyframes     = 0.5;
-      working_directory  = "";
+      refine                     = false;
+      lc_min_inliers             = 40;
+      lc_epipolar_thresh         = 2.0;
+      dist_keyframes             = 0.5;
+      working_directory          = "";
+      feature_detector_selection = "";
     }
   };
 

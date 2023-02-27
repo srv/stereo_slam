@@ -14,12 +14,13 @@ namespace slam
   Frame::Frame(cv::Mat l_img,
                cv::Mat r_img,
                image_geometry::StereoCameraModel camera_model,
-               double timestamp) : pointcloud_(new PointCloudRGB)
+               double timestamp, string feature_detector_selection) : pointcloud_(new PointCloudRGB)
   {
     // Init
     id_ = -1;
     stamp_ = timestamp;
     num_inliers_with_prev_frame_ = 0;
+    feature_detector_ = feature_detector_selection;
     sigma_with_prev_frame_ = cv::Mat::eye(6, 6, CV_64F);
 
     l_img.copyTo(l_img_);
@@ -34,17 +35,29 @@ namespace slam
     cv::Mat l_desc, r_desc;
     vector<cv::KeyPoint> l_kp, r_kp;
 
-    // ORB from Opencv
-    cv::Ptr<cv::Feature2D> orb;
-    orb = cv::ORB::create(1500, 1.2, 8, 10, 0, 2, cv::ORB::HARRIS_SCORE, 10);
-    orb->detectAndCompute (l_img_gray, cv::noArray(), l_kp, l_desc);
-    orb->detectAndCompute (r_img_gray, cv::noArray(), r_kp, r_desc);
-
-    // SIFT
-    // cv::Ptr<cv::Feature2D> sift;
-    // sift = cv::xfeatures2d::SIFT::create();
-    // sift->detectAndCompute(l_img_gray, cv::noArray(), l_kp, l_desc);
-    // sift->detectAndCompute(r_img_gray, cv::noArray(), r_kp, r_desc);
+    // Detect features using ORB or SIFT
+    if (feature_detector_ == "ORB")
+    {
+      // ORB from Opencv
+      cv::Ptr<cv::Feature2D> orb;
+      orb = cv::ORB::create(1500, 1.2, 8, 10, 0, 2, cv::ORB::HARRIS_SCORE, 10);
+      orb->detectAndCompute (l_img_gray, cv::noArray(), l_kp, l_desc);
+      orb->detectAndCompute (r_img_gray, cv::noArray(), r_kp, r_desc);
+      ROS_INFO_STREAM("[SLAM]: USING ORB");
+    }
+    else if (feature_detector_ == "SIFT")
+    {
+      // SIFT from Opencv
+      cv::Ptr<cv::Feature2D> sift;
+      sift = cv::xfeatures2d::SIFT::create();
+      sift->detectAndCompute(l_img_gray, cv::noArray(), l_kp, l_desc);
+      sift->detectAndCompute(r_img_gray, cv::noArray(), r_kp, r_desc);
+      ROS_INFO_STREAM("[SLAM]: USING SIFT");
+    }
+    else
+    {
+      ROS_INFO_STREAM("FEATURE PROBLEMS");
+    }
 
     // Stores non-filtered keypoints
     l_nonfiltered_kp_ = l_kp;
@@ -96,12 +109,21 @@ namespace slam
   {
     cv::Mat sift;
     if (l_img_.cols == 0)
+    {
       return sift;
+    }
 
-    cv::Ptr<cv::Feature2D> cv_extractor;
-    cv_extractor = cv::xfeatures2d::SIFT::create();
-    cv_extractor->compute(l_img_, l_kp_, sift);
-
+    if (feature_detector_ == "ORB")
+    {
+      cv::Ptr<cv::Feature2D> cv_extractor;
+      cv_extractor = cv::xfeatures2d::SIFT::create();
+      cv_extractor->compute(l_img_, l_kp_, sift);
+    }
+    else if (feature_detector_ == "SIFT")
+    {
+      sift = l_desc_;
+    }
+    
     return sift;
   }
 

@@ -40,7 +40,7 @@ public:
 
   /** \brief Class constructor
    */
-  Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp);
+  Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp, string feature_detector);
 
   /** \brief Get left image
    */
@@ -175,6 +175,8 @@ private:
 
   cv::Mat l_img_; //!> Left image
   cv::Mat r_img_; //!> Right image
+
+  string feature_detector_;
 
   vector<cv::KeyPoint> l_kp_; //!> Left keypoints.
   vector<cv::KeyPoint> r_kp_; //!> Right keypoints.

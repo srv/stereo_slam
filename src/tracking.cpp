@@ -91,7 +91,7 @@ namespace slam
       graph_->setCameraModel(camera_model_.left());
 
       // The initial frame
-      c_frame_ = Frame(l_img, r_img, camera_model_, timestamp);
+      c_frame_ = Frame(l_img, r_img, camera_model_, timestamp, params_.feature_detector_selection);
 
       // No corrections apply yet
       prev_robot_pose_ = c_odom_robot;
@@ -116,7 +116,7 @@ namespace slam
     else
     {
       // The current frame
-      c_frame_ = Frame(l_img, r_img, camera_model_, timestamp);
+      c_frame_ = Frame(l_img, r_img, camera_model_, timestamp, params_.feature_detector_selection);
 
       // Publish stereo matches
       f_pub_->publishStereoMatches(c_frame_);
