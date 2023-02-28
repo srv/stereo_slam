@@ -419,8 +419,8 @@ namespace slam
             drawLoopClosure(cand_kfs,
                             cand_matchings,
                             inliers,
-                            definitive_inliers_per_pair,
-                            definitive_cluster_pairs,
+                            inliers_per_pair,
+                            cluster_pairs,
                             matched_query_kp_l,
                             matched_cand_kp_l);
 
@@ -591,7 +591,7 @@ namespace slam
       cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
       colors.push_back(color);
     }
-
+    
     // Draw the matchings
     for (uint i=0; i<inliers.size(); i++)
     {
