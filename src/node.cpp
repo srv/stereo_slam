@@ -24,6 +24,7 @@ void readParams(slam::Tracking::Params &tracking_params, slam::Graph::Params &gr
   nhp.param("lc_epipolar_thresh",         tracking_params.lc_epipolar_thresh,         1.0);
   nhp.param("lc_neighbors",               loop_closing_params.lc_neighbors,           5); 
   nhp.param("lc_discard_window",          loop_closing_params.lc_discard_window,      20); 
+  nhp.param("ransac_iterations",          loop_closing_params.ransac_iterations,      150);
   
 
   graph_params.working_directory         = tracking_params.working_directory;
@@ -40,7 +41,8 @@ void readParams(slam::Tracking::Params &tracking_params, slam::Graph::Params &gr
                   "LC MIN INLIERS                 = " << loop_closing_params.lc_min_inliers << std::endl <<
                   "LC EPIPOLAR THRESHOLD          = " << loop_closing_params.lc_epipolar_thresh << std::endl <<
                   "LC NEIGHBORS                   = " << loop_closing_params.lc_neighbors << std::endl <<
-                  "LC DISCARD WINDOW              = " << loop_closing_params.lc_discard_window) ;
+                  "LC DISCARD WINDOW              = " << loop_closing_params.lc_discard_window << std::endl <<
+                  "RANSAC ITERATIONS              = " << loop_closing_params.ransac_iterations);
   }
 
 /** \brief Main entry point

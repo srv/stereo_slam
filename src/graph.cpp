@@ -28,8 +28,10 @@ namespace slam
 
     // Advertise topics
     ros::NodeHandle nhp("~");
-    pose_pub_ = nhp.advertise<nav_msgs::Odometry>("graph_camera_odometry", 1);
-    graph_pub_ = nhp.advertise<stereo_slam::GraphPoses>("graph_poses", 2);
+    pub_pose_ = nhp.advertise<nav_msgs::Odometry>("graph_camera_odometry", 1);
+    pub_graph_ = nhp.advertise<stereo_slam::GraphPoses>("graph_poses", 2);
+    pub_time_graph_ = nhp.advertise<stereo_slam::TimeGraph>("time_graph", 1);
+    pub_num_keyframes_ = nhp.advertise<std_msgs::Int32>("keyframes", 1);
   }
 
   void Graph::run()
@@ -39,7 +41,22 @@ namespace slam
     {
       if(checkNewFrameInQueue())
       {
+        double t0 = ros::Time::now().toSec();
+
         processNewFrame();
+
+        if (pub_num_keyframes_.getNumSubscribers() > 0)
+        {
+          std_msgs::Int32 msg;
+          msg.data = lexical_cast<int>(getFrameNum());
+          pub_num_keyframes_.publish(msg);
+        }
+        if (pub_time_graph_.getNumSubscribers() > 0)
+        {
+          time_graph_msg_.header.stamp = ros::Time::now();
+          time_graph_msg_.total = ros::Time::now().toSec() - t0;
+          pub_time_graph_.publish(time_graph_msg_);
+        }
       }
       r.sleep();
     }
@@ -80,9 +97,12 @@ namespace slam
     frame_stamps_.push_back(frame.getTimestamp());
 
     // Extract sift
+    double t1 = ros::Time::now().toSec();
     cv::Mat sift_desc = frame.computeSift();
+    time_graph_msg_.compute_sift_desc = ros::Time::now().toSec() - t1;
 
     // Loop of frame clusters
+    double t2 = ros::Time::now().toSec();
     vector<int> vertex_ids;
     vector<Cluster> clusters_to_close_loop;
     vector<Eigen::Vector4f> cluster_centroids = frame.getClusterCentroids();
@@ -126,7 +146,10 @@ namespace slam
     for (uint i=0; i<clusters_to_close_loop.size(); i++)
       loop_closing_->addClusterToQueue(clusters_to_close_loop[i]);
 
+    time_graph_msg_.add_clusters = ros::Time::now().toSec() - t2;
+
     // Add edges between clusters of the same frame
+    double t3 = ros::Time::now().toSec();
     if (clusters.size() > 1)
     {
       // Retrieve all possible combinations
@@ -194,12 +217,17 @@ namespace slam
       else
         ROS_ERROR("[Localization:] Impossible to connect current and previous frame. Graph will have non-connected parts!");
     }
+    time_graph_msg_.add_edges = ros::Time::now().toSec() - t3;
+
+    double t4 = ros::Time::now().toSec();
 
     // Save graph to file
     saveGraph();
 
     // Publish the graph
     publishGraph();
+
+    time_graph_msg_.save_and_publish_graph = ros::Time::now().toSec() - t4;
 
     // Publish camera pose
     int last_idx = -1;
@@ -651,18 +679,18 @@ namespace slam
 
   void Graph::publishCameraPose(tf::Transform camera_pose)
   {
-    if (pose_pub_.getNumSubscribers() > 0)
+    if (pub_pose_.getNumSubscribers() > 0)
     {
       nav_msgs::Odometry pose_msg;
       pose_msg.header.stamp = ros::Time::now();
       tf::poseTFToMsg(camera_pose, pose_msg.pose.pose);
-      pose_pub_.publish(pose_msg);
+      pub_pose_.publish(pose_msg);
     }
   }
 
   void Graph::publishGraph()
   {
-    if (graph_pub_.getNumSubscribers() > 0)
+    if (pub_graph_.getNumSubscribers() > 0)
     {
       mutex::scoped_lock lock(mutex_graph_);
 
@@ -707,7 +735,7 @@ namespace slam
       graph_msg.qy = qy;
       graph_msg.qz = qz;
       graph_msg.qw = qw;
-      graph_pub_.publish(graph_msg);
+      pub_graph_.publish(graph_msg);
     }
   }
 

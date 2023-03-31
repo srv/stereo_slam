@@ -26,6 +26,7 @@
 #include "frame.h"
 #include "graph.h"
 #include "publisher.h"
+#include "stereo_slam/TimeTracking.h"
 
 using namespace std;
 using namespace boost;
@@ -170,9 +171,11 @@ private:
 
   Publisher* f_pub_; //!> Frame publisher
 
-  ros::Publisher pose_pub_; //!> Corrected pose publisher
+  ros::Publisher pub_pose_; //!> Corrected pose publisher
 
-  ros::Publisher overlapping_pub_; //!> Consecutive image overlapping publisher
+  ros::Publisher pub_time_tracking_; //!> Time tracking thread publisher
+
+  ros::Publisher pub_overlapping_; //!> Consecutive image overlapping publisher
 
   tf::TransformBroadcaster tf_broadcaster_; //!> Publish transform
 
@@ -195,6 +198,8 @@ private:
   bool jump_detected_; //!> Indicates when a big correction is detected
 
   double secs_to_filter_; //!> Number of seconds that filter will be applied
+
+  stereo_slam::TimeTracking time_tracking_msg_; //! Message to publish time metrics 
 
   // Topic sync
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,

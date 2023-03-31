@@ -20,8 +20,9 @@ namespace slam
     ros::NodeHandle nh;
     ros::NodeHandle nhp("~");
 
-    pose_pub_ = nhp.advertise<nav_msgs::Odometry>("odometry", 1);
-    overlapping_pub_ = nhp.advertise<sensor_msgs::Image>("tracking_overlap", 1, true);
+    pub_pose_ = nhp.advertise<nav_msgs::Odometry>("odometry", 1);
+    pub_time_tracking_ = nhp.advertise<stereo_slam::TimeTracking>("time_tracking", 1);
+    pub_overlapping_ = nhp.advertise<sensor_msgs::Image>("tracking_overlap", 1, true);
 
     // Create directory to store the keyframes
     string keyframes_dir = params_.working_directory + "keyframes";
@@ -55,7 +56,6 @@ namespace slam
     sync.reset(new Sync(SyncPolicy(10), odom_sub, left_sub, right_sub, left_info_sub, right_info_sub) );
     sync->registerCallback(bind(&Tracking::msgsCallback, this, _1, _2, _3, _4, _5));
 
-
     ros::spin();
   }
 
@@ -66,6 +66,7 @@ namespace slam
     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
     const sensor_msgs::CameraInfoConstPtr& r_info_msg)
   {
+    double t0 = ros::Time::now().toSec();
 
     tf::Transform c_odom_robot = Tools::odomTotf(*odom_msg);
     double timestamp = l_img_msg->header.stamp.toSec();
@@ -93,6 +94,11 @@ namespace slam
       // The initial frame
       c_frame_ = Frame(l_img, r_img, camera_model_, timestamp, params_.feature_detector_selection);
 
+      // Get frame time metrics
+      time_tracking_msg_.feature_extraction = c_frame_.getFeatureExtractionTimeConsumption();
+      time_tracking_msg_.stereo_matching = c_frame_.getStereoMatchingTimeConsumption();
+      time_tracking_msg_.compute_3D_points = c_frame_.getCompute3DPointsTimeConsumption();
+
       // No corrections apply yet
       prev_robot_pose_ = c_odom_robot;
 
@@ -117,6 +123,11 @@ namespace slam
     {
       // The current frame
       c_frame_ = Frame(l_img, r_img, camera_model_, timestamp, params_.feature_detector_selection);
+
+      // Get frame time metrics
+      time_tracking_msg_.feature_extraction = c_frame_.getFeatureExtractionTimeConsumption();
+      time_tracking_msg_.stereo_matching = c_frame_.getStereoMatchingTimeConsumption();
+      time_tracking_msg_.compute_3D_points = c_frame_.getCompute3DPointsTimeConsumption();
 
       // Publish stereo matches
       f_pub_->publishStereoMatches(c_frame_);
@@ -166,6 +177,7 @@ namespace slam
       c_frame_.setCameraPose(c_camera_pose);
 
       // Need new keyframe
+      double t4 = ros::Time::now().toSec(); 
       bool is_new_keyframe = needNewKeyFrame();
       if (is_new_keyframe)
       {
@@ -173,6 +185,7 @@ namespace slam
         tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
         odom_pose_history_.push_back(c_odom_camera);
       }
+      time_tracking_msg_.need_new_keyframe = ros::Time::now().toSec() - t4;
     }
 
     // Convert camera to robot pose
@@ -216,12 +229,19 @@ namespace slam
     // Publish
     nav_msgs::Odometry pose_msg = *odom_msg;
     tf::poseTFToMsg(pose, pose_msg.pose.pose);
-    pose_pub_.publish(pose_msg);
+    pub_pose_.publish(pose_msg);
     tf_broadcaster_.sendTransform(tf::StampedTransform(pose, odom_msg->header.stamp, "map", odom_msg->child_frame_id));
-
 
     // Store
     prev_robot_pose_ = pose;
+
+    if (pub_time_tracking_.getNumSubscribers() > 0)
+    {
+      time_tracking_msg_.header.stamp = l_img_msg->header.stamp;
+      time_tracking_msg_.total = ros::Time::now().toSec() - t0;
+      pub_time_tracking_.publish(time_tracking_msg_);
+    }
+
   }
 
   bool Tracking::getOdom2CameraTf(nav_msgs::Odometry odom_msg,
@@ -272,7 +292,7 @@ namespace slam
   bool Tracking::addFrameToMap()
   {
 
-    if (c_frame_.getLeftKp().size() > params_.lc_min_inliers)
+    if (c_frame_.getLeftKp().size() > (int)(params_.lc_min_inliers / 2))
     {
       c_frame_.regionClustering();
 

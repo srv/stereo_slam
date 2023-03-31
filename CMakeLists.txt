@@ -20,7 +20,13 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 ## Declare ROS messages and services
-add_message_files(FILES GraphPoses.msg)
+add_message_files(DIRECTORY msg 
+                  FILES GraphPoses.msg
+                  TimeTracking.msg
+                  TimeGraph.msg
+                  TimeLoopClosing.msg
+                  SubTimeLoopClosing.msg)
+                  
 generate_messages(DEPENDENCIES std_msgs)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
