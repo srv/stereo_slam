@@ -80,7 +80,6 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
 
   # Load visual odometry data (saved with rostopic echo -p /stereo_odometer/odometry > file.txt)
   if (odom_file != "" and os.path.exists(odom_file) and check_file_len(odom_file)):
-
     # Read the data
     data = pylab.loadtxt(odom_file, delimiter=',', skiprows=1, usecols=(5,6,7,8,9,10,11))
     # data = pylab.loadtxt(odom_file, delimiter=',', skiprows=1, usecols=(4,5,6,7,8,9,10))
@@ -104,7 +103,7 @@ def real_time_plot(gt_file, odom_file, graph_vertices_file):
     try:
       data = pylab.loadtxt(graph_vertices_file, delimiter=',', skiprows=1, usecols=(2,3,4,5,6,7,8))
     except:
-      return;
+      return
 
     # Plot
     if (len(data.shape) == 1):
@@ -146,7 +145,7 @@ def draw_edges():
     try:
       data = pylab.loadtxt(graph_edges_file, delimiter=',', skiprows=0, usecols=(0,1,2,3,4,5,10,11,12))
     except:
-      return;
+      return
 
     # Sanity check
     if (len(data.shape) == 1):
@@ -189,7 +188,7 @@ def draw_edges():
           blue += '0'
         color = '#' + red + '00' + blue
       else:
-        color = 'b';
+        color = 'b'
 
       vect = []
       vect.append([data[i,3], data[i,4], data[i,5]])
@@ -260,26 +259,38 @@ if __name__ == "__main__":
   #         'size'   : 30}
   # pylab.rc('font', **font)
 
-  print "GRAPH VIEWER MOUSE INPUTS:"
-  print " - Right button: activates/deactivates the visualization of graph edges."
+  print("GRAPH VIEWER MOUSE INPUTS:")
+  print(" - Right button: activates/deactivates the visualization of graph edges.")
 
   # Set parameters
-  global_dir            = args.d
-  ground_truth_file     = args.gt
-  visual_odometry_file  = args.o
-  graph_vertices_file   = args.v
-  graph_edges_file      = args.e
+  # global_dir            = args.d
+  # ground_truth_file     = args.gt
+  # visual_odometry_file  = args.o
+  # graph_vertices_file   = args.v
+  # graph_edges_file      = args.e
 
   # Default parameters
-  if (global_dir != ""):
-    if (global_dir[:-1] != "/"):
-      global_dir += "/"
-    visual_odometry_file = global_dir + "odom.txt"
-    graph_vertices_file = global_dir + "graph_vertices.txt"
-    graph_edges_file = global_dir + "graph_edges.txt"
-    ground_truth_file = global_dir + "gt.txt"
-  if not os.path.exists(ground_truth_file):
-    ground_truth_file = "none"
+  if(args.d != ""):
+
+    if(args.d[:-1] != "/"):
+      args.d += "/"
+
+    if os.path.exists(args.d):
+      visual_odometry_file = args.d + args.o
+      graph_vertices_file = args.d + args.v
+      graph_edges_file = args.d + args.e
+
+      if args.gt != "":
+        ground_truth_file = args.d + args.gt
+      else:
+        ground_truth_file = "none"
+    else:
+      print("The path to the working directory doesn't exist. Exiting.")
+      sys.exit()
+
+  else:
+    print("You have not inserted the path to the working directory. Exiting.")
+    sys.exit()
 
   # Save blocking file into global
   lock_file = os.path.dirname(graph_vertices_file) + "/graph.lock"
@@ -291,7 +302,7 @@ if __name__ == "__main__":
     ax.set_zlabel("z (m)")
   else:
     ax = fig.gca()
-    img = imread("/home/plnegre/Downloads/mosaic1.jpg")
+    img = imread("/home/bomiquel/SLAM_ws/src/stereo_slam/output/mosaic1.jpg")
     ax.imshow(img, zorder=0, extent=[-13.5, 34.5, -17, 9])
     ax.set_axis_bgcolor('black')
 

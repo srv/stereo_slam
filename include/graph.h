@@ -9,9 +9,10 @@
 #include <memory>
 
 #include <ros/ros.h>
+#include <std_msgs/Int32.h>
+#include <nav_msgs/Odometry.h>
 #include <tf/transform_broadcaster.h>
 #include <image_geometry/pinhole_camera_model.h>
-#include <nav_msgs/Odometry.h>
 
 #include <cv.h>
 #include <highgui.h>
@@ -30,6 +31,7 @@
 #include "frame.h"
 #include "loop_closing.h"
 #include "stereo_slam/GraphPoses.h"
+#include "stereo_slam/TimeGraph.h"
 
 using namespace std;
 using namespace boost;
@@ -44,6 +46,17 @@ class Graph
 {
 
 public:
+
+  struct Params
+  {
+    string working_directory; //!> Directory where all output files will be stored.
+
+    // Default settings
+    Params ()
+    {
+      working_directory = "";
+    }
+  };
 
   struct Edge
   {
@@ -170,9 +183,18 @@ public:
    */
   inline image_geometry::PinholeCameraModel getCameraModel() const {return camera_model_;}
 
-  /** \brief Get camera matrix
+  /** \brief Get frame counter
    */
-  inline int getFrameNum() const {return frame_id_+1;}
+  inline int getFrameNum() const {return frame_id_ + 1;}
+
+  /** \brief Set class params
+   *  \param the parameters struct
+   */
+  inline void setParams(const Params& params){params_ = params;}
+
+  /** \brief Get class params
+   */
+  inline Params getParams() const {return params_;}
 
 protected:
 
@@ -219,6 +241,8 @@ protected:
 
 private:
 
+  Params params_; //!> Stores parameters.
+
   g2o::SparseOptimizer graph_optimizer_; //!> G2O graph optimizer
 
   list<Frame> frame_queue_; //!> Frames queue to be inserted into the graph
@@ -245,9 +269,15 @@ private:
 
   image_geometry::PinholeCameraModel camera_model_; //!> Pinhole left camera model
 
-  ros::Publisher pose_pub_; //!> Camera pose publisher
+  ros::Publisher pub_pose_; //!> Camera pose publisher
 
-  ros::Publisher graph_pub_; //!> Graph publisher
+  ros::Publisher pub_graph_; //!> Graph publisher
+
+  ros::Publisher pub_time_graph_; //!> Time graph thread publisher
+
+  ros::Publisher pub_num_keyframes_; //!> Publishes the number of keyframes
+
+  stereo_slam::TimeGraph time_graph_msg_; //! Message to publish time metrics 
 
   vector<Edge> edges_information_; // Edges information
 };

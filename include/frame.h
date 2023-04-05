@@ -40,7 +40,7 @@ public:
 
   /** \brief Class constructor
    */
-  Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp);
+  Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp, string feature_detector);
 
   /** \brief Get left image
    */
@@ -150,6 +150,18 @@ public:
    */
   inline cv::Mat getSigmaWithPreviousFrame() const {return sigma_with_prev_frame_;}
 
+  /** \brief Get the time needed to extract the visual features from stereoscopic images
+   */
+  inline double getFeatureExtractionTimeConsumption() const {return feature_extraction_time_;}
+
+  /** \brief Get the time needed to match features between the frames of a stereo pair
+   */
+  inline double getStereoMatchingTimeConsumption() const {return stereo_matching_time_;}
+
+  /** \brief Get the time needed to compute the 3D points of the scene
+   */
+  inline double getCompute3DPointsTimeConsumption() const {return compute_3D_points_time_;}
+
   /** \brief Compute sift descriptors
    * @return the matrix of sift descriptors
    */
@@ -176,6 +188,8 @@ private:
   cv::Mat l_img_; //!> Left image
   cv::Mat r_img_; //!> Right image
 
+  string feature_detector_;
+
   vector<cv::KeyPoint> l_kp_; //!> Left keypoints.
   vector<cv::KeyPoint> r_kp_; //!> Right keypoints.
                               //!
@@ -199,11 +213,17 @@ private:
 
   PointCloudRGB::Ptr pointcloud_; //!> The pointcloud for this frame
 
-  ros::Publisher kp_pub_; //!> Keypoints publisher
+  ros::Publisher pub_kp_; //!> Keypoints publisher
 
   int num_inliers_with_prev_frame_; //!> Number of inliers between this frame and the previous
 
   cv::Mat sigma_with_prev_frame_; //!> The sigma value with previous frame
+
+  static constexpr float STEREO_EPIPOLAR_THRESH = 1.0; //!> Stereo epipolar threshold
+
+  double feature_extraction_time_ = 0.0; //!> Time needed to extract the visual features from stereoscopic images
+  double stereo_matching_time_ = 0.0; //!> Time needed to match features between the frames of a stereo pair
+  double compute_3D_points_time_ = 0.0; //!> Time needed to compute the 3D points of the scene
 
 };
 

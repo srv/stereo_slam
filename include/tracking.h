@@ -18,14 +18,6 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 
-#include <pcl_ros/point_cloud.h>
-#include <pcl_ros/transforms.h>
-#include <pcl/point_types.h>
-#include <pcl/common/common.h>
-#include <pcl/filters/filter.h>
-#include <pcl/filters/approximate_voxel_grid.h>
-#include <pcl/filters/crop_box.h>
-
 #include <opencv2/opencv.hpp>
 
 #include <boost/filesystem.hpp>
@@ -34,15 +26,11 @@
 #include "frame.h"
 #include "graph.h"
 #include "publisher.h"
+#include "stereo_slam/TimeTracking.h"
 
 using namespace std;
 using namespace boost;
 namespace fs  = filesystem;
-
-typedef pcl::PointXYZ                     PointXYZ;
-typedef pcl::PointXYZRGB                  PointRGB;
-typedef pcl::PointCloud<PointXYZ>         PointCloudXYZ;
-typedef pcl::PointCloud<PointRGB>         PointCloudRGB;
 
 namespace slam
 {
@@ -56,18 +44,23 @@ class Tracking
 public:
 
   struct Params
-  {
-    string odom_topic;                //!> Odometry topic name.
-    string camera_topic;              //!> Name of the base camera topic.
-    string image_scale;               //!> Scaling type (e.g. /scaled_x2 or /scaled_x4)
-    bool refine;                      //!> Refine odometry
+  { 
+    bool refine;                        //!> Refine odometry.
+    int lc_min_inliers;                 //!> Minimum number of inliers to close a loop.
+    double lc_epipolar_thresh;          //!> Maximum reprojection error allowed.
+    double dist_keyframes;              //!> Distance between keyframes.
+    string working_directory;           //!> Directory where all output files will be stored.
+    string feature_detector_selection;  //!> Name of the feature detector to be used.
 
     // Default settings
-    Params () {
-      odom_topic   = "/odom";
-      camera_topic = "/usb_cam";
-      image_scale  = "";
-      refine = false;
+    Params () 
+    {
+      refine                     = false;
+      lc_min_inliers             = 40;
+      lc_epipolar_thresh         = 2.0;
+      dist_keyframes             = 0.5;
+      working_directory          = "";
+      feature_detector_selection = "";
     }
   };
 
@@ -85,7 +78,7 @@ public:
   Tracking(Publisher* f_pub, Graph* graph);
 
   /** \brief Set class params
-   * \param the parameters struct
+   *  \param the parameters struct
    */
   inline void setParams(const Params& params){params_ = params;}
 
@@ -110,14 +103,12 @@ protected:
    * \param r_img right stereo image message of type sensor_msgs::Image
    * \param l_info left stereo info message of type sensor_msgs::CameraInfo
    * \param r_info right stereo info message of type sensor_msgs::CameraInfo
-   * \param pointcloud
-   */
-  void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
+   */  
+    void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
                     const sensor_msgs::ImageConstPtr& l_img_msg,
                     const sensor_msgs::ImageConstPtr& r_img_msg,
                     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-                    const sensor_msgs::CameraInfoConstPtr& r_info_msg,
-                    const sensor_msgs::PointCloud2ConstPtr& cloud_msg);
+                    const sensor_msgs::CameraInfoConstPtr& r_info_msg);
 
   /** \brief Get the transform between odometry frame and camera frame
    * @return true if valid transform, false otherwise
@@ -144,7 +135,6 @@ protected:
    * @return filtered cloud
    * \param input cloud
    */
-  PointCloudRGB::Ptr filterCloud(PointCloudRGB::Ptr in_cloud);
 
   /** \brief Publishes the overlapping debug image
    * @return
@@ -152,7 +142,6 @@ protected:
    * \param the transformation of current pointcloud to the last fixed frame
    * \param the overlap
    */
-  void publishOverlap(PointCloudXYZ::Ptr cloud, tf::Transform movement, float overlap);
 
   /** \brief Refine the keyframe to keyframe position using SolvePnP
    * @return True if a valid transform was found
@@ -182,11 +171,11 @@ private:
 
   Publisher* f_pub_; //!> Frame publisher
 
-  ros::Publisher pc_pub_; //!> Pointcloud publisher
+  ros::Publisher pub_pose_; //!> Corrected pose publisher
 
-  ros::Publisher pose_pub_; //!> Corrected pose publisher
+  ros::Publisher pub_time_tracking_; //!> Time tracking thread publisher
 
-  ros::Publisher overlapping_pub_; //!> Consecutive image overlapping publisher
+  ros::Publisher pub_overlapping_; //!> Consecutive image overlapping publisher
 
   tf::TransformBroadcaster tf_broadcaster_; //!> Publish transform
 
@@ -210,13 +199,14 @@ private:
 
   double secs_to_filter_; //!> Number of seconds that filter will be applied
 
+  stereo_slam::TimeTracking time_tracking_msg_; //! Message to publish time metrics 
+
   // Topic sync
   typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry,
                                                           sensor_msgs::Image,
                                                           sensor_msgs::Image,
                                                           sensor_msgs::CameraInfo,
-                                                          sensor_msgs::CameraInfo,
-                                                          sensor_msgs::PointCloud2> SyncPolicy;
+                                                          sensor_msgs::CameraInfo> SyncPolicy;
   typedef message_filters::Synchronizer<SyncPolicy> Sync;
 
 };
