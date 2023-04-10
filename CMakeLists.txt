@@ -1,5 +1,8 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0.2)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake-modules/")
+
+set(OpenCV_DIR /home/bomiquel/OpenCV/OpenCV420/build)
+set(OPENCV_ENABLE_NONFREE "Enable non-free algorithms" TRUE)
 
 project(stereo_slam)
 find_package(catkin REQUIRED COMPONENTS

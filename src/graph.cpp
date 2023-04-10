@@ -64,13 +64,13 @@ namespace slam
 
   void Graph::addFrameToQueue(Frame frame)
   {
-    mutex::scoped_lock lock(mutex_frame_queue_);
+    boost::mutex::scoped_lock lock(mutex_frame_queue_);
     frame_queue_.push_back(frame);
   }
 
   bool Graph::checkNewFrameInQueue()
   {
-    mutex::scoped_lock lock(mutex_frame_queue_);
+    boost::mutex::scoped_lock lock(mutex_frame_queue_);
     return(!frame_queue_.empty());
   }
 
@@ -79,7 +79,7 @@ namespace slam
     // Get the frame
     Frame frame;
     {
-      mutex::scoped_lock lock(mutex_frame_queue_);
+      boost::mutex::scoped_lock lock(mutex_frame_queue_);
       frame = frame_queue_.front();
       frame_queue_.pop_front();
     }
@@ -232,7 +232,7 @@ namespace slam
     // Publish camera pose
     int last_idx = -1;
     {
-      mutex::scoped_lock lock(mutex_graph_);
+      boost::mutex::scoped_lock lock(mutex_graph_);
       last_idx = graph_optimizer_.vertices().size() - 1;
     }
     tf::Transform updated_camera_pose = getVertexCameraPose(last_idx, true);
@@ -244,7 +244,7 @@ namespace slam
     // Get last
     int last_idx = -1;
     {
-      mutex::scoped_lock lock(mutex_graph_);
+      boost::mutex::scoped_lock lock(mutex_graph_);
       last_idx = graph_optimizer_.vertices().size() - 1;
     }
 
@@ -282,7 +282,7 @@ namespace slam
 
   int Graph::addVertex(tf::Transform pose)
   {
-    mutex::scoped_lock lock(mutex_graph_);
+    boost::mutex::scoped_lock lock(mutex_graph_);
 
     // Convert pose for graph
     Eigen::Isometry3d vertex_pose = Tools::tfToIsometry(pose);
@@ -305,7 +305,7 @@ namespace slam
 
   void Graph::addEdge(int i, int j, tf::Transform edge, cv::Mat sigma, int inliers)
   {
-    mutex::scoped_lock lock(mutex_graph_);
+    boost::mutex::scoped_lock lock(mutex_graph_);
 
     // Store edge information
     int frame_i = Graph::getVertexFrameId(i);
@@ -384,7 +384,7 @@ namespace slam
 
   void Graph::update()
   {
-    mutex::scoped_lock lock(mutex_graph_);
+    boost::mutex::scoped_lock lock(mutex_graph_);
 
     // Optimize!
     graph_optimizer_.initializeOptimization();
@@ -455,7 +455,7 @@ namespace slam
     // Get last
     int last_idx = -1;
     {
-      mutex::scoped_lock lock(mutex_graph_);
+      boost::mutex::scoped_lock lock(mutex_graph_);
       last_idx = graph_optimizer_.vertices().size() - 1;
     }
 
@@ -467,7 +467,7 @@ namespace slam
   {
     if (lock)
     {
-      mutex::scoped_lock lock(mutex_graph_);
+      boost::mutex::scoped_lock lock(mutex_graph_);
 
       if( id >= 0)
       {
@@ -573,7 +573,7 @@ namespace slam
     fstream f_vertices(vertices_file.c_str(), ios::out | ios::trunc);
     fstream f_edges(edges_file.c_str(), ios::out | ios::trunc);
 
-    mutex::scoped_lock lock(mutex_graph_);
+    boost::mutex::scoped_lock lock(mutex_graph_);
 
     // First line
     f_vertices << "% timestamp,frame id,x,y,z,qx,qy,qz,qw" << endl;
@@ -692,7 +692,7 @@ namespace slam
   {
     if (pub_graph_.getNumSubscribers() > 0)
     {
-      mutex::scoped_lock lock(mutex_graph_);
+      boost::mutex::scoped_lock lock(mutex_graph_);
 
       // Build the graph data
       vector<int> ids;

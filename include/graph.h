@@ -14,8 +14,8 @@
 #include <tf/transform_broadcaster.h>
 #include <image_geometry/pinhole_camera_model.h>
 
-#include <cv.h>
-#include <highgui.h>
+#include <opencv2/opencv.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core.hpp>
 
 #include <g2o/core/sparse_optimizer.h>
@@ -257,9 +257,9 @@ private:
 
   vector<double> frame_stamps_; //> Stores the frame timestamps
 
-  mutex mutex_graph_; //!> Mutex for the graph manipulation
+  boost::mutex mutex_graph_; //!> Mutex for the graph manipulation
 
-  mutex mutex_frame_queue_; //!> Mutex for the insertion of new frames into the graph
+  boost::mutex mutex_frame_queue_; //!> Mutex for the insertion of new frames into the graph
 
   tf::Transform camera2odom_; //!> Transformation between camera and robot odometry frame
 

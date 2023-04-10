@@ -256,7 +256,7 @@ namespace slam
       // Extract the transform
       tf_listener_.lookupTransform(odom_msg.child_frame_id,
           img_msg.header.frame_id,
-          ros::Time(0),
+          odom_msg.header.stamp,
           transform);
     }
     catch (tf::TransformException ex)

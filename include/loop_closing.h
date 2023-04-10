@@ -161,7 +161,7 @@ private:
 
   list<Cluster> cluster_queue_; //!> Clusters queue to be inserted into the graph
 
-  mutex mutex_cluster_queue_; //!> Mutex for the insertion of new clusters
+  boost::mutex mutex_cluster_queue_; //!> Mutex for the insertion of new clusters
 
   haloc::Hash hash_; //!> Hash object
 

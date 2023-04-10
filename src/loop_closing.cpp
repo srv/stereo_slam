@@ -101,7 +101,7 @@ namespace slam
         }
         if (pub_queue_.getNumSubscribers() > 0)
         {
-          mutex::scoped_lock lock(mutex_cluster_queue_);
+          boost::mutex::scoped_lock lock(mutex_cluster_queue_);
           std_msgs::Int32 msg;
           msg.data = lexical_cast<int>(cluster_queue_.size());
           pub_queue_.publish(msg);
@@ -119,13 +119,13 @@ namespace slam
 
   void LoopClosing::addClusterToQueue(Cluster cluster)
   {
-    mutex::scoped_lock lock(mutex_cluster_queue_);
+    boost::mutex::scoped_lock lock(mutex_cluster_queue_);
     cluster_queue_.push_back(cluster);
   }
 
   bool LoopClosing::checkNewClusterInQueue()
   {
-    mutex::scoped_lock lock(mutex_cluster_queue_);
+    boost::mutex::scoped_lock lock(mutex_cluster_queue_);
     return(!cluster_queue_.empty());
   }
 
@@ -133,7 +133,7 @@ namespace slam
   {
     // Get the cluster
     {
-      mutex::scoped_lock lock(mutex_cluster_queue_);
+      boost::mutex::scoped_lock lock(mutex_cluster_queue_);
       c_cluster_ = cluster_queue_.front();
       cluster_queue_.pop_front();
     }
@@ -589,7 +589,7 @@ namespace slam
     {
       string frame_id_str = Tools::convertTo5digits(cand_kfs[i]);
       string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
-      cv::Mat kf = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
+      cv::Mat kf = cv::imread(keyframe_file, cv::IMREAD_COLOR);
 
       // Add the keyframe identifier
       stringstream s;
@@ -612,7 +612,7 @@ namespace slam
     // Read the current keyframe
     string frame_id_str = Tools::convertTo5digits(c_cluster_.getFrameId());
     string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
-    cv::Mat current_kf_tmp = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
+    cv::Mat current_kf_tmp = cv::imread(keyframe_file, cv::IMREAD_COLOR);
 
     // Add the keyframe identifier
     stringstream s;
