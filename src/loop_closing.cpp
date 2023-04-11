@@ -1,8 +1,3 @@
-#include <std_msgs/Int32.h>
-#include <image_geometry/pinhole_camera_model.h>
-
-#include <numeric>
-
 #include "loop_closing.h"
 #include "tools.h"
 
@@ -14,26 +9,28 @@ namespace slam
   LoopClosing::LoopClosing()
   {
     ros::NodeHandle nhp("~");
-    pub_num_keyframes_ = nhp.advertise<std_msgs::Int32>("keyframes", 2, true);
-    pub_num_lc_ = nhp.advertise<std_msgs::Int32>("loop_closings", 2, true);
+    pub_num_clusters_ = nhp.advertise<std_msgs::Int32>("num_clusters", 2, true);
+    pub_num_lc_ = nhp.advertise<std_msgs::Int32>("loop_closings_num", 2, true);
     pub_queue_ = nhp.advertise<std_msgs::Int32>("loop_closing_queue", 2, true);
     pub_matchings_num_ = nhp.advertise<std_msgs::Int32>("loop_closing_matches_num", 2, true);
     pub_inliers_num_ = nhp.advertise<std_msgs::Int32>("loop_closing_inliers_num", 2, true);
     pub_inliers_img_ = nhp.advertise<sensor_msgs::Image>("loop_closing_inliers_img", 2, true);
     pub_matchings_percentage_ = nhp.advertise<std_msgs::Int32>("loop_closing_matches_percentage", 2, true);
+    pub_time_loop_closing_ = nhp.advertise<stereo_slam::TimeLoopClosing>("time_loop_closing", 1);
+    pub_sub_time_loop_closing_ = nhp.advertise<stereo_slam::SubTimeLoopClosing>("sub_time_loop_closing", 1);
   }
 
   void LoopClosing::run()
   {
     // Init
-    execution_dir_ = WORKING_DIRECTORY + "haloc";
+    execution_dir_ = params_.working_directory + "haloc";
     if (fs::is_directory(execution_dir_))
       fs::remove_all(execution_dir_);
     fs::path dir1(execution_dir_);
     if (!fs::create_directory(dir1))
       ROS_ERROR("[Localization:] ERROR -> Impossible to create the loop_closing directory.");
 
-    loop_closures_dir_ = WORKING_DIRECTORY + "loop_closures";
+    loop_closures_dir_ = params_.working_directory + "loop_closures";
     if (fs::is_directory(loop_closures_dir_))
       fs::remove_all(loop_closures_dir_);
     fs::path dir2(loop_closures_dir_);
@@ -65,18 +62,30 @@ namespace slam
       // Process new frame
       if(checkNewClusterInQueue())
       {
+        double t0 = ros::Time::now().toSec();
+
         processNewCluster();
+
+        time_loop_closing_msg_.process_new_cluster = ros::Time::now().toSec() - t0;
+
+        double t1 = ros::Time::now().toSec();
 
         searchByProximity();
 
+        time_loop_closing_msg_.search_by_proximity = ros::Time::now().toSec() - t1;
+
+        double t2 = ros::Time::now().toSec();
+
         searchByHash();
 
+        time_loop_closing_msg_.search_by_hash = ros::Time::now().toSec() - t2;
+
         // Publish loop closing information
-        if (pub_num_keyframes_.getNumSubscribers() > 0)
+        if (pub_num_clusters_.getNumSubscribers() > 0)
         {
           std_msgs::Int32 msg;
-          msg.data = lexical_cast<int>(graph_->getFrameNum());
-          pub_num_keyframes_.publish(msg);
+          msg.data = lexical_cast<int>(getClusterNum());
+          pub_num_clusters_.publish(msg);
         }
         if (pub_num_lc_.getNumSubscribers() > 0)
         {
@@ -91,8 +100,13 @@ namespace slam
           msg.data = lexical_cast<int>(cluster_queue_.size());
           pub_queue_.publish(msg);
         }
+        if (pub_time_loop_closing_.getNumSubscribers() > 0)
+        {
+          time_loop_closing_msg_.header.stamp = ros::Time::now();
+          time_loop_closing_msg_.total = ros::Time::now().toSec() - t0;
+          pub_time_loop_closing_.publish(time_loop_closing_msg_);
+        }
       }
-
       r.sleep();
     }
   }
@@ -120,7 +134,9 @@ namespace slam
 
     // Initialize hash
     if (!hash_.isInitialized())
+    {
       hash_.init(c_cluster_.getSift());
+    }
 
     // Save hash to table
     hash_table_.push_back(make_pair(c_cluster_.getId(), hash_.getHash(c_cluster_.getSift())));
@@ -133,12 +149,15 @@ namespace slam
     write(fs, "desc", c_cluster_.getOrb());
     write(fs, "points", c_cluster_.getPoints());
     fs.release();
+
+    cluster_id_ = c_cluster_.getId();
+
   }
 
   void LoopClosing::searchByProximity()
   {
     vector<int> cand_neighbors;
-    graph_->findClosestVertices(c_cluster_.getId(), c_cluster_.getId(), LC_DISCARD_WINDOW, 3, cand_neighbors);
+    graph_->findClosestVertices(c_cluster_.getId(), c_cluster_.getId(), params_.lc_discard_window, 3, cand_neighbors);
     for (uint i=0; i<cand_neighbors.size(); i++)
     {
       Cluster candidate = readCluster(cand_neighbors[i]);
@@ -179,7 +198,7 @@ namespace slam
     Tools::ratioMatching(c_cluster_.getOrb(), candidate.getOrb(), matching_th, matches_1);
 
     // Get the neighbor clusters if enough matching percentage
-    if (matches_1.size() > (int)(LC_MIN_INLIERS / 2))
+    if (matches_1.size() > (int)(params_.lc_min_inliers / 2))
     {
       // Init accumulated data
       vector<int> cluster_query_list;
@@ -202,7 +221,7 @@ namespace slam
 
       // Increase the probability to close loop by extracting the candidate neighbors
       vector<int> cand_neighbors;
-      graph_->findClosestVertices(candidate.getId(), c_cluster_.getId(), LC_DISCARD_WINDOW, LC_NEIGHBORS, cand_neighbors);
+      graph_->findClosestVertices(candidate.getId(), c_cluster_.getId(), params_.lc_discard_window, params_.lc_neighbors, cand_neighbors);
       for (uint j=0; j<cand_neighbors.size(); j++)
       {
         Cluster cand_neighbor = readCluster(cand_neighbors[j]);
@@ -263,7 +282,7 @@ namespace slam
         pub_matchings_num_.publish(msg);
       }
 
-      if (matches_2.size() >= LC_MIN_INLIERS)
+      if (matches_2.size() >= params_.lc_min_inliers)
       {
         // Store matchings
         vector<int> query_matchings;
@@ -287,22 +306,19 @@ namespace slam
           cand_matchings.push_back(cluster_cand_list[matches_2[j].trainIdx]);
         }
 
+        double t0 = ros::Time::now().toSec();
+
         // Estimate the motion
         vector<int> inliers;
         cv::Mat rvec, tvec;
         cv::solvePnPRansac(matched_cand_3d_points, matched_query_kp_l,
             graph_->getCameraMatrix(), cv::Mat(), rvec, tvec,
-            false, 100, LC_EPIPOLAR_THRESH, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
+            false, 100, params_.lc_epipolar_thresh, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);  
 
-        if (pub_inliers_num_.getNumSubscribers() > 0)
-        {
-          std_msgs::Int32 msg;
-          msg.data = lexical_cast<int>(inliers.size());
-          pub_matchings_num_.publish(msg);
-        }
+        sub_time_loop_closing_msg_.motion_estimation = ros::Time::now().toSec() - t0;
 
         // Loop found!
-        if (inliers.size() >= LC_MIN_INLIERS)
+        if (inliers.size() >= params_.lc_min_inliers)
         {
           tf::Transform estimated_transform = Tools::buildTransformation(rvec, tvec);
           estimated_transform = estimated_transform.inverse();
@@ -410,15 +426,26 @@ namespace slam
           {
             num_loop_closures_++;
 
+            if (pub_inliers_num_.getNumSubscribers() > 0)
+            {
+              std_msgs::Int32 msg;
+              msg.data = lexical_cast<int>(inliers.size());
+              pub_inliers_num_.publish(msg);
+            }
+
             // Update the graph with the new edges
+            double t1 = ros::Time::now().toSec();
+
             graph_->update();
+
+            sub_time_loop_closing_msg_.graph_optimization = ros::Time::now().toSec() - t1;
 
             // Draw the loop closure to image
             drawLoopClosure(cand_kfs,
                             cand_matchings,
                             inliers,
-                            definitive_inliers_per_pair,
-                            definitive_cluster_pairs,
+                            inliers_per_pair,
+                            cluster_pairs,
                             matched_query_kp_l,
                             matched_cand_kp_l);
 
@@ -429,13 +456,28 @@ namespace slam
             ROS_INFO_STREAM("[Localization:] Inliers: " << inliers.size());
             ROS_INFO("[Localization:] ---------------------------");
 
+            publishSubTimeloopClosing();
+
             return true;
           }
         }
+
+        publishSubTimeloopClosing();
+
       }
     }
 
     return false;
+  }
+
+  void LoopClosing::publishSubTimeloopClosing()
+  {
+    if (pub_sub_time_loop_closing_.getNumSubscribers() > 0)
+    {
+      sub_time_loop_closing_msg_.header.stamp = ros::Time::now();
+      pub_sub_time_loop_closing_.publish(sub_time_loop_closing_msg_);
+      sub_time_loop_closing_msg_.graph_optimization = 0;
+    }
   }
 
   void LoopClosing::getCandidates(int cluster_id, vector< pair<int,float> >& candidates)
@@ -444,7 +486,7 @@ namespace slam
     candidates.clear();
 
     // Check if enough neighbors
-    if ((int)hash_table_.size() <= LC_DISCARD_WINDOW) return;
+    if ((int)hash_table_.size() <= params_.lc_discard_window) return;
 
     // Create a list with the non-possible candidates (because they are already loop closings)
     vector<int> no_candidates;
@@ -464,7 +506,7 @@ namespace slam
     for (uint i=0; i<hash_table_.size(); i++)
     {
       // Discard window
-      if (hash_table_[i].first > cluster_id-LC_DISCARD_WINDOW && hash_table_[i].first < cluster_id+LC_DISCARD_WINDOW) continue;
+      if (hash_table_[i].first > cluster_id-params_.lc_discard_window && hash_table_[i].first < cluster_id+params_.lc_discard_window) continue;
 
       // Do not compute the hash matching with itself
       if (hash_table_[i].first == cluster_id) continue;
@@ -540,7 +582,7 @@ namespace slam
     for (uint i=0; i<cand_kfs.size(); i++)
     {
       string frame_id_str = Tools::convertTo5digits(cand_kfs[i]);
-      string keyframe_file = WORKING_DIRECTORY + "keyframes/" + frame_id_str + ".jpg";
+      string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
       cv::Mat kf = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
 
       // Add the keyframe identifier
@@ -563,7 +605,7 @@ namespace slam
 
     // Read the current keyframe
     string frame_id_str = Tools::convertTo5digits(c_cluster_.getFrameId());
-    string keyframe_file = WORKING_DIRECTORY + "keyframes/" + frame_id_str + ".jpg";
+    string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
     cv::Mat current_kf_tmp = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
 
     // Add the keyframe identifier
@@ -589,7 +631,7 @@ namespace slam
       cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
       colors.push_back(color);
     }
-
+    
     // Draw the matchings
     for (uint i=0; i<inliers.size(); i++)
     {

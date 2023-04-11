@@ -22,7 +22,6 @@
   <build_depend>image_geometry</build_depend>
   <build_depend>std_srvs</build_depend>
   <build_depend>libg2o</build_depend>
-  <build_depend>libhaloc</build_depend>
   <build_depend>pcl_ros</build_depend>
   <build_depend>cmake_modules</build_depend>
   <build_depend>tf_conversions</build_depend>
@@ -39,7 +38,6 @@
   <run_depend>image_geometry</run_depend>
   <run_depend>std_srvs</run_depend>
   <run_depend>libg2o</run_depend>
-  <run_depend>libhaloc</run_depend>
   <run_depend>pcl_ros</run_depend>
   <run_depend>tf_conversions</run_depend>
 

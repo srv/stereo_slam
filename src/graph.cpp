@@ -16,22 +16,22 @@ namespace slam
   void Graph::init()
   {
     // Initialize the g2o graph optimizer
-    g2o::BlockSolverX::LinearSolverType * linear_solver_ptr;
-    linear_solver_ptr = new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>();
-    g2o::BlockSolverX * solver_ptr = new g2o::BlockSolverX(linear_solver_ptr);
-    g2o::OptimizationAlgorithmLevenberg * solver =
-      new g2o::OptimizationAlgorithmLevenberg(solver_ptr);
+    std::unique_ptr<g2o::BlockSolverX::LinearSolverType> linear_solver_ptr (new g2o::LinearSolverCholmod<g2o::BlockSolverX::PoseMatrixType>());
+    std::unique_ptr<g2o::BlockSolverX> solver_ptr (new g2o::BlockSolverX(std::move(linear_solver_ptr)));
+    g2o::OptimizationAlgorithmLevenberg * solver = new g2o::OptimizationAlgorithmLevenberg(std::move(solver_ptr));
     graph_optimizer_.setAlgorithm(solver);
 
     // Remove locking file if exists
-    string lock_file = WORKING_DIRECTORY + ".graph.lock";
+    string lock_file = params_.working_directory + ".graph.lock";
     if (fs::exists(lock_file))
       remove(lock_file.c_str());
 
     // Advertise topics
     ros::NodeHandle nhp("~");
-    pose_pub_ = nhp.advertise<nav_msgs::Odometry>("graph_camera_odometry", 1);
-    graph_pub_ = nhp.advertise<stereo_slam::GraphPoses>("graph_poses", 2);
+    pub_pose_ = nhp.advertise<nav_msgs::Odometry>("graph_camera_odometry", 1);
+    pub_graph_ = nhp.advertise<stereo_slam::GraphPoses>("graph_poses", 2);
+    pub_time_graph_ = nhp.advertise<stereo_slam::TimeGraph>("time_graph", 1);
+    pub_num_keyframes_ = nhp.advertise<std_msgs::Int32>("keyframes", 1);
   }
 
   void Graph::run()
@@ -41,7 +41,22 @@ namespace slam
     {
       if(checkNewFrameInQueue())
       {
+        double t0 = ros::Time::now().toSec();
+
         processNewFrame();
+
+        if (pub_num_keyframes_.getNumSubscribers() > 0)
+        {
+          std_msgs::Int32 msg;
+          msg.data = lexical_cast<int>(getFrameNum());
+          pub_num_keyframes_.publish(msg);
+        }
+        if (pub_time_graph_.getNumSubscribers() > 0)
+        {
+          time_graph_msg_.header.stamp = ros::Time::now();
+          time_graph_msg_.total = ros::Time::now().toSec() - t0;
+          pub_time_graph_.publish(time_graph_msg_);
+        }
       }
       r.sleep();
     }
@@ -82,9 +97,12 @@ namespace slam
     frame_stamps_.push_back(frame.getTimestamp());
 
     // Extract sift
+    double t1 = ros::Time::now().toSec();
     cv::Mat sift_desc = frame.computeSift();
+    time_graph_msg_.compute_sift_desc = ros::Time::now().toSec() - t1;
 
     // Loop of frame clusters
+    double t2 = ros::Time::now().toSec();
     vector<int> vertex_ids;
     vector<Cluster> clusters_to_close_loop;
     vector<Eigen::Vector4f> cluster_centroids = frame.getClusterCentroids();
@@ -128,7 +146,10 @@ namespace slam
     for (uint i=0; i<clusters_to_close_loop.size(); i++)
       loop_closing_->addClusterToQueue(clusters_to_close_loop[i]);
 
+    time_graph_msg_.add_clusters = ros::Time::now().toSec() - t2;
+
     // Add edges between clusters of the same frame
+    double t3 = ros::Time::now().toSec();
     if (clusters.size() > 1)
     {
       // Retrieve all possible combinations
@@ -196,12 +217,17 @@ namespace slam
       else
         ROS_ERROR("[Localization:] Impossible to connect current and previous frame. Graph will have non-connected parts!");
     }
+    time_graph_msg_.add_edges = ros::Time::now().toSec() - t3;
+
+    double t4 = ros::Time::now().toSec();
 
     // Save graph to file
     saveGraph();
 
     // Publish the graph
     publishGraph();
+
+    time_graph_msg_.save_and_publish_graph = ros::Time::now().toSec() - t4;
 
     // Publish camera pose
     int last_idx = -1;
@@ -377,7 +403,7 @@ namespace slam
     vector< pair< int,double > > neighbor_distances;
     for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
     {
-      if ( (int)i == vertex_id ) continue;
+      if ((int)i == vertex_id ) continue;
       if ((int)i > window_center-window && (int)i < window_center+window) continue;
 
       // Get the node pose
@@ -511,8 +537,8 @@ namespace slam
     string frame_id_str = Tools::convertTo5digits(frame.getId());
 
     // Save keyframe
-    string l_kf = WORKING_DIRECTORY + "keyframes/" + frame_id_str + "_left.jpg";
-    string r_kf = WORKING_DIRECTORY + "keyframes/" + frame_id_str + "_right.jpg";
+    string l_kf = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
+    string r_kf = params_.working_directory + "keyframes/" + frame_id_str + "_right.jpg";
     cv::imwrite(l_kf, l_img);
     cv::imwrite(r_kf, r_img);
 
@@ -526,16 +552,16 @@ namespace slam
       for (uint j=0; j<clusters[i].size(); j++)
         cv::circle(c_img, kp[clusters[i][j]].pt, 5, color, -1);
     }
-    string clusters_file = WORKING_DIRECTORY + "clusters/" + frame_id_str + ".jpg";
+    string clusters_file = params_.working_directory + "clusters/" + frame_id_str + ".jpg";
     cv::imwrite(clusters_file, c_img);
   }
 
   void Graph::saveGraph()
   {
     string lock_file, vertices_file, edges_file;
-    vertices_file = WORKING_DIRECTORY + "graph_vertices.txt";
-    edges_file = WORKING_DIRECTORY + "graph_edges.txt";
-    lock_file = WORKING_DIRECTORY + ".graph.lock";
+    vertices_file = params_.working_directory + "graph_vertices.txt";
+    edges_file = params_.working_directory + "graph_edges.txt";
+    lock_file = params_.working_directory + ".graph.lock";
 
     // Wait until lock file has been released
     while(fs::exists(lock_file));
@@ -550,7 +576,7 @@ namespace slam
     mutex::scoped_lock lock(mutex_graph_);
 
     // First line
-    f_vertices << "% timestamp, frame id, x, y, z, qx, qy, qz, qw" << endl;
+    f_vertices << "% timestamp,frame id,x,y,z,qx,qy,qz,qw" << endl;
 
     vector<int> processed_frames;
 
@@ -573,7 +599,7 @@ namespace slam
 
       tf::Transform pose = getVertexCameraPose(i, false)*camera2odom_;
       f_vertices << fixed <<
-        setprecision(6) <<
+        setprecision(9) <<
         frame_stamps_[id] << "," <<
         id << "," <<
         pose.getOrigin().x() << "," <<
@@ -587,7 +613,7 @@ namespace slam
     f_vertices.close();
 
     // First line
-    f_edges << "% frame a, frame b, inliers, ax, ay, az, aqx, aqy, aqz, aqw, bx, by, bz, bqx, bqy, bqz, bqw" << endl;
+    f_edges << "% frame a,frame b,inliers,ax,ay,az,aqx,aqy,aqz,aqw,bx,by,bz,bqx,bqy,bqz,bqw" << endl;
 
     // Output the edges file
     for ( g2o::OptimizableGraph::EdgeSet::iterator it=graph_optimizer_.edges().begin();
@@ -624,7 +650,7 @@ namespace slam
             e->vertices()[0]->id() << "," <<
             e->vertices()[1]->id() << "," <<
             inliers << "," <<
-            setprecision(6) <<
+            setprecision(9) <<
             pose_0.getOrigin().x() << "," <<
             pose_0.getOrigin().y() << "," <<
             pose_0.getOrigin().z() << "," <<
@@ -653,18 +679,18 @@ namespace slam
 
   void Graph::publishCameraPose(tf::Transform camera_pose)
   {
-    if (pose_pub_.getNumSubscribers() > 0)
+    if (pub_pose_.getNumSubscribers() > 0)
     {
       nav_msgs::Odometry pose_msg;
       pose_msg.header.stamp = ros::Time::now();
       tf::poseTFToMsg(camera_pose, pose_msg.pose.pose);
-      pose_pub_.publish(pose_msg);
+      pub_pose_.publish(pose_msg);
     }
   }
 
   void Graph::publishGraph()
   {
-    if (graph_pub_.getNumSubscribers() > 0)
+    if (pub_graph_.getNumSubscribers() > 0)
     {
       mutex::scoped_lock lock(mutex_graph_);
 
@@ -709,7 +735,7 @@ namespace slam
       graph_msg.qy = qy;
       graph_msg.qz = qz;
       graph_msg.qw = qw;
-      graph_pub_.publish(graph_msg);
+      pub_graph_.publish(graph_msg);
     }
   }
 
