@@ -1,8 +1,3 @@
-// #include <std_msgs/Int32.h>
-// #include <image_geometry/pinhole_camera_model.h>
-
-// #include <numeric>
-
 #include "loop_closing.h"
 #include "tools.h"
 
@@ -14,8 +9,7 @@ namespace slam
   LoopClosing::LoopClosing()
   {
     ros::NodeHandle nhp("~");
-    // pub_num_keyframes_ = nhp.advertise<std_msgs::Int32>("keyframes", 2, true);
-    pub_num_clusters_ = nhp.advertise<std_msgs::Int32>("clusters", 2, true);
+    pub_num_clusters_ = nhp.advertise<std_msgs::Int32>("num_clusters", 2, true);
     pub_num_lc_ = nhp.advertise<std_msgs::Int32>("loop_closings_num", 2, true);
     pub_queue_ = nhp.advertise<std_msgs::Int32>("loop_closing_queue", 2, true);
     pub_matchings_num_ = nhp.advertise<std_msgs::Int32>("loop_closing_matches_num", 2, true);
