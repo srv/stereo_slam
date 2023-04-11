@@ -12,4 +12,3 @@ graph_vertices.txt
 graph_edges.txt
 odom.txt
 test/*
-config/*
