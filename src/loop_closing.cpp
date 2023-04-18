@@ -444,8 +444,8 @@ namespace slam
             drawLoopClosure(cand_kfs,
                             cand_matchings,
                             inliers,
-                            inliers_per_pair,
-                            cluster_pairs,
+                            definitive_inliers_per_pair,
+                            definitive_cluster_pairs,
                             matched_query_kp_l,
                             matched_cand_kp_l);
 
@@ -578,21 +578,31 @@ namespace slam
     // Read candidate keyframes
     vector<int> idx_img_candidate_kfs;
     cv::Mat img_candidate_kfs;
+    string num_candidate_kfs;
     int baseline = 0;
-    for (uint i=0; i<cand_kfs.size(); i++)
+    stringstream s;
+    uint i;
+    for (i=0; i<cand_kfs.size(); i++)
     {
       string frame_id_str = Tools::convertTo5digits(cand_kfs[i]);
       string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
       cv::Mat kf = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
 
       // Add the keyframe identifier
-      stringstream s;
-      s << " Keyframe " << cand_kfs[i];
+      s.str("");
+      s << "Keyframe " << cand_kfs[i];
       cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1, 1, &baseline);
       cv::Mat im_text = cv::Mat(kf.rows + text_size.height + 10, kf.cols, kf.type());
       kf.copyTo(im_text.rowRange(0, kf.rows).colRange(0, kf.cols));
       im_text.rowRange(kf.rows, im_text.rows).setTo(cv::Scalar(255,255,255));
       cv::putText(im_text, s.str(), cv::Point(5, im_text.rows - 5), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,0), 1, 8);
+
+      if (i == 0)
+          num_candidate_kfs = std::to_string(cand_kfs[i]);
+      else if ((i + 1) == cand_kfs.size())
+          num_candidate_kfs += " and " + std::to_string(cand_kfs[i]);
+      else
+          num_candidate_kfs += ", " + std::to_string(cand_kfs[i]);
 
       if (img_candidate_kfs.cols == 0)
         im_text.copyTo(img_candidate_kfs);
@@ -608,17 +618,30 @@ namespace slam
     string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
     cv::Mat current_kf_tmp = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
 
-    // Add the keyframe identifier
-    stringstream s;
-    s << " Keyframe " << c_cluster_.getFrameId() << " has " << inliers.size() << " inliers.";
+    int definitive_inliers = 0;
+    for (i=0; i<definitive_inliers_per_pair.size(); i++)
+      definitive_inliers += definitive_inliers_per_pair[i];
+
+    // Add the keyframe text
+    s.str("");
+    s << "Keyframe " << c_cluster_.getFrameId() << " has a total of " << inliers.size() << " inliers with";
     cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1, 1, &baseline);
-    cv::Mat current_kf_text = cv::Mat(current_kf_tmp.rows + text_size.height + 10, current_kf_tmp.cols, current_kf_tmp.type());
-    current_kf_tmp.copyTo(current_kf_text.rowRange(text_size.height + 10, current_kf_tmp.rows + text_size.height + 10).colRange(0, current_kf_tmp.cols));
-    current_kf_text.rowRange(0, text_size.height + 10).setTo(cv::Scalar(255,255,255));
+    cv::Mat current_kf_text = cv::Mat(current_kf_tmp.rows + text_size.height * 3 + 10 * 3, current_kf_tmp.cols, current_kf_tmp.type());
+    current_kf_tmp.copyTo(current_kf_text.rowRange(text_size.height * 3 + 10 * 3, current_kf_tmp.rows + text_size.height * 3 + 10 * 3).colRange(0, current_kf_tmp.cols));
+    current_kf_text.rowRange(0, text_size.height * 3 + 10 * 3).setTo(cv::Scalar(255,255,255));
     cv::putText(current_kf_text, s.str(), cv::Point(5, 14), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,0), 1, 8);
+    s.str("");
+    if (cand_kfs.size() == 1)
+      s << "keyframe: " << num_candidate_kfs << ". " << definitive_inliers << " of them ";
+    else
+      s << "keyframes: " << num_candidate_kfs << ". " << definitive_inliers << " of them "; 
+    cv::putText(current_kf_text, s.str(), cv::Point(5, 24 + text_size.height), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,0), 1, 8);
+    s.str("");
+    s << "are used to generate new and robust edges." ;
+    cv::putText(current_kf_text, s.str(), cv::Point(5, 44 + text_size.height), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,0), 1, 8);
 
     // Compose current keyframe with candidate keyframes
-    cv::Mat current_kf(img_candidate_kfs.rows, img_candidate_kfs.cols, img_candidate_kfs.type(), cv::Scalar(0, 0, 0));
+    cv::Mat current_kf(current_kf_text.rows, img_candidate_kfs.cols, img_candidate_kfs.type(), cv::Scalar(0, 0, 0));
     int x_offset = round(img_candidate_kfs.cols/2 - current_kf_text.cols/2);
     current_kf_text.copyTo( current_kf( cv::Rect(x_offset, 0, current_kf_text.cols, current_kf_text.rows) ) );
     cv::vconcat(current_kf, img_candidate_kfs, lc_image);
@@ -626,14 +649,14 @@ namespace slam
     // Build the vector of colors
     cv::RNG rng(12345);
     vector<cv::Scalar> colors;
-    for (uint i=0; i<definitive_inliers_per_pair.size(); i++)
+    for (i=0; i<definitive_inliers_per_pair.size(); i++)
     {
       cv::Scalar color = cv::Scalar(rng.uniform(0,255), rng.uniform(0, 255), rng.uniform(0, 255));
       colors.push_back(color);
     }
     
     // Draw the matchings
-    for (uint i=0; i<inliers.size(); i++)
+    for (i=0; i<inliers.size(); i++)
     {
       // Extract the keypoint for the current keyframe
       cv::Point2f current_kp = matched_query_kp_l[inliers[i]];
