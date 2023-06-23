@@ -49,11 +49,13 @@ public:
 
   struct Params
   {
+    string map_frame_id; //!> Frame of the slam output
     string working_directory; //!> Directory where all output files will be stored.
 
     // Default settings
     Params ()
     {
+      map_frame_id = "map";
       working_directory = "";
     }
   };
@@ -160,10 +162,15 @@ public:
    */
   void saveGraph();
 
-  /** \brief Set the transformation between camera and robot odometry frame
+  /** \brief Set the transformation between camera and robot frame 
    * \param the transform
    */
-  inline void setCamera2Odom(const tf::Transform& camera2odom){camera2odom_ = camera2odom;}
+  inline void setCamera2Robot(const tf::Transform& camera2robot){camera2robot_ = camera2robot;}
+
+  /** \brief Set the odom frame
+   * \param the odom frame id
+   */
+  inline void setOdomFrame(const string& odom_frame_id){odom_frame_id_ = odom_frame_id;}
 
   /** \brief Set camera matrix
    * \param camera matrix
@@ -261,7 +268,9 @@ private:
 
   mutex mutex_frame_queue_; //!> Mutex for the insertion of new frames into the graph
 
-  tf::Transform camera2odom_; //!> Transformation between camera and robot odometry frame
+  tf::Transform camera2robot_; //!> Transformation between camera and robot frame
+
+  string odom_frame_id_; //!> Odom frame 
 
   LoopClosing* loop_closing_; //!> Loop closing
 
@@ -272,10 +281,10 @@ private:
   ros::Publisher pub_graph_; //!> Graph publisher
 
   ros::Publisher pub_time_graph_; //!> Time graph thread publisher
+
+  ros::Publisher pub_robot_pose_; //!> Updated robot pose publisher
   
   ros::Publisher pub_camera_pose_; //!> Updated camera pose publisher
-
-  ros::Publisher pub_baselink_pose_; //!> Updated base link pose publisher
 
   ros::Publisher pub_num_keyframes_; //!> Publishes the number of keyframes
 
