@@ -233,7 +233,7 @@ protected:
   /** \brief Publishes the graph camera pose
    * \param Camera pose
    */
-  void publishCameraPose(tf::Transform camera_pose);
+  void publishUpdatedPose(tf::Transform camera_pose);
 
   /** \brief Publishes all the graph
    */
@@ -269,11 +269,13 @@ private:
 
   image_geometry::PinholeCameraModel camera_model_; //!> Pinhole left camera model
 
-  ros::Publisher pub_pose_; //!> Camera pose publisher
-
   ros::Publisher pub_graph_; //!> Graph publisher
 
   ros::Publisher pub_time_graph_; //!> Time graph thread publisher
+  
+  ros::Publisher pub_camera_pose_; //!> Updated camera pose publisher
+
+  ros::Publisher pub_baselink_pose_; //!> Updated base link pose publisher
 
   ros::Publisher pub_num_keyframes_; //!> Publishes the number of keyframes
 
