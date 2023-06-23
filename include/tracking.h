@@ -110,13 +110,13 @@ protected:
                     const sensor_msgs::CameraInfoConstPtr& l_info_msg,
                     const sensor_msgs::CameraInfoConstPtr& r_info_msg);
 
-  /** \brief Get the transform between odometry frame and camera frame
+  /** \brief Get the transform between robot frame (base link) and camera frame
    * @return true if valid transform, false otherwise
    * \param Odometry msg
    * \param Image msg
    * \param Output transform
    */
-  bool getOdom2CameraTf(nav_msgs::Odometry odom_msg,
+  bool getRobot2CameraTf(nav_msgs::Odometry odom_msg,
                         sensor_msgs::Image img_msg,
                         tf::StampedTransform &transform);
 
@@ -129,19 +129,6 @@ protected:
    * @return True if new keyframe will be inserted into the map
    */
   bool addFrameToMap();
-
-
-  /** \brief Filters a pointcloud
-   * @return filtered cloud
-   * \param input cloud
-   */
-
-  /** \brief Publishes the overlapping debug image
-   * @return
-   * \param current pointcloud
-   * \param the transformation of current pointcloud to the last fixed frame
-   * \param the overlap
-   */
 
   /** \brief Refine the keyframe to keyframe position using SolvePnP
    * @return True if a valid transform was found
@@ -159,7 +146,7 @@ private:
 
   trackingState state_; //!> Tracking state
 
-  tf::StampedTransform odom2camera_; //!> Transformation between robot odometry frame and camera frame.
+  tf::StampedTransform robot2camera_; //!> Transformation between robot frame (base link) and camera frame.
 
   tf::TransformListener tf_listener_; //!> Listen for tf between robot and camera.
 
@@ -176,8 +163,6 @@ private:
   ros::Publisher pub_time_tracking_; //!> Time tracking thread publisher
 
   ros::Publisher pub_overlapping_; //!> Consecutive image overlapping publisher
-
-  tf::TransformBroadcaster tf_broadcaster_; //!> Publish transform
 
   image_geometry::StereoCameraModel camera_model_; //!> Stereo camera model
 

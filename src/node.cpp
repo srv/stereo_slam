@@ -22,6 +22,7 @@ void readParams(slam::Tracking::Params &tracking_params, slam::Graph::Params &gr
   nhp.param("feature_detector_selection", tracking_params.feature_detector_selection, string("ORB"));
   nhp.param("lc_min_inliers",             tracking_params.lc_min_inliers,             30);
   nhp.param("lc_epipolar_thresh",         tracking_params.lc_epipolar_thresh,         1.0);
+  nhp.param("map_frame_name",             graph_params.map_frame_id,                  string("/robot_0/map"));
   nhp.param("lc_neighbors",               loop_closing_params.lc_neighbors,           5); 
   nhp.param("lc_discard_window",          loop_closing_params.lc_discard_window,      20); 
   nhp.param("ransac_iterations",          loop_closing_params.ransac_iterations,      150);
@@ -38,6 +39,7 @@ void readParams(slam::Tracking::Params &tracking_params, slam::Graph::Params &gr
                   "LOOP CLOSING WORKING DIRECTORY = " << loop_closing_params.working_directory << std::endl <<
                   "FEATURE DETECTOR               = " << tracking_params.feature_detector_selection << std::endl <<
                   "DISTANCE BETWEEN KEYFRAMES     = " << tracking_params.dist_keyframes << std::endl <<
+                  "MAP FRAME NAME                 = " << graph_params.map_frame_id << std::endl <<
                   "LC MIN INLIERS                 = " << loop_closing_params.lc_min_inliers << std::endl <<
                   "LC EPIPOLAR THRESHOLD          = " << loop_closing_params.lc_epipolar_thresh << std::endl <<
                   "LC NEIGHBORS                   = " << loop_closing_params.lc_neighbors << std::endl <<

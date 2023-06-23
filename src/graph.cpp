@@ -28,9 +28,10 @@ namespace slam
 
     // Advertise topics
     ros::NodeHandle nhp("~");
-    pub_pose_ = nhp.advertise<nav_msgs::Odometry>("graph_camera_odometry", 1);
     pub_graph_ = nhp.advertise<stereo_slam::GraphPoses>("graph_poses", 2);
     pub_time_graph_ = nhp.advertise<stereo_slam::TimeGraph>("time_graph", 1);
+    pub_robot_pose_ = nhp.advertise<nav_msgs::Odometry>("graph_robot_odometry", 1);
+    pub_camera_pose_ = nhp.advertise<nav_msgs::Odometry>("graph_camera_odometry", 1);
     pub_num_keyframes_ = nhp.advertise<std_msgs::Int32>("keyframes", 1);
   }
 
@@ -236,7 +237,7 @@ namespace slam
       last_idx = graph_optimizer_.vertices().size() - 1;
     }
     tf::Transform updated_camera_pose = getVertexCameraPose(last_idx, true);
-    publishCameraPose(updated_camera_pose);
+    publishUpdatedPose(updated_camera_pose);
   }
 
   tf::Transform Graph::correctClusterPose(tf::Transform initial_pose)
@@ -597,7 +598,7 @@ namespace slam
       if (found) continue;
       processed_frames.push_back(id);
 
-      tf::Transform pose = getVertexCameraPose(i, false)*camera2odom_;
+      tf::Transform pose = getVertexCameraPose(i, false) * camera2robot_;
       f_vertices << fixed <<
         setprecision(9) <<
         frame_stamps_[id] << "," <<
@@ -629,8 +630,8 @@ namespace slam
         if (abs(frame_a - frame_b) > 1 )
         {
 
-          tf::Transform pose_0 = getVertexCameraPose(e->vertices()[0]->id(), false)*camera2odom_;
-          tf::Transform pose_1 = getVertexCameraPose(e->vertices()[1]->id(), false)*camera2odom_;
+          tf::Transform pose_0 = getVertexCameraPose(e->vertices()[0]->id(), false) * camera2robot_;
+          tf::Transform pose_1 = getVertexCameraPose(e->vertices()[1]->id(), false) * camera2robot_;
 
           // Extract the inliers
           int inliers = 0;
@@ -677,14 +678,25 @@ namespace slam
       ROS_ERROR("[Localization:] Error deleting the locking file.");
   }
 
-  void Graph::publishCameraPose(tf::Transform camera_pose)
+  void Graph::publishUpdatedPose(tf::Transform camera_pose)
   {
-    if (pub_pose_.getNumSubscribers() > 0)
+    // Transform pose from camera to robot frame
+    tf::Transform robot_pose = camera_pose * camera2robot_;
+
+    // Publish poses
+    nav_msgs::Odometry pose_msg;
+    pose_msg.header.stamp = ros::Time::now();
+    if (pub_camera_pose_.getNumSubscribers() > 0)
     {
-      nav_msgs::Odometry pose_msg;
-      pose_msg.header.stamp = ros::Time::now();
       tf::poseTFToMsg(camera_pose, pose_msg.pose.pose);
-      pub_pose_.publish(pose_msg);
+      pub_camera_pose_.publish(pose_msg);
+    }
+    if (pub_robot_pose_.getNumSubscribers() > 0)
+    {
+      pose_msg.header.frame_id = params_.map_frame_id;
+      pose_msg.child_frame_id = odom_frame_id_;
+      tf::poseTFToMsg(robot_pose, pose_msg.pose.pose);
+      pub_robot_pose_.publish(pose_msg);
     }
   }
 

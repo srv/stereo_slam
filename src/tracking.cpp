@@ -22,7 +22,7 @@ namespace slam
 
     pub_pose_ = nhp.advertise<nav_msgs::Odometry>("odometry", 1);
     pub_time_tracking_ = nhp.advertise<stereo_slam::TimeTracking>("time_tracking", 1);
-    pub_overlapping_ = nhp.advertise<sensor_msgs::Image>("tracking_overlap", 1, true);
+    // pub_overlapping_ = nhp.advertise<sensor_msgs::Image>("tracking_overlap", 1, true);
 
     // Create directory to store the keyframes
     string keyframes_dir = params_.working_directory + "keyframes";
@@ -77,7 +77,7 @@ namespace slam
     if (state_ == NOT_INITIALIZED)
     {
       // Transformation between odometry and camera
-      if (!getOdom2CameraTf(*odom_msg, *l_img_msg, odom2camera_))
+      if (!getRobot2CameraTf(*odom_msg, *l_img_msg, robot2camera_))
       {
         ROS_WARN("[Localization:] Impossible to transform odometry to camera frame.");
         return;
@@ -87,9 +87,10 @@ namespace slam
       Tools::getCameraModel(*l_info_msg, *r_info_msg, camera_model_, camera_matrix_);
 
       // Set graph properties
-      graph_->setCamera2Odom(odom2camera_.inverse());
       graph_->setCameraMatrix(camera_matrix_);
       graph_->setCameraModel(camera_model_.left());
+      graph_->setOdomFrame(odom_msg->header.frame_id);
+      graph_->setCamera2Robot(robot2camera_.inverse());
 
       // The initial frame
       c_frame_ = Frame(l_img, r_img, camera_model_, timestamp, params_.feature_detector_selection);
@@ -103,7 +104,7 @@ namespace slam
       prev_robot_pose_ = c_odom_robot;
 
       // For the first frame, its estimated pose will coincide with odometry
-      tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
+      tf::Transform c_odom_camera = c_odom_robot * robot2camera_;
       c_frame_.setCameraPose(c_odom_camera);
 
       // Publish stereo matches
@@ -138,7 +139,7 @@ namespace slam
       if (!graph_ready) return;
 
       // Previous/current frame odometry difference
-      tf::Transform c_camera_odom_pose = c_odom_robot * odom2camera_;
+      tf::Transform c_camera_odom_pose = c_odom_robot * robot2camera_;
       tf::Transform odom_diff = odom_pose_history_[odom_pose_history_.size()-1].inverse() * c_camera_odom_pose;
 
       // Refine its position relative to the previous frame
@@ -182,14 +183,14 @@ namespace slam
       if (is_new_keyframe)
       {
         // Store the camera odometry for this keyframe
-        tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
+        tf::Transform c_odom_camera = c_odom_robot * robot2camera_;
         odom_pose_history_.push_back(c_odom_camera);
       }
       time_tracking_msg_.need_new_keyframe = ros::Time::now().toSec() - t4;
     }
 
     // Convert camera to robot pose
-    tf::Transform robot_pose = c_frame_.getCameraPose() * odom2camera_.inverse();
+    tf::Transform robot_pose = c_frame_.getCameraPose() * robot2camera_.inverse();
 
     // Detect a big jump
     double jump = Tools::poseDiff3D(robot_pose, prev_robot_pose_);
@@ -230,7 +231,6 @@ namespace slam
     nav_msgs::Odometry pose_msg = *odom_msg;
     tf::poseTFToMsg(pose, pose_msg.pose.pose);
     pub_pose_.publish(pose_msg);
-    tf_broadcaster_.sendTransform(tf::StampedTransform(pose, odom_msg->header.stamp, "map", odom_msg->child_frame_id));
 
     // Store
     prev_robot_pose_ = pose;
@@ -244,9 +244,9 @@ namespace slam
 
   }
 
-  bool Tracking::getOdom2CameraTf(nav_msgs::Odometry odom_msg,
-      sensor_msgs::Image img_msg,
-      tf::StampedTransform &transform)
+  bool Tracking::getRobot2CameraTf(nav_msgs::Odometry odom_msg,
+                                  sensor_msgs::Image img_msg,
+                                  tf::StampedTransform &transform)
   {
     // Init the transform
     transform.setIdentity();
