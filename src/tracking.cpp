@@ -20,7 +20,6 @@ namespace slam
 
     pub_pose_ = nhp.advertise<nav_msgs::Odometry>("odometry", 1);
     pub_time_tracking_ = nhp.advertise<stereo_slam::TimeTracking>("time_tracking", 1);
-    // pub_overlapping_ = nhp.advertise<sensor_msgs::Image>("tracking_overlap", 1, true);
 
     // Create directory to store the keyframes
     std::string keyframes_dir = params_.working_directory + "keyframes";

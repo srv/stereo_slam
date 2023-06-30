@@ -44,7 +44,7 @@ public:
     bool refine;                             //!> Refine odometry.
     int lc_min_inliers;                      //!> Minimum number of inliers to close a loop.
     double lc_epipolar_thresh;               //!> Maximum reprojection error allowed.
-    double dist_keyframes;                   //!> Distance between keyframes.
+    double dist_keyframes;                   //!> Minimum distance between keyframes.
     std::string working_directory;           //!> Directory where all output files will be stored.
     std::string feature_detector_selection;  //!> Name of the feature detector to be used.
 

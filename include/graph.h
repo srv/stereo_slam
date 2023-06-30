@@ -45,7 +45,7 @@ public:
 
   struct Params
   {
-    std::string map_frame_id; //!> Frame of the slam output
+    std::string map_frame_id;      //!> Frame of the slam output
     std::string working_directory; //!> Directory where all output files will be stored.
 
     // Default settings
