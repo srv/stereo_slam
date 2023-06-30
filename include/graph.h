@@ -24,18 +24,14 @@
 #include <g2o/solvers/cholmod/linear_solver_cholmod.h>
 #include <g2o/core/optimization_algorithm_levenberg.h>
 
-#include <boost/thread.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/thread/mutex.hpp>
 #include <boost/lexical_cast.hpp>
 
 #include "frame.h"
 #include "loop_closing.h"
 #include "stereo_slam/GraphPoses.h"
 #include "stereo_slam/TimeGraph.h"
-
-using namespace std;
-using namespace boost;
-namespace fs  = boost::filesystem;
 
 namespace slam
 {
@@ -49,8 +45,8 @@ public:
 
   struct Params
   {
-    string map_frame_id; //!> Frame of the slam output
-    string working_directory; //!> Directory where all output files will be stored.
+    std::string map_frame_id;      //!> Frame of the slam output
+    std::string working_directory; //!> Directory where all output files will be stored.
 
     // Default settings
     Params ()
@@ -112,13 +108,13 @@ public:
    * \param Number of neighbors to be retrieved.
    * \param Will contain the list of best neighbors by distance.
    */
-  void findClosestVertices(int vertex_id, int window_center, int window, int best_n, vector<int> &neighbors);
+  void findClosestVertices(int vertex_id, int window_center, int window, int best_n, std::vector<int> &neighbors);
 
   /** \brief Retrieve the list of the vertices of a corresponding frame
    * \param The frame id
    * \param Will contain the list of vertices for this frame.
    */
-  void getFrameVertices(int frame_id, vector<int> &vertices);
+  void getFrameVertices(int frame_id, std::vector<int> &vertices);
 
   /** \brief Get the frame id of some specific vertex
    * @return the frame id
@@ -170,7 +166,7 @@ public:
   /** \brief Set the odom frame
    * \param the odom frame id
    */
-  inline void setOdomFrame(const string& odom_frame_id){odom_frame_id_ = odom_frame_id;}
+  inline void setOdomFrame(const std::string& odom_frame_id){odom_frame_id_ = odom_frame_id;}
 
   /** \brief Set camera matrix
    * \param camera matrix
@@ -215,7 +211,7 @@ protected:
    * @return the list of combinations
    * \param Input vector with all values
    */
-  vector< vector<int> > createComb(vector<int> cluster_ids);
+  std::vector< std::vector<int> > createComb(std::vector<int> cluster_ids);
 
   /** \brief Check if there are frames in the queue to be inserted into the graph
    * @return true if frames queue is not empty.
@@ -252,25 +248,25 @@ private:
 
   g2o::SparseOptimizer graph_optimizer_; //!> G2O graph optimizer
 
-  list<Frame> frame_queue_; //!> Frames queue to be inserted into the graph
+  std::list<Frame> frame_queue_; //!> Frames queue to be inserted into the graph
 
   int frame_id_; //!> Processed frames counter
 
-  vector< pair< int,int > > cluster_frame_relation_; //!> Stores the cluster/frame relation (cluster_id, frame_id)
+  std::vector< std::pair< int,int > > cluster_frame_relation_; //!> Stores the cluster/frame relation (cluster_id, frame_id)
 
-  vector<tf::Transform> local_cluster_poses_; //!> Stores the cluster poses relative to camera frame
+  std::vector<tf::Transform> local_cluster_poses_; //!> Stores the cluster poses relative to camera frame
 
-  vector<tf::Transform> initial_cluster_pose_history_; //!> Stores the initial cluster poses, before graph update.
+  std::vector<tf::Transform> initial_cluster_pose_history_; //!> Stores the initial cluster poses, before graph update.
 
-  vector<double> frame_stamps_; //> Stores the frame timestamps
+  std::vector<double> frame_stamps_; //> Stores the frame timestamps
 
-  mutex mutex_graph_; //!> Mutex for the graph manipulation
+  boost::mutex mutex_graph_; //!> Mutex for the graph manipulation
 
-  mutex mutex_frame_queue_; //!> Mutex for the insertion of new frames into the graph
+  boost::mutex mutex_frame_queue_; //!> Mutex for the insertion of new frames into the graph
 
   tf::Transform camera2robot_; //!> Transformation between camera and robot frame
 
-  string odom_frame_id_; //!> Odom frame 
+  std::string odom_frame_id_; //!> Odom frame 
 
   LoopClosing* loop_closing_; //!> Loop closing
 
@@ -290,7 +286,7 @@ private:
 
   stereo_slam::TimeGraph time_graph_msg_; //! Message to publish time metrics 
 
-  vector<Edge> edges_information_; // Edges information
+  std::vector<Edge> edges_information_; // Edges information
 };
 
 } // namespace
