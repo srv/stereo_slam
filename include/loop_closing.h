@@ -12,21 +12,15 @@
 #include <std_msgs/Int32.h>
 #include <image_geometry/pinhole_camera_model.h>
 
-#include <boost/thread.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/thread/thread.hpp>
 
 #include "hash.h"
-#include "constants.h"
 #include "cluster.h"
 #include "graph.h"
 #include "stereo_slam/TimeLoopClosing.h"
 #include "stereo_slam/SubTimeLoopClosing.h"
-
-
-using namespace std;
-using namespace boost;
-namespace fs  = filesystem;
 
 namespace slam
 {
@@ -45,7 +39,7 @@ public:
     int lc_discard_window;     //!> Window size of discarded vertices.
     double lc_epipolar_thresh; //!> Maximum reprojection error allowed.
     int ransac_iterations;     //!> Number of RANSAC iterations for the solvePnPRansac
-    string working_directory;  //!> Directory where all output files will be stored.
+    std::string working_directory;  //!> Directory where all output files will be stored.
 
     // Default settings
     Params ()
@@ -118,7 +112,7 @@ protected:
    * \param Candidate cluster
    * \param Type of search (proximity or hash)
    */
-  bool closeLoopWithCluster(Cluster candidate, string search_method);
+  bool closeLoopWithCluster(Cluster candidate, std::string search_method);
 
   void publishSubTimeloopClosing();
 
@@ -126,7 +120,7 @@ protected:
    * \param Cluster identifier
    * \param The list of best candidates
    */
-  void getCandidates(int cluster_id, vector< pair<int,float> >& candidates);
+  void getCandidates(int cluster_id, std::vector< std::pair<int,float> >& candidates);
 
   /** \brief Read cluster data from file
    * @return The cluster
@@ -143,13 +137,13 @@ protected:
    * \param All matched keypoints of the current keyframe
    * \param All matched keypoints of the candidate keyframes
    */
-  void drawLoopClosure(vector<int> cand_kfs,
-                       vector<int> cand_matchings,
-                       vector<int> inliers,
-                       vector<int> definitive_inliers_per_pair,
-                       vector< vector<int> > definitive_cluster_pairs,
-                       vector<cv::Point2f> matched_query_kp_l,
-                       vector<cv::Point2f> matched_cand_kp_l);
+  void drawLoopClosure(std::vector<int> cand_kfs,
+                       std::vector<int> cand_matchings,
+                       std::vector<int> inliers,
+                       std::vector<int> definitive_inliers_per_pair,
+                       std::vector< std::vector<int> > definitive_cluster_pairs,
+                       std::vector<cv::Point2f> matched_query_kp_l,
+                       std::vector<cv::Point2f> matched_cand_kp_l);
 
 private:
 
@@ -159,21 +153,21 @@ private:
 
   Cluster c_cluster_; //!> Current cluster to be processed
 
-  list<Cluster> cluster_queue_; //!> Clusters queue to be inserted into the graph
+  std::list<Cluster> cluster_queue_; //!> Clusters queue to be inserted into the graph
 
-  mutex mutex_cluster_queue_; //!> Mutex for the insertion of new clusters
+  boost::mutex mutex_cluster_queue_; //!> Mutex for the insertion of new clusters
 
   haloc::Hash hash_; //!> Hash object
 
-  vector< pair<int, vector<float> > > hash_table_;  //!> Hash table: stores a hash for every image. This is the unique variable that grows with the robot trajectory
+  std::vector< std::pair<int, std::vector<float> > > hash_table_;  //!> Hash table: stores a hash for every image. This is the unique variable that grows with the robot trajectory
 
-  vector< pair<int, int > > cluster_lc_found_; //!> Stores all the loop closures (between clusters) found in order to do not repeat them
+  std::vector< std::pair<int, int > > cluster_lc_found_; //!> Stores all the loop closures (between clusters) found in order to do not repeat them
 
   int num_loop_closures_; //!> Stores the number of loop closures
 
-  string execution_dir_; //!> Execution directory where all image information will be stored
+  std::string execution_dir_; //!> Execution directory where all image information will be stored
 
-  string loop_closures_dir_; //!> Directory where images of loop closures will be stored
+  std::string loop_closures_dir_; //!> Directory where images of loop closures will be stored
 
   Graph* graph_; //!> Graph pointer
 

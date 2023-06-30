@@ -36,7 +36,7 @@ void haloc::Hash::setParams(const Params& params)
 }
 
 // Class initialization
-void haloc::Hash::init(Mat desc)
+void haloc::Hash::init(cv::Mat desc)
 {
   // Create the random projections vectors
   initProjections(desc.rows);
@@ -52,10 +52,10 @@ void haloc::Hash::init(Mat desc)
   * @return hash vector
   * \param cvMat containing the descriptors of the image
   */
-vector<float> haloc::Hash::getHash(Mat desc)
+std::vector<float> haloc::Hash::getHash(cv::Mat desc)
 {
   // Initialize the histogram with 0's
-  vector<float> hash(h_size_, 0.0);
+  std::vector<float> hash(h_size_, 0.0);
 
   // Sanity check
   if (desc.rows == 0) return hash;
@@ -95,7 +95,7 @@ void haloc::Hash::initProjections(int desc_size)
 
   // We will generate N-orthogonal vectors creating a linear system of type Ax=b.
   // Generate a first random vector
-  vector<float> r = compute_random_vector(seed, v_size);
+  std::vector<float> r = compute_random_vector(seed, v_size);
   r_.push_back(unit_vector(r));
 
   std::cout << "params_.num_proj: " <<  params_.num_proj << std::endl;
@@ -104,13 +104,13 @@ void haloc::Hash::initProjections(int desc_size)
   for (uint i=1; i<params_.num_proj; i++)
   {
     // Generate a random vector of the correct size
-    vector<float> new_v = compute_random_vector(seed + i, v_size - i);
+    std::vector<float> new_v = compute_random_vector(seed + i, v_size - i);
 
     // Get the right terms (b)
-    VectorXf b(r_.size());
+    Eigen::VectorXf b(r_.size());
     for (uint n=0; n<r_.size(); n++)
     {
-      vector<float> cur_v = r_[n];
+      std::vector<float> cur_v = r_[n];
       float sum = 0.0;
       for (uint m=0; m<new_v.size(); m++)
       {
@@ -120,7 +120,7 @@ void haloc::Hash::initProjections(int desc_size)
     }
 
     // Get the matrix of equations (A)
-    MatrixXf A(i, i);
+    Eigen::MatrixXf A(i, i);
     for (uint n=0; n<r_.size(); n++)
     {
       uint k=0;
@@ -132,7 +132,7 @@ void haloc::Hash::initProjections(int desc_size)
     }
 
     // Apply the solver
-    VectorXf x = A.colPivHouseholderQr().solve(b);
+    Eigen::VectorXf x = A.colPivHouseholderQr().solve(b);
 
     // Add the solutions to the new vector
     for (uint n=0; n<r_.size(); n++)
@@ -149,10 +149,10 @@ void haloc::Hash::initProjections(int desc_size)
   * \param seed to generate the random values
   * \param desired size
   */
-vector<float> haloc::Hash::compute_random_vector(uint seed, int size)
+std::vector<float> haloc::Hash::compute_random_vector(uint seed, int size)
 {
   srand(seed);
-  vector<float> h;
+  std::vector<float> h;
   for (int i=0; i<size; i++)
     h.push_back( (float)rand()/RAND_MAX );
   return h;
@@ -162,7 +162,7 @@ vector<float> haloc::Hash::compute_random_vector(uint seed, int size)
   * @return the "unitized" vector
   * \param the "non-unitized" vector
   */
-vector<float> haloc::Hash::unit_vector(vector<float> x)
+std::vector<float> haloc::Hash::unit_vector(std::vector<float> x)
 {
   // Compute the norm
   float sum = 0.0;
@@ -182,7 +182,7 @@ vector<float> haloc::Hash::unit_vector(vector<float> x)
   * \param hash 1
   * \param hash 2
   */
-float haloc::Hash::match(vector<float> hash_1, vector<float> hash_2)
+float haloc::Hash::match(std::vector<float> hash_1, std::vector<float> hash_2)
 {
   // Compute the distance
   float sum = 0.0;

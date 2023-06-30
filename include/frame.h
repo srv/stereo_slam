@@ -18,13 +18,10 @@
 
 #include <pcl/point_types.h>
 
-using namespace std;
-using namespace pcl;
-
-typedef PointXYZ                     PointXYZ;
-typedef PointXYZRGB                  PointRGB;
-typedef PointCloud<PointXYZ>         PointCloudXYZ;
-typedef PointCloud<PointRGB>         PointCloudRGB;
+typedef pcl::PointXYZ                     PointXYZ;
+typedef pcl::PointXYZRGB                  PointRGB;
+typedef pcl::PointCloud<PointXYZ>         PointCloudXYZ;
+typedef pcl::PointCloud<PointRGB>         PointCloudRGB;
 
 namespace slam
 {
@@ -40,7 +37,7 @@ public:
 
   /** \brief Class constructor
    */
-  Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp, string feature_detector);
+  Frame(cv::Mat l_img, cv::Mat r_img, image_geometry::StereoCameraModel camera_model, double timestamp, std::string feature_detector);
 
   /** \brief Get left image
    */
@@ -52,24 +49,24 @@ public:
 
   /** \brief Get left keypoints
    */
-  inline vector<cv::KeyPoint> getLeftKp() const {return l_kp_;}
+  inline std::vector<cv::KeyPoint> getLeftKp() const {return l_kp_;}
 
   /** \brief Set left keypoints
    * \param vector of keypoints
    */
-  inline void setLeftKp(const vector<cv::KeyPoint>& l_kp){l_kp_ = l_kp;}
+  inline void setLeftKp(const std::vector<cv::KeyPoint>& l_kp){l_kp_ = l_kp;}
 
   /** \brief Get right keypoints
    */
-  inline vector<cv::KeyPoint> getRightKp() const {return r_kp_;}
+  inline std::vector<cv::KeyPoint> getRightKp() const {return r_kp_;}
 
   /** \brief Get left non-filtered keypoints
    */
-  inline vector<cv::KeyPoint> getNonFilteredLeftKp() const {return l_nonfiltered_kp_;}
+  inline std::vector<cv::KeyPoint> getNonFilteredLeftKp() const {return l_nonfiltered_kp_;}
 
   /** \brief Get right non-filtered keypoints
    */
-  inline vector<cv::KeyPoint> getNonFilteredRightKp() const {return r_nonfiltered_kp_;}
+  inline std::vector<cv::KeyPoint> getNonFilteredRightKp() const {return r_nonfiltered_kp_;}
 
   /** \brief Get left descriptors
    */
@@ -82,11 +79,11 @@ public:
 
   /** \brief Get stereo matches
    */
-  inline vector<cv::DMatch> getMatches() const {return matches_filtered_;}
+  inline std::vector<cv::DMatch> getMatches() const {return matches_filtered_;}
 
   /** \brief Get 3D in camera frame
    */
-  inline vector<cv::Point3f> getCameraPoints() const {return camera_points_;}
+  inline std::vector<cv::Point3f> getCameraPoints() const {return camera_points_;}
 
   /** \brief Set frame id
    * \param vector of 3D points
@@ -96,7 +93,7 @@ public:
   /** \brief Set 3D
    * \param vector of 3D points
    */
-  inline void setCameraPoints(const vector<cv::Point3f>& points_3d){camera_points_ = points_3d;}
+  inline void setCameraPoints(const std::vector<cv::Point3f>& points_3d){camera_points_ = points_3d;}
 
   /** \brief Set camera pose
    * \param camera pose
@@ -128,11 +125,11 @@ public:
 
   /** \brief Return the clustering for the current frame
    */
-  inline vector< vector<int> > getClusters() const {return clusters_;}
+  inline std::vector< std::vector<int> > getClusters() const {return clusters_;}
 
   /** \brief Return the clustering for the current frame
    */
-  inline vector<Eigen::Vector4f> getClusterCentroids() const {return cluster_centroids_;}
+  inline std::vector<Eigen::Vector4f> getClusterCentroids() const {return cluster_centroids_;}
 
   /** \brief Get frame timestamp
    */
@@ -179,7 +176,7 @@ protected:
    * \param query keypoint
    * \param maximum distance to considerate a keypoint into the region
    */
-  vector<int> regionQuery(vector<cv::KeyPoint> *keypoints, cv::KeyPoint *keypoint, float eps);
+  std::vector<int> regionQuery(std::vector<cv::KeyPoint> *keypoints, cv::KeyPoint *keypoint, float eps);
 
 private:
 
@@ -188,24 +185,24 @@ private:
   cv::Mat l_img_; //!> Left image
   cv::Mat r_img_; //!> Right image
 
-  string feature_detector_;
+  std::string feature_detector_;
 
-  vector<cv::KeyPoint> l_kp_; //!> Left keypoints.
-  vector<cv::KeyPoint> r_kp_; //!> Right keypoints.
-                              //!
-  vector<cv::KeyPoint> l_nonfiltered_kp_; //!> Left non-filtered keypoints.
-  vector<cv::KeyPoint> r_nonfiltered_kp_; //!> Right non-filtered keypoints.
+  std::vector<cv::KeyPoint> l_kp_; //!> Left keypoints.
+  std::vector<cv::KeyPoint> r_kp_; //!> Right keypoints.
+  
+  std::vector<cv::KeyPoint> l_nonfiltered_kp_; //!> Left non-filtered keypoints.
+  std::vector<cv::KeyPoint> r_nonfiltered_kp_; //!> Right non-filtered keypoints.
 
   cv::Mat l_desc_; //!> Left descriptors.
   cv::Mat r_desc_; //!> Right descriptors.
 
-  vector<cv::DMatch> matches_filtered_; //!> Filtered stereo matches
+  std::vector<cv::DMatch> matches_filtered_; //!> Filtered stereo matches
 
-  vector<cv::Point3f> camera_points_; //!> Stereo 3D points in camera frame
+  std::vector<cv::Point3f> camera_points_; //!> Stereo 3D points in camera frame
 
-  vector< vector<int> > clusters_; //!> Keypoints clustering
+  std::vector< std::vector<int> > clusters_; //!> Keypoints clustering
 
-  vector<Eigen::Vector4f> cluster_centroids_; //!> Central point for every cluster
+  std::vector<Eigen::Vector4f> cluster_centroids_; //!> Central point for every cluster
 
   tf::Transform camera_pose_; //!> Camera world position for this frame
 

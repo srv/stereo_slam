@@ -18,9 +18,6 @@
 #include "tracking.h"
 #include "frame.h"
 
-using namespace std;
-using namespace boost;
-
 namespace slam
 {
 

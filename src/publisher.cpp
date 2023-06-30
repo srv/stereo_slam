@@ -29,12 +29,12 @@ namespace slam
 
   void Publisher::drawKeypointsClustering(const Frame frame)
   {
-    vector< vector<int> > clusters = frame.getClusters();
+    std::vector< std::vector<int> > clusters = frame.getClusters();
     if (clusters.size() == 0) return;
 
     cv::Mat img;
     frame.getLeftImg().copyTo(img);
-    vector<cv::KeyPoint> kp = frame.getLeftKp();
+    std::vector<cv::KeyPoint> kp = frame.getLeftKp();
     cv::RNG rng(12345);
     for (uint i=0; i<clusters.size(); i++)
     {
@@ -44,7 +44,7 @@ namespace slam
     }
 
     // Draw text
-    stringstream s;
+    std::stringstream s;
     int baseline = 0;
     s << " Number of clusters: " << clusters.size();
     cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1.5, 1, &baseline);
@@ -66,16 +66,16 @@ namespace slam
     cv::Mat out;
     cv::Mat l_img = frame.getLeftImg();
     cv::Mat r_img = frame.getRightImg();
-    vector<cv::KeyPoint> l_kp = frame.getNonFilteredLeftKp();
-    vector<cv::KeyPoint> r_kp = frame.getNonFilteredRightKp();
-    vector<cv::DMatch> matches = frame.getMatches();
+    std::vector<cv::KeyPoint> l_kp = frame.getNonFilteredLeftKp();
+    std::vector<cv::KeyPoint> r_kp = frame.getNonFilteredRightKp();
+    std::vector<cv::DMatch> matches = frame.getMatches();
 
     if (pub_stereo_matches_img_.getNumSubscribers() > 0)
     {
       cv::drawMatches(l_img, l_kp, r_img, r_kp, matches, out);
 
       // Draw text
-      stringstream s;
+      std::stringstream s;
       int baseline = 0;
       s << " Number of matches: " << matches.size();
       cv::Size text_size = cv::getTextSize(s.str(), cv::FONT_HERSHEY_PLAIN, 1.5, 1, &baseline);
@@ -95,7 +95,7 @@ namespace slam
     if (pub_stereo_matches_num_.getNumSubscribers() > 0)
     {
       std_msgs::Int32 msg;
-      msg.data = lexical_cast<int>(matches.size());
+      msg.data = boost::lexical_cast<int>(matches.size());
       pub_stereo_matches_num_.publish(msg);
     }
 

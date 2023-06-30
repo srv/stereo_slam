@@ -13,11 +13,6 @@
 #include <boost/filesystem.hpp>
 #include <g2o/types/slam3d/vertex_se3.h>
 
-namespace enc = sensor_msgs::image_encodings;
-namespace fs  = boost::filesystem;
-
-using namespace std;
-
 namespace tools
 {
 
@@ -136,8 +131,8 @@ public:
     cv_bridge::CvImagePtr l_img_ptr, r_img_ptr;
     try
     {
-      l_img_ptr = cv_bridge::toCvCopy(l_img_msg, enc::BGR8);
-      r_img_ptr = cv_bridge::toCvCopy(r_img_msg, enc::BGR8);
+      l_img_ptr = cv_bridge::toCvCopy(l_img_msg, sensor_msgs::image_encodings::BGR8);
+      r_img_ptr = cv_bridge::toCvCopy(r_img_msg, sensor_msgs::image_encodings::BGR8);
     }
     catch (cv_bridge::Exception& e)
     {
@@ -223,7 +218,7 @@ public:
     * \param matching 1
     * \param matching 2
     */
-  static bool sortByMatching(const pair<int, float> d1, const pair<int, float> d2)
+  static bool sortByMatching(const std::pair<int, float> d1, const std::pair<int, float> d2)
   {
     return (d1.second < d2.second);
   }
@@ -233,7 +228,7 @@ public:
    * \param pair 1
    * \param pair 2
    */
- static bool sortByDistance(const pair<int, double> d1, const pair<int, double> d2)
+ static bool sortByDistance(const std::pair<int, double> d1, const std::pair<int, double> d2)
  {
    return (d1.second < d2.second);
  }
@@ -275,7 +270,7 @@ public:
     * \param ratio value (0.6/0.9)
     * \param output matching
     */
-  static void ratioMatching(cv::Mat desc_1, cv::Mat desc_2, double ratio, vector<cv::DMatch> &matches)
+  static void ratioMatching(cv::Mat desc_1, cv::Mat desc_2, double ratio, std::vector<cv::DMatch> &matches)
   {
     matches.clear();
     if (desc_1.rows < 10 || desc_2.rows < 10) return;
@@ -290,7 +285,7 @@ public:
       descriptor_matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
     else
       descriptor_matcher = cv::DescriptorMatcher::create("BruteForce");
-    vector<vector<cv::DMatch> > knn_matches;
+    std::vector<std::vector<cv::DMatch> > knn_matches;
     descriptor_matcher->knnMatch(desc_1, desc_2, knn_matches, knn, match_mask);
     for (uint m=0; m<knn_matches.size(); m++)
     {
@@ -309,7 +304,7 @@ public:
     * \param matches output vector with the matches
     */
   static void thresholdMatching(const cv::Mat& descriptors1, const cv::Mat& descriptors2,
-    double threshold, const cv::Mat& match_mask, vector<cv::DMatch>& matches)
+    double threshold, const cv::Mat& match_mask, std::vector<cv::DMatch>& matches)
   {
     matches.clear();
     if (descriptors1.empty() || descriptors2.empty())
@@ -324,7 +319,7 @@ public:
       descriptor_matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
     else
       descriptor_matcher = cv::DescriptorMatcher::create("BruteForce");
-    vector<vector<cv::DMatch> > knn_matches;
+    std::vector<std::vector<cv::DMatch> > knn_matches;
     descriptor_matcher->knnMatch(descriptors1, descriptors2,
             knn_matches, knn, match_mask);
 
@@ -347,9 +342,9 @@ public:
     * \param matches output vector with filtered matches
     */
   static void crossCheckFilter(
-      const vector<cv::DMatch>& matches1to2,
-      const vector<cv::DMatch>& matches2to1,
-      vector<cv::DMatch>& checked_matches)
+      const std::vector<cv::DMatch>& matches1to2,
+      const std::vector<cv::DMatch>& matches2to1,
+      std::vector<cv::DMatch>& checked_matches)
   {
     checked_matches.clear();
     for (size_t i = 0; i < matches1to2.size(); ++i)
@@ -379,13 +374,13 @@ public:
     */
   static void crossCheckThresholdMatching(
     const cv::Mat& descriptors1, const cv::Mat& descriptors2,
-    double threshold, vector<cv::DMatch>& matches)
+    double threshold, std::vector<cv::DMatch>& matches)
   {
     const cv::Mat match_mask;
 
-    vector<cv::DMatch> query_to_train_matches;
+    std::vector<cv::DMatch> query_to_train_matches;
     thresholdMatching(descriptors1, descriptors2, threshold, match_mask, query_to_train_matches);
-    vector<cv::DMatch> train_to_query_matches;
+    std::vector<cv::DMatch> train_to_query_matches;
     cv::Mat match_mask_t;
     if (!match_mask.empty()) match_mask_t = match_mask.t();
     thresholdMatching(descriptors2, descriptors1, threshold, match_mask_t, train_to_query_matches);
@@ -393,10 +388,10 @@ public:
     crossCheckFilter(query_to_train_matches, train_to_query_matches, matches);
   }
 
-  static string convertTo5digits(int in)
+  static std::string convertTo5digits(int in)
   {
     uint val = (uint)in;
-    string output;
+    std::string output;
     int digits = 5;
     while (digits-- > 0) {
         output += ('0' + val % 10);

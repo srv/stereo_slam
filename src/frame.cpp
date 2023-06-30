@@ -1,10 +1,7 @@
 #include <ros/ros.h>
 
 #include "frame.h"
-#include "constants.h"
 #include "tools.h"
-
-using namespace tools;
 
 namespace slam
 {
@@ -14,7 +11,7 @@ namespace slam
   Frame::Frame(cv::Mat l_img,
                cv::Mat r_img,
                image_geometry::StereoCameraModel camera_model,
-               double timestamp, string feature_detector_selection) : pointcloud_(new PointCloudRGB)
+               double timestamp, std::string feature_detector_selection) : pointcloud_(new PointCloudRGB)
   {
     // Init
     id_ = -1;
@@ -35,7 +32,7 @@ namespace slam
 
     // Keypoints and descriptors
     cv::Mat l_desc, r_desc;
-    vector<cv::KeyPoint> l_kp, r_kp;
+    std::vector<cv::KeyPoint> l_kp, r_kp;
 
     // Detect features using ORB or SIFT
     if (feature_detector_ == "ORB")
@@ -69,8 +66,8 @@ namespace slam
     r_nonfiltered_kp_ = r_kp;
 
     // Left/right matching
-    vector<cv::DMatch> matches;
-    Tools::ratioMatching(l_desc, r_desc, 0.8, matches);
+    std::vector<cv::DMatch> matches;
+    tools::Tools::ratioMatching(l_desc, r_desc, 0.8, matches);
 
     // Filter matches by epipolar+
     matches_filtered_.clear();
@@ -141,14 +138,14 @@ namespace slam
   void Frame::regionClustering()
   {
     clusters_.clear();
-    vector< vector<int> > clusters;
+    std::vector< std::vector<int> > clusters;
     const float eps = 50.0;
     const int min_pts = 20;
-    vector<bool> clustered;
-    vector<int> noise;
-    vector<bool> visited;
-    vector<int> neighbor_pts;
-    vector<int> neighbor_pts_;
+    std::vector<bool> clustered;
+    std::vector<int> noise;
+    std::vector<bool> visited;
+    std::vector<int> neighbor_pts;
+    std::vector<int> neighbor_pts_;
     int c;
 
     uint no_keys = l_kp_.size();
@@ -179,7 +176,7 @@ namespace slam
         }
         else
         {
-          clusters.push_back(vector<int>());
+          clusters.push_back(std::vector<int>());
           c++;
 
           // expand cluster
@@ -230,7 +227,7 @@ namespace slam
     while (iterate && noise.size() > 0)
     {
       uint size_a = noise.size();
-      vector<int> noise_tmp;
+      std::vector<int> noise_tmp;
       for (uint n=0; n<noise.size(); n++)
       {
         int idx = -1;
@@ -268,7 +265,7 @@ namespace slam
     // If 1 cluster, add all keypoints
     if (clusters_.size() <= 1)
     {
-      vector<int> cluster_tmp;
+      std::vector<int> cluster_tmp;
       for (uint i=0; i<l_kp_.size(); i++)
         cluster_tmp.push_back(int(i));
       clusters_.clear();
@@ -293,10 +290,10 @@ namespace slam
     }
   }
 
-  vector<int> Frame::regionQuery(vector<cv::KeyPoint> *keypoints, cv::KeyPoint *keypoint, float eps)
+  std::vector<int> Frame::regionQuery(std::vector<cv::KeyPoint> *keypoints, cv::KeyPoint *keypoint, float eps)
   {
     float dist;
-    vector<int> ret_keys;
+    std::vector<int> ret_keys;
     for(uint i=0; i<keypoints->size(); i++)
     {
       dist = sqrt(pow((keypoint->pt.x - keypoints->at(i).pt.x),2)+pow((keypoint->pt.y - keypoints->at(i).pt.y),2));
