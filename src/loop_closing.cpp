@@ -584,7 +584,7 @@ namespace slam
     {
       std::string frame_id_str = tools::Tools::convertTo5digits(cand_kfs[i]);
       std::string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
-      cv::Mat kf = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
+      cv::Mat kf = cv::imread(keyframe_file, cv::IMREAD_COLOR);
 
       // Add the keyframe identifier
       s.str("");
@@ -614,7 +614,7 @@ namespace slam
     // Read the current keyframe
     std::string frame_id_str = tools::Tools::convertTo5digits(c_cluster_.getFrameId());
     std::string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
-    cv::Mat current_kf_tmp = cv::imread(keyframe_file, CV_LOAD_IMAGE_COLOR);
+    cv::Mat current_kf_tmp = cv::imread(keyframe_file, cv::IMREAD_COLOR);
 
     int definitive_inliers = 0;
     for (i=0; i<definitive_inliers_per_pair.size(); i++)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import roslib; roslib.load_manifest('stereo_slam')
 import sys
 import pylab
@@ -13,7 +13,7 @@ import os
 from matplotlib import pyplot
 from mpl_toolkits.mplot3d import Axes3D
 import tf.transformations as tf
-from scipy.misc import imread
+import cv2
 
 # Global variables
 lock_file = ""
@@ -302,7 +302,7 @@ if __name__ == "__main__":
     ax.set_zlabel("z (m)")
   else:
     ax = fig.gca()
-    img = imread("/home/bomiquel/SLAM_ws/src/stereo_slam/output/mosaic1.jpg")
+    img = cv2.imread("/tmp/mosaic1.jpg", cv2.IMREAD_COLOR)
     ax.imshow(img, zorder=0, extent=[-13.5, 34.5, -17, 9])
     ax.set_axis_bgcolor('black')
 

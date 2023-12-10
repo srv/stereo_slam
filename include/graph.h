@@ -14,8 +14,8 @@
 #include <tf/transform_broadcaster.h>
 #include <image_geometry/pinhole_camera_model.h>
 
-#include <cv.h>
-#include <highgui.h>
+#include <opencv2/opencv.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core.hpp>
 
 #include <g2o/core/sparse_optimizer.h>
