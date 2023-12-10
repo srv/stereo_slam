@@ -12,8 +12,6 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/features2d/features2d.hpp>
 
-using namespace std;
-
 namespace slam
 {
 
@@ -28,12 +26,12 @@ public:
 
   /** \brief Class constructor
    */
-  Cluster(int id, int frame_id, tf::Transform camera_pose, vector<cv::KeyPoint> kp_l, vector<cv::KeyPoint> kp_r, cv::Mat orb_desc, cv::Mat sift_desc, vector<cv::Point3f> points);
+  Cluster(int id, int frame_id, tf::Transform camera_pose, std::vector<cv::KeyPoint> kp_l, std::vector<cv::KeyPoint> kp_r, cv::Mat orb_desc, cv::Mat sift_desc, std::vector<cv::Point3f> points);
 
   /** \brief Computes and returns the 3D points in world coordinates
    * @return the 3D points in world coordinates
    */
-  vector<cv::Point3f> getWorldPoints();
+  std::vector<cv::Point3f> getWorldPoints();
 
   /** \brief Get the cluster id
    */
@@ -45,11 +43,11 @@ public:
 
   /** \brief Get left cv::KeyPoints
    */
-  inline vector<cv::KeyPoint> getLeftKp() const {return kp_l_;}
+  inline std::vector<cv::KeyPoint> getLeftKp() const {return kp_l_;}
 
   /** \brief Get right cv::KeyPoints
    */
-  inline vector<cv::KeyPoint> getRightKp() const {return kp_r_;}
+  inline std::vector<cv::KeyPoint> getRightKp() const {return kp_r_;}
 
   /** \brief Get orb descriptors
    */
@@ -61,7 +59,7 @@ public:
 
   /** \brief Get 3D camera points
    */
-  inline vector<cv::Point3f> getPoints() const {return points_;}
+  inline std::vector<cv::Point3f> getPoints() const {return points_;}
 
   /** \brief Get camera pose
    */
@@ -76,14 +74,14 @@ private:
 
   tf::Transform camera_pose_; //!> Camera world position
 
-  vector<cv::KeyPoint> kp_l_; //!> left cv::KeyPoints.
+  std::vector<cv::KeyPoint> kp_l_; //!> left cv::KeyPoints.
 
-  vector<cv::KeyPoint> kp_r_; //!> left cv::KeyPoints.
+  std::vector<cv::KeyPoint> kp_r_; //!> left cv::KeyPoints.
 
   cv::Mat orb_desc_; //!> ORB descriptors
   cv::Mat sift_desc_; //!> Sift descriptors
 
-  vector<cv::Point3f> points_; //!> Stereo 3D points in camera frame
+  std::vector<cv::Point3f> points_; //!> Stereo 3D points in camera frame
 
 };
 

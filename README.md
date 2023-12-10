@@ -36,8 +36,7 @@ CITATION:
 ```
 
 
-
-Installation (Ubuntu + ROS Indigo)
+Installation (Ubuntu + ROS)
 -------
 
 1) Install the dependencies
@@ -61,12 +60,48 @@ rosmake
 Parameters
 -------
 
-* `odom_topic` - Visual odometry topic (type nav_msgs::Odometry).
-* `camera_topic` - The namespace of your stereo camera.
+* `refine` - Refine odometry (true/false).
+* `distance_between_keyframes` - Minimum distance (m) between keyframes.
+* `working_directory` - Directory where all output files will be stored.
+* `feature_detector_selection` - Name of the feature detector to be used (ORB or SIFT).
+* `lc_min_inliers` - Minimum number of inliers to close a loop.
+* `lc_epipolar_thresh` - Maximum reprojection error allowed.
+* `map_frame_name` - Frame of the slam output
+* `lc_neighbors` - Number of neighbours to recover in order to increase the possibility of closing the loop.
+* `lc_discard_window` - Window size of discarded vertices.
+* `ransac_iterations` - Number of RANSAC iterations for the solvePnPRansac
 
-Other (hard-coded) parameters
 
-* `include/constants.h` - Contains the set of node parameters. Default parameters should work.
+Subscribed topics
+-------
+
+* `odom` - Input odometry (type nav_msgs::Odometry).
+* `left_image_rect_color` - Left image in color and rectified (type sensor_msgs::Image).
+* `right_image_rect_color`- Right image in color and rectified (type sensor_msgs::Image).
+* `left_camera_info` - Extrinsic and intrinsic camera parameters (type sensor_msgs::CameraInfo).
+* `right_camera_info`- Extrinsic and intrinsic camera parameters (type sensor_msgs::CameraInfo).
+
+
+Published Topics
+-------
+* `/stereo_slam/odometry` - The odometry of the robot (type nav_msgs::Odometry).
+* `/stereo_slam/graph_poses` - The updated graph poses (type stereo_slam::GraphPoses).
+* `/stereo_slam/graph_camera_odometry` - Absolute pose of the camera (type nav_msgs::Odometry).
+* `/stereo_slam/graph_robot_odometry` - Absolute pose of the vehicle (type nav_msgs::Odometry).
+* `/stereo_slam/keyframes` - Number of inserted keyframes (type std_msgs::Int32).
+* `/stereo_slam/keypoints_clustering` - Image containing the keypoint clusters (type sensor_msgs::Image).
+* `/stereo_slam/stereo_matches_num` - Number of correspondences between the stereo pair (type std_msgs::Int32).
+* `/stereo_slam/stereo_matches_img` - Correspondences between the stereo pair (type sensor_msgs::Image).
+* `/stereo_slam/num_clusters` - Number of clusters (type std_msgs::Int32).
+* `/stereo_slam/loop_closing_inliers_img` - Image of the loop closing correspondences. Correspondences are keyframe-to-multi-keyframe (type sensor_msgs::Image).
+* `/stereo_slam/loop_closing_matches_num` - Number of matches of each loop closing (type std_msgs::Int32).
+* `/stereo_slam/loop_closing_inliers_num` - Number of inliers of each loop closing (type std_msgs::Int32).
+* `/stereo_slam/loop_closing_queue` - Number of keyframes waiting on the loop closing queue. Please monitor this topic, to check the real-time performance: if this number grows indefinitely it means that your system is not able to process all the keyframes, then, scale your images (type std_msgs::String).
+* `/stereo_slam/loop_closings_num` - Number of loop closings found (type std_msgs::Int32).
+* `/robot_0/stereo_slam/time_tracking` - The elapsed time of each iteration of the tracking thread (type stereo_slam::TimeTracking).
+* `/robot_0/stereo_slam/time_graph` - The elapsed time of each iteration of the graph thread (type stereo_slam::TimeGraph).
+* `/robot_0/stereo_slam/time_loop_closing` - The elapsed time of each iteration of the loop closing thread (type stereo_slam::TimeLoopClosing).
+* `/robot_0/stereo_slam/sub_time_loop_closing` - The elapsed time in certain processes of the loop closing thread (type stereo_slam::SubTimeLoopClosing).
 
 
 Run the node
@@ -76,35 +111,35 @@ You can run the node using the following launch file (please, for a better perfo
 
 ```bash
 <launch>
-  <arg name="camera" default="/stereo"/>
+  <arg name = "camera"        default = "/stereo"/>
+  <arg name = "robot_name"  default = "robot_0"/>
 
   <!-- Run the stereo image proc -->
-  <node ns="$(arg camera)" pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc" />
+  <node ns = "$(arg camera)" pkg = "stereo_image_proc" type = "stereo_image_proc" name = "stereo_image_proc" />
 
-  <node pkg="viso2_ros" type="stereo_odometer" name="stereo_odometer">
-    <remap from="stereo" to="$(arg camera)"/>
-    <remap from="image" to="image_rect"/>
+  <node pkg = "viso2_ros" type = "stereo_odometer" name = "stereo_odometer">
+    <remap from = "stereo" to = "$(arg camera)"/>
+    <remap from = "image" to = "image_rect"/>
   </node>
 
-  <node pkg="stereo_slam" type="localization" name="stereo_slam" output="screen">
-    <param name="odom_topic" value="/stereo_odometer/odometry"/>
-    <param name="camera_topic" value="$(arg camera)"/>
+  <node pkg="stereo_slam" type="localization" name="stereo_slam" output="screen" if = "$(eval enable_decimate_x1 == true)">
+    <remap from = "odom"                        to = "stereo_odometer/odometry"/>
+    <remap from = "left_camera_info"            to = "/$(arg camera)/left/camera_info"/>
+    <remap from = "right_camera_info"           to = "/$(arg camera)/right/camera_info"/>
+    <remap from = "left_image_rect_color"       to = "/$(arg camera)/left/image_rect_color"/>
+    <remap from = "right_image_rect_color"      to = "/$(arg camera)/right/image_rect_color"/> 
+    <param name = "refine"                      value = "false"/>
+    <param name = "distance_between_keyframes"  value = "0.5"/>
+    <param name = "feature_detector_selection"  value = "ORB"/>
+    <param name = "lc_min_inliers"              value = "30"/>
+    <param name = "lc_epipolar_thresh"          value = "1.0"/>
+    <param name = "map_frame_name"              value = "/$(arg robot_name)/map"/>
+    <param name = "lc_neighbors"                value = "5"/>
+    <param name = "lc_discard_window"           value = "20"/>
+    <param name = "ransac_iterations"           value = "150"/>
   </node>
 </launch>
 ```
-
-Published Topics
--------
-* `/stereo_slam/odometry` - The vehicle pose (type nav_msgs::Odometry).
-* `/stereo_slam/graph_poses` - The updated graph poses (type stereo_slam::GraphPoses).
-* `/stereo_slam/keyframes` - Number of inserted keyframes (type std_msgs::String).
-* `/stereo_slam/keypoints_clustering` - Image containing the keypoint clusters (type sensor_msgs::Image).
-* `/stereo_slam/loop_closing_matchings` - Image of the loop closing correspondences. Correspondences are keyframe-to-multi-keyframe (type sensor_msgs::Image).
-* `/stereo_slam/loop_closing_queue` - Number of keyframes waiting on the loop closing queue. Please monitor this topic, to check the real-time performance: if this number grows indefinitely it means that your system is not able to process all the keyframes, then, scale your images. (type std_msgs::String).
-* `/stereo_slam/loop_closings` - Number of loop closings found (type std_msgs::String).
-* `/stereo_slam/pointcloud` - The pointcloud for every keyframe (type sensor_msgs::PointCloud2).
-* `/stereo_slam/tracking_overlap` - Image containing a representation of the traking overlap. Used to decide when to insert a new keyframe into the graph (type sensor_msgs::Image).
-* `/stereo_slam/camera_params` - The optimized (calibrated) camera parameters after every loop closure (type stereo_slam::CameraParams).
 
 
 Saved data
@@ -112,8 +147,7 @@ Saved data
 The node stores some data into the stereo_slam directory during the execution:
 * `haloc` - A folder containing all the files needed for the libhaloc library, which is responsible for loop closing detection. You do not need this folder at all.
 * `keyframes` - Stores the left stereo image for every keyframe (with the possibility of drawing the keypoint clustering over the image).
-* `loop_closures` - Stores all the images published in the topic `/stereo_slam/loop_closing_matchings`.
-* `pointclouds` - Stores all the pointclouds published in the topic `/stereo_slam/pointcloud`.
+* `loop_closures` - Stores all the images published in the topic `/stereo_slam/loop_closing_inliers_img`.
 
 
 Online graph viewer

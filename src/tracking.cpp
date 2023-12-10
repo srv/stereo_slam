@@ -3,8 +3,6 @@
 #include "tracking.h"
 #include "tools.h"
 
-using namespace tools;
-
 namespace slam
 {
 
@@ -22,22 +20,21 @@ namespace slam
 
     pub_pose_ = nhp.advertise<nav_msgs::Odometry>("odometry", 1);
     pub_time_tracking_ = nhp.advertise<stereo_slam::TimeTracking>("time_tracking", 1);
-    pub_overlapping_ = nhp.advertise<sensor_msgs::Image>("tracking_overlap", 1, true);
 
     // Create directory to store the keyframes
-    string keyframes_dir = params_.working_directory + "keyframes";
-    if (fs::is_directory(keyframes_dir))
-      fs::remove_all(keyframes_dir);
-    fs::path dir1(keyframes_dir);
-    if (!fs::create_directory(dir1))
+    std::string keyframes_dir = params_.working_directory + "keyframes";
+    if (boost::filesystem::is_directory(keyframes_dir))
+      boost::filesystem::remove_all(keyframes_dir);
+    boost::filesystem::path dir1(keyframes_dir);
+    if (!boost::filesystem::create_directory(dir1))
       ROS_ERROR("[Localization:] ERROR -> Impossible to create the keyframes directory.");
 
     // Create directory to store the clusters
-    string clusters_dir = params_.working_directory + "clusters";
-    if (fs::is_directory(clusters_dir))
-      fs::remove_all(clusters_dir);
-    fs::path dir2(clusters_dir);
-    if (!fs::create_directory(dir2))
+    std::string clusters_dir = params_.working_directory + "clusters";
+    if (boost::filesystem::is_directory(clusters_dir))
+      boost::filesystem::remove_all(clusters_dir);
+    boost::filesystem::path dir2(clusters_dir);
+    if (!boost::filesystem::create_directory(dir2))
       ROS_ERROR("[Localization:] ERROR -> Impossible to create the clusters directory.");
 
     // Subscribers
@@ -68,28 +65,29 @@ namespace slam
   {
     double t0 = ros::Time::now().toSec();
 
-    tf::Transform c_odom_robot = Tools::odomTotf(*odom_msg);
+    tf::Transform c_odom_robot = tools::Tools::odomTotf(*odom_msg);
     double timestamp = l_img_msg->header.stamp.toSec();
 
     cv::Mat l_img, r_img;
-    Tools::imgMsgToMat(*l_img_msg, *r_img_msg, l_img, r_img);
+    tools::Tools::imgMsgToMat(*l_img_msg, *r_img_msg, l_img, r_img);
 
     if (state_ == NOT_INITIALIZED)
     {
       // Transformation between odometry and camera
-      if (!getOdom2CameraTf(*odom_msg, *l_img_msg, odom2camera_))
+      if (!getRobot2CameraTf(*odom_msg, *l_img_msg, robot2camera_))
       {
         ROS_WARN("[Localization:] Impossible to transform odometry to camera frame.");
         return;
       }
 
       // Camera parameters
-      Tools::getCameraModel(*l_info_msg, *r_info_msg, camera_model_, camera_matrix_);
+      tools::Tools::getCameraModel(*l_info_msg, *r_info_msg, camera_model_, camera_matrix_);
 
       // Set graph properties
-      graph_->setCamera2Odom(odom2camera_.inverse());
       graph_->setCameraMatrix(camera_matrix_);
       graph_->setCameraModel(camera_model_.left());
+      graph_->setOdomFrame(odom_msg->header.frame_id);
+      graph_->setCamera2Robot(robot2camera_.inverse());
 
       // The initial frame
       c_frame_ = Frame(l_img, r_img, camera_model_, timestamp, params_.feature_detector_selection);
@@ -103,7 +101,7 @@ namespace slam
       prev_robot_pose_ = c_odom_robot;
 
       // For the first frame, its estimated pose will coincide with odometry
-      tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
+      tf::Transform c_odom_camera = c_odom_robot * robot2camera_;
       c_frame_.setCameraPose(c_odom_camera);
 
       // Publish stereo matches
@@ -138,7 +136,7 @@ namespace slam
       if (!graph_ready) return;
 
       // Previous/current frame odometry difference
-      tf::Transform c_camera_odom_pose = c_odom_robot * odom2camera_;
+      tf::Transform c_camera_odom_pose = c_odom_robot * robot2camera_;
       tf::Transform odom_diff = odom_pose_history_[odom_pose_history_.size()-1].inverse() * c_camera_odom_pose;
 
       // Refine its position relative to the previous frame
@@ -150,7 +148,7 @@ namespace slam
         cv::Mat sigma;
         tf::Transform p2c_diff;
         bool succeed = refinePose(p_frame_, c_frame_, p2c_diff, sigma, num_inliers);
-        double error = Tools::poseDiff3D(p2c_diff, odom_diff);
+        double error = tools::Tools::poseDiff3D(p2c_diff, odom_diff);
         bool refine_valid = succeed && error < 0.3;
 
         if (refine_valid)
@@ -182,17 +180,17 @@ namespace slam
       if (is_new_keyframe)
       {
         // Store the camera odometry for this keyframe
-        tf::Transform c_odom_camera = c_odom_robot * odom2camera_;
+        tf::Transform c_odom_camera = c_odom_robot * robot2camera_;
         odom_pose_history_.push_back(c_odom_camera);
       }
       time_tracking_msg_.need_new_keyframe = ros::Time::now().toSec() - t4;
     }
 
     // Convert camera to robot pose
-    tf::Transform robot_pose = c_frame_.getCameraPose() * odom2camera_.inverse();
+    tf::Transform robot_pose = c_frame_.getCameraPose() * robot2camera_.inverse();
 
     // Detect a big jump
-    double jump = Tools::poseDiff3D(robot_pose, prev_robot_pose_);
+    double jump = tools::Tools::poseDiff3D(robot_pose, prev_robot_pose_);
     if (!jump_detected_ && jump > 0.8)
     {
       jump_time_ = ros::WallTime::now();
@@ -230,7 +228,6 @@ namespace slam
     nav_msgs::Odometry pose_msg = *odom_msg;
     tf::poseTFToMsg(pose, pose_msg.pose.pose);
     pub_pose_.publish(pose_msg);
-    tf_broadcaster_.sendTransform(tf::StampedTransform(pose, odom_msg->header.stamp, "map", odom_msg->child_frame_id));
 
     // Store
     prev_robot_pose_ = pose;
@@ -244,9 +241,9 @@ namespace slam
 
   }
 
-  bool Tracking::getOdom2CameraTf(nav_msgs::Odometry odom_msg,
-      sensor_msgs::Image img_msg,
-      tf::StampedTransform &transform)
+  bool Tracking::getRobot2CameraTf(nav_msgs::Odometry odom_msg,
+                                  sensor_msgs::Image img_msg,
+                                  tf::StampedTransform &transform)
   {
     // Init the transform
     transform.setIdentity();
@@ -280,7 +277,7 @@ namespace slam
     else
     {
       // Check odometry distance
-      double pose_diff = Tools::poseDiff2D(p_frame_.getCameraPose(), c_frame_.getCameraPose());
+      double pose_diff = tools::Tools::poseDiff2D(p_frame_.getCameraPose(), c_frame_.getCameraPose());
       if (pose_diff > params_.dist_keyframes)
       {
         return addFrameToMap();
@@ -297,7 +294,7 @@ namespace slam
       c_frame_.regionClustering();
 
       // Check if enough clusters
-      vector< vector<int> > clusters = c_frame_.getClusters();
+      std::vector< std::vector<int> > clusters = c_frame_.getClusters();
       if (clusters.size() > 0)
       {
         // Add to graph
@@ -337,21 +334,21 @@ namespace slam
       return false;
 
     // Match current and previous left descriptors
-    vector<cv::DMatch> matches;
-    Tools::ratioMatching(query.getLeftDesc(), candidate.getLeftDesc(), 0.8, matches);
+    std::vector<cv::DMatch> matches;
+    tools::Tools::ratioMatching(query.getLeftDesc(), candidate.getLeftDesc(), 0.8, matches);
 
     if (matches.size() >= params_.lc_min_inliers)
     {
       // Get the matched keypoints
-      vector<cv::KeyPoint> query_kp_l = query.getLeftKp();
-      vector<cv::KeyPoint> query_kp_r = query.getRightKp();
-      vector<cv::Point3f> query_3d = query.getCameraPoints();
-      vector<cv::KeyPoint> cand_kp_l = candidate.getLeftKp();
-      vector<cv::KeyPoint> cand_kp_r = candidate.getRightKp();
-      vector<cv::Point3f> cand_3d = candidate.getCameraPoints();
-      vector<cv::Point2f> query_matched_kp_l, query_matched_kp_r;
-      vector<cv::Point2f> cand_matched_kp_l, cand_matched_kp_r;
-      vector<cv::Point3f> cand_matched_3d_points;
+      std::vector<cv::KeyPoint> query_kp_l = query.getLeftKp();
+      std::vector<cv::KeyPoint> query_kp_r = query.getRightKp();
+      std::vector<cv::Point3f> query_3d = query.getCameraPoints();
+      std::vector<cv::KeyPoint> cand_kp_l = candidate.getLeftKp();
+      std::vector<cv::KeyPoint> cand_kp_r = candidate.getRightKp();
+      std::vector<cv::Point3f> cand_3d = candidate.getCameraPoints();
+      std::vector<cv::Point2f> query_matched_kp_l, query_matched_kp_r;
+      std::vector<cv::Point2f> cand_matched_kp_l, cand_matched_kp_r;
+      std::vector<cv::Point3f> cand_matched_3d_points;
       for(uint i=0; i<matches.size(); i++)
       {
         // Query keypoints
@@ -368,7 +365,7 @@ namespace slam
 
       cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64FC1);
       cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);
-      vector<int> inliers;
+      std::vector<int> inliers;
       cv::solvePnPRansac(cand_matched_3d_points, query_matched_kp_l, camera_matrix_,
                          cv::Mat(), rvec, tvec, false,
                          100, params_.lc_epipolar_thresh, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
@@ -381,12 +378,12 @@ namespace slam
       else
       {
         // Build output transform
-        out = Tools::buildTransformation(rvec, tvec);
+        out = tools::Tools::buildTransformation(rvec, tvec);
 
         // Estimate the covariance
         cv::Mat J;
-        vector<cv::Point2f> p;
-        vector<cv::Point3f> inliers_3d_points;
+        std::vector<cv::Point2f> p;
+        std::vector<cv::Point3f> inliers_3d_points;
         for (uint i=0; i<inliers.size(); i++)
           inliers_3d_points.push_back(cand_matched_3d_points[inliers[i]]);
         cv::projectPoints(inliers_3d_points, rvec, tvec, camera_matrix_, cv::Mat(), p, J);

@@ -1,9 +1,6 @@
-#include "constants.h"
 #include "graph.h"
 #include "cluster.h"
 #include "tools.h"
-
-using namespace tools;
 
 namespace slam
 {
@@ -22,15 +19,16 @@ namespace slam
     graph_optimizer_.setAlgorithm(solver);
 
     // Remove locking file if exists
-    string lock_file = params_.working_directory + ".graph.lock";
-    if (fs::exists(lock_file))
+    std::string lock_file = params_.working_directory + ".graph.lock";
+    if (boost::filesystem::exists(lock_file))
       remove(lock_file.c_str());
 
     // Advertise topics
     ros::NodeHandle nhp("~");
-    pub_pose_ = nhp.advertise<nav_msgs::Odometry>("graph_camera_odometry", 1);
     pub_graph_ = nhp.advertise<stereo_slam::GraphPoses>("graph_poses", 2);
     pub_time_graph_ = nhp.advertise<stereo_slam::TimeGraph>("time_graph", 1);
+    pub_robot_pose_ = nhp.advertise<nav_msgs::Odometry>("graph_robot_odometry", 1);
+    pub_camera_pose_ = nhp.advertise<nav_msgs::Odometry>("graph_camera_odometry", 1);
     pub_num_keyframes_ = nhp.advertise<std_msgs::Int32>("keyframes", 1);
   }
 
@@ -39,6 +37,7 @@ namespace slam
     ros::Rate r(50);
     while(ros::ok())
     {
+      // Process new frame
       if(checkNewFrameInQueue())
       {
         double t0 = ros::Time::now().toSec();
@@ -48,7 +47,7 @@ namespace slam
         if (pub_num_keyframes_.getNumSubscribers() > 0)
         {
           std_msgs::Int32 msg;
-          msg.data = lexical_cast<int>(getFrameNum());
+          msg.data = boost::lexical_cast<int>(getFrameNum());
           pub_num_keyframes_.publish(msg);
         }
         if (pub_time_graph_.getNumSubscribers() > 0)
@@ -85,7 +84,7 @@ namespace slam
     }
 
     // The clusters of this frame
-    vector< vector<int> > clusters = frame.getClusters();
+    std::vector< std::vector<int> > clusters = frame.getClusters();
 
     // Frame id
     frame_id_ = frame.getId();
@@ -103,32 +102,32 @@ namespace slam
 
     // Loop of frame clusters
     double t2 = ros::Time::now().toSec();
-    vector<int> vertex_ids;
-    vector<Cluster> clusters_to_close_loop;
-    vector<Eigen::Vector4f> cluster_centroids = frame.getClusterCentroids();
-    vector<cv::Point3f> points = frame.getCameraPoints();
-    vector<cv::KeyPoint> kp_l = frame.getLeftKp();
-    vector<cv::KeyPoint> kp_r = frame.getRightKp();
+    std::vector<int> vertex_ids;
+    std::vector<Cluster> clusters_to_close_loop;
+    std::vector<Eigen::Vector4f> cluster_centroids = frame.getClusterCentroids();
+    std::vector<cv::Point3f> points = frame.getCameraPoints();
+    std::vector<cv::KeyPoint> kp_l = frame.getLeftKp();
+    std::vector<cv::KeyPoint> kp_r = frame.getRightKp();
     tf::Transform camera_pose = frame.getCameraPose();
     cv::Mat orb_desc = frame.getLeftDesc();
     for (uint i=0; i<clusters.size(); i++)
     {
       // Correct cluster pose with the last graph update
-      tf::Transform cluster_pose = Tools::transformVector4f(cluster_centroids[i], camera_pose);
+      tf::Transform cluster_pose = tools::Tools::transformVector4f(cluster_centroids[i], camera_pose);
       initial_cluster_pose_history_.push_back(cluster_pose);
 
       // Add cluster to the graph
       int id = addVertex(cluster_pose);
 
       // Store information
-      cluster_frame_relation_.push_back( make_pair(id, frame_id_) );
-      local_cluster_poses_.push_back( Tools::vector4fToTransform(cluster_centroids[i]) );
+      cluster_frame_relation_.push_back(std::make_pair(id, frame_id_) );
+      local_cluster_poses_.push_back(tools::Tools::vector4fToTransform(cluster_centroids[i]) );
       vertex_ids.push_back(id);
 
       // Build cluster
       cv::Mat c_desc_orb, c_desc_sift;
-      vector<cv::KeyPoint> c_kp_l, c_kp_r;
-      vector<cv::Point3f> c_points;
+      std::vector<cv::KeyPoint> c_kp_l, c_kp_r;
+      std::vector<cv::Point3f> c_points;
       for (uint j=0; j<clusters[i].size(); j++)
       {
         int idx = clusters[i][j];
@@ -153,7 +152,7 @@ namespace slam
     if (clusters.size() > 1)
     {
       // Retrieve all possible combinations
-      vector< vector<int> > combinations = createComb(vertex_ids);
+      std::vector< std::vector<int> > combinations = createComb(vertex_ids);
 
       for (uint i=0; i<combinations.size(); i++)
       {
@@ -172,13 +171,13 @@ namespace slam
     // Connect this frame with the previous
     if (frame_id_ > 0)
     {
-      vector<int> prev_frame_vertices;
+      std::vector<int> prev_frame_vertices;
       getFrameVertices(frame_id_ - 1, prev_frame_vertices);
 
       // Connect only the closest vertices between the two frames
       double min_dist = DBL_MAX;
-      vector<int> closest_vertices;
-      vector<tf::Transform> closest_poses;
+      std::vector<int> closest_vertices;
+      std::vector<tf::Transform> closest_poses;
       for (uint i=0; i<vertex_ids.size(); i++)
       {
         // The pose of this vertex
@@ -188,7 +187,7 @@ namespace slam
         {
           tf::Transform prev_vertex_pose = getVertexPose(prev_frame_vertices[j]);
 
-          double dist = Tools::poseDiff3D(cur_vertex_pose, prev_vertex_pose);
+          double dist = tools::Tools::poseDiff3D(cur_vertex_pose, prev_vertex_pose);
           if (dist < min_dist)
           {
             closest_vertices.clear();
@@ -236,7 +235,7 @@ namespace slam
       last_idx = graph_optimizer_.vertices().size() - 1;
     }
     tf::Transform updated_camera_pose = getVertexCameraPose(last_idx, true);
-    publishCameraPose(updated_camera_pose);
+    publishUpdatedPose(updated_camera_pose);
   }
 
   tf::Transform Graph::correctClusterPose(tf::Transform initial_pose)
@@ -261,13 +260,13 @@ namespace slam
       return initial_pose;
   }
 
-  vector< vector<int> > Graph::createComb(vector<int> cluster_ids)
+  std::vector< std::vector<int> > Graph::createComb(std::vector<int> cluster_ids)
   {
-    string bitmask(2, 1);
+    std::string bitmask(2, 1);
     bitmask.resize(cluster_ids.size(), 0);
 
-    vector<int> comb;
-    vector< vector<int> > combinations;
+    std::vector<int> comb;
+    std::vector< std::vector<int> > combinations;
     do {
       for (uint i = 0; i < cluster_ids.size(); ++i)
       {
@@ -285,7 +284,7 @@ namespace slam
     boost::mutex::scoped_lock lock(mutex_graph_);
 
     // Convert pose for graph
-    Eigen::Isometry3d vertex_pose = Tools::tfToIsometry(pose);
+    Eigen::Isometry3d vertex_pose = tools::Tools::tfToIsometry(pose);
 
     // Set node id equal to graph size
     int id = graph_optimizer_.vertices().size();
@@ -373,7 +372,7 @@ namespace slam
 
     // Add the new edge to graph
     g2o::EdgeSE3* e = new g2o::EdgeSE3();
-    Eigen::Isometry3d t = Tools::tfToIsometry(edge);
+    Eigen::Isometry3d t = tools::Tools::tfToIsometry(edge);
     e->setVertex(0, v_i);
     e->setVertex(1, v_j);
     e->setMeasurement(t);
@@ -393,14 +392,14 @@ namespace slam
     ROS_INFO_STREAM("[Localization:] Optimization done in graph with " << graph_optimizer_.vertices().size() << " vertices.");
   }
 
-  void Graph::findClosestVertices(int vertex_id, int window_center, int window, int best_n, vector<int> &neighbors)
+  void Graph::findClosestVertices(int vertex_id, int window_center, int window, int best_n, std::vector<int> &neighbors)
   {
     // Init
     neighbors.clear();
     tf::Transform vertex_pose = getVertexPose(vertex_id);
 
     // Loop thought all the other nodes
-    vector< pair< int,double > > neighbor_distances;
+    std::vector< std::pair< int,double > > neighbor_distances;
     for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
     {
       if ((int)i == vertex_id ) continue;
@@ -408,15 +407,15 @@ namespace slam
 
       // Get the node pose
       tf::Transform cur_pose = getVertexPose(i);
-      double dist = Tools::poseDiff2D(cur_pose, vertex_pose);
-      neighbor_distances.push_back(make_pair(i, dist));
+      double dist = tools::Tools::poseDiff2D(cur_pose, vertex_pose);
+      neighbor_distances.push_back(std::make_pair(i, dist));
     }
 
     // Exit if no neighbors
     if (neighbor_distances.size() == 0) return;
 
     // Sort the neighbors
-    sort(neighbor_distances.begin(), neighbor_distances.end(), Tools::sortByDistance);
+    std::sort(neighbor_distances.begin(), neighbor_distances.end(), tools::Tools::sortByDistance);
 
     // Min number
     if ((int)neighbor_distances.size() < best_n)
@@ -426,7 +425,7 @@ namespace slam
       neighbors.push_back(neighbor_distances[i].first);
   }
 
-  void Graph::getFrameVertices(int frame_id, vector<int> &vertices)
+  void Graph::getFrameVertices(int frame_id, std::vector<int> &vertices)
   {
     vertices.clear();
     for (uint i=0; i<cluster_frame_relation_.size(); i++)
@@ -472,7 +471,7 @@ namespace slam
       if( id >= 0)
       {
         g2o::VertexSE3* vertex =  dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[id]);
-        return Tools::getVertexPose(vertex);
+        return tools::Tools::getVertexPose(vertex);
       }
       else
       {
@@ -486,7 +485,7 @@ namespace slam
       if( id >= 0)
       {
         g2o::VertexSE3* vertex =  dynamic_cast<g2o::VertexSE3*>(graph_optimizer_.vertices()[id]);
-        return Tools::getVertexPose(vertex);
+        return tools::Tools::getVertexPose(vertex);
       }
       else
       {
@@ -500,7 +499,7 @@ namespace slam
   bool Graph::getFramePose(int frame_id, tf::Transform& frame_pose)
   {
     frame_pose.setIdentity();
-    vector<int> frame_vertices;
+    std::vector<int> frame_vertices;
     getFrameVertices(frame_id, frame_vertices);
 
     if (frame_vertices.size() == 0)
@@ -534,17 +533,17 @@ namespace slam
     if (l_img.cols == 0 || r_img.cols == 0)
       return;
 
-    string frame_id_str = Tools::convertTo5digits(frame.getId());
+    std::string frame_id_str = tools::Tools::convertTo5digits(frame.getId());
 
     // Save keyframe
-    string l_kf = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
-    string r_kf = params_.working_directory + "keyframes/" + frame_id_str + "_right.jpg";
+    std::string l_kf = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
+    std::string r_kf = params_.working_directory + "keyframes/" + frame_id_str + "_right.jpg";
     cv::imwrite(l_kf, l_img);
     cv::imwrite(r_kf, r_img);
 
     // Save keyframe with clusters
-    vector< vector<int> > clusters = frame.getClusters();
-    vector<cv::KeyPoint> kp = frame.getLeftKp();
+    std::vector< std::vector<int> > clusters = frame.getClusters();
+    std::vector<cv::KeyPoint> kp = frame.getLeftKp();
     cv::RNG rng(12345);
     for (uint i=0; i<clusters.size(); i++)
     {
@@ -552,33 +551,33 @@ namespace slam
       for (uint j=0; j<clusters[i].size(); j++)
         cv::circle(c_img, kp[clusters[i][j]].pt, 5, color, -1);
     }
-    string clusters_file = params_.working_directory + "clusters/" + frame_id_str + ".jpg";
+    std::string clusters_file = params_.working_directory + "clusters/" + frame_id_str + ".jpg";
     cv::imwrite(clusters_file, c_img);
   }
 
   void Graph::saveGraph()
   {
-    string lock_file, vertices_file, edges_file;
+    std::string lock_file, vertices_file, edges_file;
     vertices_file = params_.working_directory + "graph_vertices.txt";
     edges_file = params_.working_directory + "graph_edges.txt";
     lock_file = params_.working_directory + ".graph.lock";
 
     // Wait until lock file has been released
-    while(fs::exists(lock_file));
+    while(boost::filesystem::exists(lock_file));
 
     // Create a locking element
-    fstream f_lock(lock_file.c_str(), ios::out | ios::trunc);
+    std::fstream f_lock(lock_file.c_str(), std::ios::out | std::ios::trunc);
 
     // Open to append
-    fstream f_vertices(vertices_file.c_str(), ios::out | ios::trunc);
-    fstream f_edges(edges_file.c_str(), ios::out | ios::trunc);
+    std::fstream f_vertices(vertices_file.c_str(), std::ios::out | std::ios::trunc);
+    std::fstream f_edges(edges_file.c_str(), std::ios::out | std::ios::trunc);
 
     boost::mutex::scoped_lock lock(mutex_graph_);
 
     // First line
-    f_vertices << "% timestamp,frame id,x,y,z,qx,qy,qz,qw" << endl;
+    f_vertices << "% timestamp,frame id,x,y,z,qx,qy,qz,qw" << std::endl;
 
-    vector<int> processed_frames;
+    std::vector<int> processed_frames;
 
     // Output the vertices file
     for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
@@ -597,9 +596,9 @@ namespace slam
       if (found) continue;
       processed_frames.push_back(id);
 
-      tf::Transform pose = getVertexCameraPose(i, false)*camera2odom_;
-      f_vertices << fixed <<
-        setprecision(9) <<
+      tf::Transform pose = getVertexCameraPose(i, false) * camera2robot_;
+      f_vertices << std::fixed <<
+        std::setprecision(9) <<
         frame_stamps_[id] << "," <<
         id << "," <<
         pose.getOrigin().x() << "," <<
@@ -608,12 +607,12 @@ namespace slam
         pose.getRotation().x() << "," <<
         pose.getRotation().y() << "," <<
         pose.getRotation().z() << "," <<
-        pose.getRotation().w() <<  endl;
+        pose.getRotation().w() <<  std::endl;
     }
     f_vertices.close();
 
     // First line
-    f_edges << "% frame a,frame b,inliers,ax,ay,az,aqx,aqy,aqz,aqw,bx,by,bz,bqx,bqy,bqz,bqw" << endl;
+    f_edges << "% frame a,frame b,inliers,ax,ay,az,aqx,aqy,aqz,aqw,bx,by,bz,bqx,bqy,bqz,bqw" << std::endl;
 
     // Output the edges file
     for ( g2o::OptimizableGraph::EdgeSet::iterator it=graph_optimizer_.edges().begin();
@@ -629,8 +628,8 @@ namespace slam
         if (abs(frame_a - frame_b) > 1 )
         {
 
-          tf::Transform pose_0 = getVertexCameraPose(e->vertices()[0]->id(), false)*camera2odom_;
-          tf::Transform pose_1 = getVertexCameraPose(e->vertices()[1]->id(), false)*camera2odom_;
+          tf::Transform pose_0 = getVertexCameraPose(e->vertices()[0]->id(), false) * camera2robot_;
+          tf::Transform pose_1 = getVertexCameraPose(e->vertices()[1]->id(), false) * camera2robot_;
 
           // Extract the inliers
           int inliers = 0;
@@ -650,7 +649,7 @@ namespace slam
             e->vertices()[0]->id() << "," <<
             e->vertices()[1]->id() << "," <<
             inliers << "," <<
-            setprecision(9) <<
+            std::setprecision(9) <<
             pose_0.getOrigin().x() << "," <<
             pose_0.getOrigin().y() << "," <<
             pose_0.getOrigin().z() << "," <<
@@ -664,7 +663,7 @@ namespace slam
             pose_1.getRotation().x() << "," <<
             pose_1.getRotation().y() << "," <<
             pose_1.getRotation().z() << "," <<
-            pose_1.getRotation().w() << endl;
+            pose_1.getRotation().w() << std::endl;
         }
       }
     }
@@ -677,14 +676,25 @@ namespace slam
       ROS_ERROR("[Localization:] Error deleting the locking file.");
   }
 
-  void Graph::publishCameraPose(tf::Transform camera_pose)
+  void Graph::publishUpdatedPose(tf::Transform camera_pose)
   {
-    if (pub_pose_.getNumSubscribers() > 0)
+    // Transform pose from camera to robot frame
+    tf::Transform robot_pose = camera_pose * camera2robot_;
+
+    // Publish poses
+    nav_msgs::Odometry pose_msg;
+    pose_msg.header.stamp = ros::Time::now();
+    if (pub_camera_pose_.getNumSubscribers() > 0)
     {
-      nav_msgs::Odometry pose_msg;
-      pose_msg.header.stamp = ros::Time::now();
       tf::poseTFToMsg(camera_pose, pose_msg.pose.pose);
-      pub_pose_.publish(pose_msg);
+      pub_camera_pose_.publish(pose_msg);
+    }
+    if (pub_robot_pose_.getNumSubscribers() > 0)
+    {
+      pose_msg.header.frame_id = params_.map_frame_id;
+      pose_msg.child_frame_id = odom_frame_id_;
+      tf::poseTFToMsg(robot_pose, pose_msg.pose.pose);
+      pub_robot_pose_.publish(pose_msg);
     }
   }
 
@@ -695,9 +705,9 @@ namespace slam
       boost::mutex::scoped_lock lock(mutex_graph_);
 
       // Build the graph data
-      vector<int> ids;
-      vector<double> x, y, z, qx, qy, qz, qw;
-      vector<int> processed_frames;
+      std::vector<int> ids;
+      std::vector<double> x, y, z, qx, qy, qz, qw;
+      std::vector<int> processed_frames;
       for (uint i=0; i<graph_optimizer_.vertices().size(); i++)
       {
         bool found = false;

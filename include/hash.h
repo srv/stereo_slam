@@ -6,9 +6,6 @@
 #include <Eigen/Eigen>
 #include <Eigen/Dense>
 
-using namespace std;
-using namespace cv;
-using namespace Eigen;
 
 namespace haloc
 {
@@ -43,13 +40,13 @@ public:
   inline Params params() const { return params_; }
 
   // Initialize class
-  void init(Mat desc);
+  void init(cv::Mat desc);
 
   // Compute the hash
-  vector<float> getHash(Mat desc);
+  std::vector<float> getHash(cv::Mat desc);
 
   // Compute the distance between 2 hashes
-  float match(vector<float> hash_1, vector<float> hash_2);
+  float match(std::vector<float> hash_1, std::vector<float> hash_2);
 
 private:
 
@@ -57,16 +54,16 @@ private:
   void initProjections(int desc_size);
 
   // Compute a random vector
-  vector<float> compute_random_vector(uint seed, int size);
+  std::vector<float> compute_random_vector(uint seed, int size);
 
   // Make a vector unit
-  vector<float> unit_vector(vector<float> x);
+  std::vector<float> unit_vector(std::vector<float> x);
 
   // Properties
-  Params params_;                           //!> Stores parameters
-  vector< vector<float> > r_;               //!> Vector of random values
   int h_size_;                              //!> Size of the hash
+  Params params_;                           //!> Stores parameters
   bool initialized_;                        //!> True when class has been initialized
+  std::vector< std::vector<float> > r_;     //!> Vector of random values
 };
 
 } // namespace

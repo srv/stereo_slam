@@ -1,15 +1,13 @@
 #include <ros/ros.h>
+#include <ros/package.h>
 
 #include <boost/thread.hpp>
 #include <boost/filesystem.hpp>
-#include "constants.h"
+
 #include "publisher.h"
 #include "tracking.h"
 #include "graph.h"
 #include "loop_closing.h"
-
-using namespace std;
-namespace fs = boost::filesystem;
 
 /** \brief Read the node parameters
   */
@@ -19,9 +17,10 @@ void readParams(slam::Tracking::Params &tracking_params, slam::Graph::Params &gr
   nhp.param("refine",                     tracking_params.refine,                     false);
   nhp.param("distance_between_keyframes", tracking_params.dist_keyframes,             0.5);
   nhp.param("working_directory",          tracking_params.working_directory,          ros::package::getPath("stereo_slam") + "/output/");
-  nhp.param("feature_detector_selection", tracking_params.feature_detector_selection, string("ORB"));
+  nhp.param("feature_detector_selection", tracking_params.feature_detector_selection, std::string("ORB"));
   nhp.param("lc_min_inliers",             tracking_params.lc_min_inliers,             30);
   nhp.param("lc_epipolar_thresh",         tracking_params.lc_epipolar_thresh,         1.0);
+  nhp.param("map_frame_name",             graph_params.map_frame_id,                  std::string("/robot_0/map"));
   nhp.param("lc_neighbors",               loop_closing_params.lc_neighbors,           5); 
   nhp.param("lc_discard_window",          loop_closing_params.lc_discard_window,      20); 
   nhp.param("ransac_iterations",          loop_closing_params.ransac_iterations,      150);
@@ -38,6 +37,7 @@ void readParams(slam::Tracking::Params &tracking_params, slam::Graph::Params &gr
                   "LOOP CLOSING WORKING DIRECTORY = " << loop_closing_params.working_directory << std::endl <<
                   "FEATURE DETECTOR               = " << tracking_params.feature_detector_selection << std::endl <<
                   "DISTANCE BETWEEN KEYFRAMES     = " << tracking_params.dist_keyframes << std::endl <<
+                  "MAP FRAME NAME                 = " << graph_params.map_frame_id << std::endl <<
                   "LC MIN INLIERS                 = " << loop_closing_params.lc_min_inliers << std::endl <<
                   "LC EPIPOLAR THRESHOLD          = " << loop_closing_params.lc_epipolar_thresh << std::endl <<
                   "LC NEIGHBORS                   = " << loop_closing_params.lc_neighbors << std::endl <<
@@ -74,14 +74,14 @@ int main(int argc, char **argv)
   loop_closing.setGraph(&graph);
 
   // Create the output directory
-  string output_dir = tracking_params.working_directory;
-  if (fs::is_directory(output_dir))
+  std::string output_dir = tracking_params.working_directory;
+  if (boost::filesystem::is_directory(output_dir))
   {
     ROS_ERROR_STREAM("[Localization:] ERROR -> The output directory already exists: " << output_dir);
     return 0;
   }
-  fs::path dir0(output_dir);
-  if (!fs::create_directory(dir0))
+  boost::filesystem::path dir0(output_dir);
+  if (!boost::filesystem::create_directory(dir0))
   {
     ROS_ERROR("[Localization:] ERROR -> Impossible to create the output directory.");
     return 0;

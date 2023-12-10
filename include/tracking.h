@@ -28,10 +28,6 @@
 #include "publisher.h"
 #include "stereo_slam/TimeTracking.h"
 
-using namespace std;
-using namespace boost;
-namespace fs  = filesystem;
-
 namespace slam
 {
 
@@ -45,12 +41,12 @@ public:
 
   struct Params
   { 
-    bool refine;                        //!> Refine odometry.
-    int lc_min_inliers;                 //!> Minimum number of inliers to close a loop.
-    double lc_epipolar_thresh;          //!> Maximum reprojection error allowed.
-    double dist_keyframes;              //!> Distance between keyframes.
-    string working_directory;           //!> Directory where all output files will be stored.
-    string feature_detector_selection;  //!> Name of the feature detector to be used.
+    bool refine;                             //!> Refine odometry.
+    int lc_min_inliers;                      //!> Minimum number of inliers to close a loop.
+    double lc_epipolar_thresh;               //!> Maximum reprojection error allowed.
+    double dist_keyframes;                   //!> Minimum distance between keyframes.
+    std::string working_directory;           //!> Directory where all output files will be stored.
+    std::string feature_detector_selection;  //!> Name of the feature detector to be used.
 
     // Default settings
     Params () 
@@ -105,20 +101,20 @@ protected:
    * \param r_info right stereo info message of type sensor_msgs::CameraInfo
    */  
     void msgsCallback(const nav_msgs::Odometry::ConstPtr& odom_msg,
-                    const sensor_msgs::ImageConstPtr& l_img_msg,
-                    const sensor_msgs::ImageConstPtr& r_img_msg,
-                    const sensor_msgs::CameraInfoConstPtr& l_info_msg,
-                    const sensor_msgs::CameraInfoConstPtr& r_info_msg);
+                      const sensor_msgs::ImageConstPtr& l_img_msg,
+                      const sensor_msgs::ImageConstPtr& r_img_msg,
+                      const sensor_msgs::CameraInfoConstPtr& l_info_msg,
+                      const sensor_msgs::CameraInfoConstPtr& r_info_msg);
 
-  /** \brief Get the transform between odometry frame and camera frame
+  /** \brief Get the transform between robot frame (base link) and camera frame
    * @return true if valid transform, false otherwise
    * \param Odometry msg
    * \param Image msg
    * \param Output transform
    */
-  bool getOdom2CameraTf(nav_msgs::Odometry odom_msg,
-                        sensor_msgs::Image img_msg,
-                        tf::StampedTransform &transform);
+  bool getRobot2CameraTf(nav_msgs::Odometry odom_msg,
+                         sensor_msgs::Image img_msg,
+                         tf::StampedTransform &transform);
 
   /** \brief Decide if new keyframe is needed
    * @return True if new keyframe will be inserted into the graph
@@ -129,19 +125,6 @@ protected:
    * @return True if new keyframe will be inserted into the map
    */
   bool addFrameToMap();
-
-
-  /** \brief Filters a pointcloud
-   * @return filtered cloud
-   * \param input cloud
-   */
-
-  /** \brief Publishes the overlapping debug image
-   * @return
-   * \param current pointcloud
-   * \param the transformation of current pointcloud to the last fixed frame
-   * \param the overlap
-   */
 
   /** \brief Refine the keyframe to keyframe position using SolvePnP
    * @return True if a valid transform was found
@@ -159,7 +142,7 @@ private:
 
   trackingState state_; //!> Tracking state
 
-  tf::StampedTransform odom2camera_; //!> Transformation between robot odometry frame and camera frame.
+  tf::StampedTransform robot2camera_; //!> Transformation between robot frame (base link) and camera frame.
 
   tf::TransformListener tf_listener_; //!> Listen for tf between robot and camera.
 
@@ -177,8 +160,6 @@ private:
 
   ros::Publisher pub_overlapping_; //!> Consecutive image overlapping publisher
 
-  tf::TransformBroadcaster tf_broadcaster_; //!> Publish transform
-
   image_geometry::StereoCameraModel camera_model_; //!> Stereo camera model
 
   Graph* graph_; //!> Graph
@@ -189,7 +170,7 @@ private:
 
   int frame_id_; //!> Processed frames counter
 
-  vector<tf::Transform> odom_pose_history_; //!> Stores the odometry poses, relative to camera frame
+  std::vector<tf::Transform> odom_pose_history_; //!> Stores the odometry poses, relative to camera frame
 
   tf::Transform prev_robot_pose_; //!> Stores the previous corrected odometry pose
 
