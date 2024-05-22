@@ -1,7 +1,7 @@
 #include <ros/ros.h>
 
-#include "frame.h"
-#include "tools.h"
+#include "frame.hpp"
+#include "tools.hpp"
 
 namespace slam
 {
@@ -11,7 +11,7 @@ namespace slam
   Frame::Frame(cv::Mat l_img,
                cv::Mat r_img,
                image_geometry::StereoCameraModel camera_model,
-               double timestamp, std::string feature_detector_selection) : pointcloud_(new PointCloudRGB)
+               ros::Time timestamp, std::string feature_detector_selection) : pointcloud_(new PointCloudRGB)
   {
     // Init
     id_ = -1;
@@ -42,7 +42,7 @@ namespace slam
       orb = cv::ORB::create(1500, 1.2, 8, 10, 0, 2, cv::ORB::HARRIS_SCORE, 10);
       orb->detectAndCompute (l_img_gray, cv::noArray(), l_kp, l_desc);
       orb->detectAndCompute (r_img_gray, cv::noArray(), r_kp, r_desc);
-      ROS_INFO_STREAM("[STEREO-SLAM]: USING ORB");
+      ROS_INFO_STREAM("[STEREO_SLAM]: USING ORB");
     }
     else if (feature_detector_ == "SIFT")
     {
@@ -51,11 +51,11 @@ namespace slam
       sift = cv::xfeatures2d::SIFT::create();
       sift->detectAndCompute(l_img_gray, cv::noArray(), l_kp, l_desc);
       sift->detectAndCompute(r_img_gray, cv::noArray(), r_kp, r_desc);
-      ROS_INFO_STREAM("[STEREO-SLAM]: USING SIFT");
+      ROS_INFO_STREAM("[STEREO_SLAM]: USING SIFT");
     }
     else
     {
-      ROS_INFO_STREAM("[STEREO-SLAM]: No valid detector has been selected");
+      ROS_INFO_STREAM("[STEREO_SLAM]: No valid detector has been selected");
     }
     feature_extraction_time_ = ros::Time::now().toSec() - t1;
 

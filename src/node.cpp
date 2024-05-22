@@ -4,10 +4,10 @@
 #include <boost/thread.hpp>
 #include <boost/filesystem.hpp>
 
-#include "publisher.h"
-#include "tracking.h"
-#include "graph.h"
-#include "loop_closing.h"
+#include "publisher.hpp"
+#include "tracking.hpp"
+#include "graph.hpp"
+#include "loop_closing.hpp"
 
 /** \brief Read the node parameters
   */

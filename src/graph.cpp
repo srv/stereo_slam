@@ -1,6 +1,6 @@
-#include "graph.h"
-#include "cluster.h"
-#include "tools.h"
+#include "graph.hpp"
+#include "cluster.hpp"
+#include "tools.hpp"
 
 namespace slam
 {
@@ -93,7 +93,7 @@ namespace slam
     saveFrame(frame);
 
     // Save the frame timestamp
-    frame_stamps_.push_back(frame.getTimestamp());
+    frame_stamps_.push_back(frame.getTimestamp().toSec());
 
     // Extract sift
     double t1 = ros::Time::now().toSec();

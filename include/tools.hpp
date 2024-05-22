@@ -1,5 +1,5 @@
-#ifndef TOOLS
-#define TOOLS
+#ifndef TOOLS_HPP
+#define TOOLS_HPP
 
 #include <ros/ros.h>
 #include <fstream>
@@ -404,4 +404,4 @@ public:
 
 } // namespace
 
-#endif // TOOLS
+#endif // TOOLS_HPP

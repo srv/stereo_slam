@@ -1,5 +1,5 @@
 #include <ros/ros.h>
-#include "hash.h"
+#include "hash.hpp"
 #include <opencv2/core/eigen.hpp>
 
 
@@ -67,7 +67,7 @@ std::vector<float> haloc::Hash::getHash(cv::Mat desc)
     for (int n=0; n<desc.cols; n++)
     {
       float desc_sum = 0.0;
-      for (uint m=0; m<desc.rows; m++)
+      for (int m=0; m<desc.rows; m++)
         desc_sum += r_[i][m]*desc.at<float>(m, n);
 
       hash[k] = desc_sum/(float)desc.rows;
@@ -101,7 +101,7 @@ void haloc::Hash::initProjections(int desc_size)
   std::cout << "params_.num_proj: " <<  params_.num_proj << std::endl;
 
   // Generate the set of orthogonal vectors
-  for (uint i=1; i<params_.num_proj; i++)
+  for (int i=1; i<params_.num_proj; i++)
   {
     // Generate a random vector of the correct size
     std::vector<float> new_v = compute_random_vector(seed + i, v_size - i);

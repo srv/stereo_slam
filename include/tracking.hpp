@@ -3,8 +3,8 @@
  * @brief The tracking class is responsive to track consecutive image frames (presentation).
  */
 
-#ifndef TRACKING_H
-#define TRACKING_H
+#ifndef TRACKING_HPP
+#define TRACKING_HPP
 
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
@@ -23,9 +23,9 @@
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include "frame.h"
-#include "graph.h"
-#include "publisher.h"
+#include "frame.hpp"
+#include "graph.hpp"
+#include "publisher.hpp"
 #include "stereo_slam/TimeTracking.h"
 
 namespace slam
@@ -194,4 +194,4 @@ private:
 
 } // namespace
 
-#endif // TRACKING_H
+#endif // TRACKING_HPP

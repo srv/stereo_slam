@@ -3,8 +3,8 @@
  * @brief The cluster class represents one cv::KeyPoints clustering of the camera frame.
  */
 
-#ifndef CLUSTER_H
-#define CLUSTER_H
+#ifndef CLUSTER_HPP
+#define CLUSTER_HPP
 
 #include <ros/ros.h>
 #include <tf/transform_datatypes.h>
@@ -87,4 +87,4 @@ private:
 
 } // namespace
 
-#endif // CLUSTER_H
+#endif // CLUSTER_HPP

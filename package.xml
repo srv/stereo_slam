@@ -3,7 +3,7 @@
   <version>0.0.1</version>
   <description>Stereo Slam</description>
   <author email="pl.negre@uib.cat">Pep Lluis Negre</author>
-  <maintainer email="pl.negre@uib.cat">Pep Lluis Negre</maintainer>
+  <maintainer email="bo-miquel.nordfeldt@uib.es">Bo Miquel Nordfeldt Fiol</maintainer>
   <license>BSD</license>
   <url type="website">https://github.com/srv/stereo_slam</url>
   <url type="bugtracker">https://github.com/srv/stereo_slam/issues</url>
@@ -20,7 +20,6 @@
   <build_depend>message_generation</build_depend>
   <build_depend>cv_bridge</build_depend>
   <build_depend>image_geometry</build_depend>
-  <build_depend>std_srvs</build_depend>
   <build_depend>libg2o</build_depend>
   <build_depend>pcl_ros</build_depend>
   <build_depend>cmake_modules</build_depend>
@@ -36,7 +35,6 @@
   <run_depend>message_runtime</run_depend>
   <run_depend>cv_bridge</run_depend>
   <run_depend>image_geometry</run_depend>
-  <run_depend>std_srvs</run_depend>
   <run_depend>libg2o</run_depend>
   <run_depend>pcl_ros</run_depend>
   <run_depend>tf_conversions</run_depend>

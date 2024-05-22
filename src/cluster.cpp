@@ -1,5 +1,5 @@
-#include "cluster.h"
-#include "tools.h"
+#include "cluster.hpp"
+#include "tools.hpp"
 
 namespace slam
 {

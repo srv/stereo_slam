@@ -1,5 +1,5 @@
-#ifndef HASH_H
-#define HASH_H
+#ifndef HASH_HPP
+#define HASH_HPP
 
 #include "opencv2/core/core.hpp"
 #include "opencv2/features2d/features2d.hpp"
@@ -68,4 +68,4 @@ private:
 
 } // namespace
 
-#endif // HASH_H
+#endif // HASH_HPP

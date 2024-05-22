@@ -1,5 +1,5 @@
-#include "loop_closing.h"
-#include "tools.h"
+#include "loop_closing.hpp"
+#include "tools.hpp"
 
 namespace slam
 {
@@ -196,7 +196,7 @@ namespace slam
     tools::Tools::ratioMatching(c_cluster_.getOrb(), candidate.getOrb(), matching_th, matches_1);
 
     // Get the neighbor clusters if enough matching percentage
-    if (matches_1.size() > (int)(params_.lc_min_inliers / 2))
+    if (matches_1.size() > (params_.lc_min_inliers / 2))
     {
       // Init accumulated data
       std::vector<int> cluster_query_list;
@@ -311,7 +311,7 @@ namespace slam
         cv::Mat rvec, tvec;
         cv::solvePnPRansac(matched_cand_3d_points, matched_query_kp_l,
             graph_->getCameraMatrix(), cv::Mat(), rvec, tvec,
-            false, 100, params_.lc_epipolar_thresh, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);  
+            false, 100, params_.lc_epipolar_thresh, 0.99, inliers, cv::SOLVEPNP_P3P);  
 
         sub_time_loop_closing_msg_.motion_estimation = ros::Time::now().toSec() - t0;
 
@@ -322,7 +322,7 @@ namespace slam
           estimated_transform = estimated_transform.inverse();
 
           // Get the inliers per cluster pair
-          std::vector< std::vector<int> > cluster_pairs;
+          std::vector<std::vector<int>> cluster_pairs;
           std::vector<int> inliers_per_pair;
           std::vector<int> cand_kfs;
           for (uint i=0; i<inliers.size(); i++)
@@ -370,7 +370,7 @@ namespace slam
           }
 
           // Add the corresponding edges
-          std::vector< std::vector<int> > definitive_cluster_pairs;
+          std::vector<std::vector<int>> definitive_cluster_pairs;
           std::vector<int> definitive_inliers_per_pair;
           bool some_edge_added = false;
           for (uint i=0; i<inliers_per_pair.size(); i++)
@@ -550,8 +550,8 @@ namespace slam
     fs["points"] >> points;
     cv::FileNode kp_l_node = fs["kp_l"];
     cv::FileNode kp_r_node = fs["kp_r"];
-    read(kp_l_node, kp_l);
-    read(kp_r_node, kp_r);
+    cv::read(kp_l_node, kp_l);
+    cv::read(kp_r_node, kp_r);
     fs.release();
 
     // Set the properties of the cluster

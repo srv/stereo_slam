@@ -3,8 +3,8 @@
  * @brief The frame publisher class is responsive to publish the image visualizations for debugging purposes (presentation).
  */
 
-#ifndef PUBLISHER_H
-#define PUBLISHER_H
+#ifndef PUBLISHER_HPP
+#define PUBLISHER_HPP
 
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
@@ -15,8 +15,8 @@
 #include <opencv2/features2d.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include "tracking.h"
-#include "frame.h"
+#include "tracking.hpp"
+#include "frame.hpp"
 
 namespace slam
 {
@@ -54,14 +54,21 @@ protected:
    */
   void drawStereoMatches(const Frame frame);
 
+  /** \brief Publishes images
+   * \param The ROS publisher, the cv image and the ROS timestamp
+   */
+  void publishImage(ros::Publisher pub, cv::Mat image, ros::Time stamp);
+
 private:
 
   ros::Publisher pub_clustering_; //!> Publisher for the frame clustering
+
   ros::Publisher pub_stereo_matches_img_; //!> Publisher for the frame stereo matches
+
   ros::Publisher pub_stereo_matches_num_; //!> Publisher for the frame stereo matches
 
 };
 
 } // namespace
 
-#endif // PUBLISHER_H
+#endif // PUBLISHER_HPP

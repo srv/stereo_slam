@@ -1,7 +1,7 @@
 #include <ros/ros.h>
 
-#include "tracking.h"
-#include "tools.h"
+#include "tracking.hpp"
+#include "tools.hpp"
 
 namespace slam
 {
@@ -66,7 +66,7 @@ namespace slam
     double t0 = ros::Time::now().toSec();
 
     tf::Transform c_odom_robot = tools::Tools::odomTotf(*odom_msg);
-    double timestamp = l_img_msg->header.stamp.toSec();
+    // double timestamp = l_img_msg->header.stamp.toSec();
 
     cv::Mat l_img, r_img;
     tools::Tools::imgMsgToMat(*l_img_msg, *r_img_msg, l_img, r_img);
@@ -90,7 +90,7 @@ namespace slam
       graph_->setCamera2Robot(robot2camera_.inverse());
 
       // The initial frame
-      c_frame_ = Frame(l_img, r_img, camera_model_, timestamp, params_.feature_detector_selection);
+      c_frame_ = Frame(l_img, r_img, camera_model_, l_img_msg->header.stamp, params_.feature_detector_selection);
 
       // Get frame time metrics
       time_tracking_msg_.feature_extraction = c_frame_.getFeatureExtractionTimeConsumption();
@@ -120,7 +120,7 @@ namespace slam
     else
     {
       // The current frame
-      c_frame_ = Frame(l_img, r_img, camera_model_, timestamp, params_.feature_detector_selection);
+      c_frame_ = Frame(l_img, r_img, camera_model_, l_img_msg->header.stamp, params_.feature_detector_selection);
 
       // Get frame time metrics
       time_tracking_msg_.feature_extraction = c_frame_.getFeatureExtractionTimeConsumption();
@@ -253,10 +253,10 @@ namespace slam
       // Extract the transform
       tf_listener_.lookupTransform(odom_msg.child_frame_id,
           img_msg.header.frame_id,
-          odom_msg.header.stamp,
+          ros::Time(0),
           transform);
     }
-    catch (tf::TransformException ex)
+    catch (tf::TransformException &ex)
     {
       ROS_WARN("%s", ex.what());
       return false;
@@ -289,7 +289,7 @@ namespace slam
   bool Tracking::addFrameToMap()
   {
 
-    if (c_frame_.getLeftKp().size() > (int)(params_.lc_min_inliers / 2))
+    if (c_frame_.getLeftKp().size() > (long unsigned int)(params_.lc_min_inliers / 2))
     {
       c_frame_.regionClustering();
 
@@ -337,7 +337,7 @@ namespace slam
     std::vector<cv::DMatch> matches;
     tools::Tools::ratioMatching(query.getLeftDesc(), candidate.getLeftDesc(), 0.8, matches);
 
-    if (matches.size() >= params_.lc_min_inliers)
+    if (matches.size() >= (long unsigned int)params_.lc_min_inliers)
     {
       // Get the matched keypoints
       std::vector<cv::KeyPoint> query_kp_l = query.getLeftKp();
@@ -371,7 +371,7 @@ namespace slam
                          100, params_.lc_epipolar_thresh, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
 
       // Inliers threshold
-      if (inliers.size() < params_.lc_min_inliers)
+      if (inliers.size() < (long unsigned int)params_.lc_min_inliers)
       {
         return false;
       }

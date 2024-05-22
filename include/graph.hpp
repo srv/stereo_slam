@@ -3,8 +3,8 @@
  * @brief Graph class
  */
 
-#ifndef GRAPH_H
-#define GRAPH_H
+#ifndef GRAPH_HPP
+#define GRAPH_HPP
 
 #include <memory>
 
@@ -28,8 +28,8 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include "frame.h"
-#include "loop_closing.h"
+#include "frame.hpp"
+#include "loop_closing.hpp"
 #include "stereo_slam/GraphPoses.h"
 #include "stereo_slam/TimeGraph.h"
 
@@ -291,4 +291,4 @@ private:
 
 } // namespace
 
-#endif // GRAPH_H
+#endif // GRAPH_HPP

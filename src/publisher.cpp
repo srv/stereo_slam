@@ -1,7 +1,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-#include "publisher.h"
+#include "publisher.hpp"
 
 namespace slam
 {
@@ -25,6 +25,15 @@ namespace slam
     if (pub_stereo_matches_img_.getNumSubscribers() > 0 ||
         pub_stereo_matches_num_.getNumSubscribers() > 0)
       drawStereoMatches(frame);
+  }
+
+  void Publisher::publishImage(ros::Publisher pub, cv::Mat image, ros::Time stamp)
+  {
+    cv_bridge::CvImage ros_image;
+    ros_image.image = image;
+    ros_image.header.stamp = stamp;
+    ros_image.encoding = "bgr8";
+    pub.publish(ros_image.toImageMsg());
   }
 
   void Publisher::drawKeypointsClustering(const Frame frame)
@@ -54,11 +63,7 @@ namespace slam
     cv::putText(im_text, s.str(), cv::Point(5, im_text.rows - 10), cv::FONT_HERSHEY_PLAIN, 1.5, cv::Scalar(0,0,0), 2, 8);
 
     // Publish
-    cv_bridge::CvImage ros_image;
-    ros_image.image = im_text.clone();
-    ros_image.header.stamp = ros::Time::now();
-    ros_image.encoding = "bgr8";
-    pub_clustering_.publish(ros_image.toImageMsg());
+    publishImage(pub_clustering_, im_text, frame.getTimestamp());
   }
 
   void Publisher::drawStereoMatches(const Frame frame)
@@ -85,11 +90,7 @@ namespace slam
       cv::putText(im_text, s.str(), cv::Point(5, im_text.rows - 10), cv::FONT_HERSHEY_PLAIN, 1.5, cv::Scalar(0,0,0), 2, 8);
 
       // Publish
-      cv_bridge::CvImage ros_image;
-      ros_image.image = im_text.clone();
-      ros_image.header.stamp = ros::Time::now();
-      ros_image.encoding = "bgr8";
-      pub_stereo_matches_img_.publish(ros_image.toImageMsg());
+      publishImage(pub_stereo_matches_img_, im_text, frame.getTimestamp());
     }
 
     if (pub_stereo_matches_num_.getNumSubscribers() > 0)

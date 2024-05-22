@@ -16,9 +16,9 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/thread/thread.hpp>
 
-#include "hash.h"
-#include "cluster.h"
-#include "graph.h"
+#include "hash.hpp"
+#include "cluster.hpp"
+#include "graph.hpp"
 #include "stereo_slam/TimeLoopClosing.h"
 #include "stereo_slam/SubTimeLoopClosing.h"
 
@@ -34,12 +34,12 @@ public:
 
   struct Params
   {
-    int lc_neighbors;          //!> Number of neighbours to recover in order to increase the possibility of closing the loop.
-    int lc_min_inliers;        //!> Minimum number of inliers to close a loop.
-    int lc_discard_window;     //!> Window size of discarded vertices.
-    double lc_epipolar_thresh; //!> Maximum reprojection error allowed.
-    int ransac_iterations;     //!> Number of RANSAC iterations for the solvePnPRansac
-    std::string working_directory;  //!> Directory where all output files will be stored.
+    int lc_neighbors;                   //!> Number of neighbours to recover in order to increase the possibility of closing the loop.
+    int lc_discard_window;              //!> Window size of discarded vertices.
+    double lc_epipolar_thresh;          //!> Maximum reprojection error allowed.
+    long unsigned int lc_min_inliers;   //!> Minimum number of inliers to close a loop.
+    int ransac_iterations;              //!> Number of RANSAC iterations for the solvePnPRansac
+    std::string working_directory;      //!> Directory where all output files will be stored.
 
     // Default settings
     Params ()
@@ -147,6 +147,8 @@ protected:
 
 private:
 
+  bool first_time_ = true; 
+
   int cluster_id_; //!> Processed cluster counter
 
   Params params_; //!> Stores parameters.
@@ -195,4 +197,4 @@ private:
 
 } // namespace
 
-#endif // LOOP_CLOSING_H
+#endif // LOOP_CLOSING_HPP
