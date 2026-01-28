@@ -7,15 +7,14 @@ namespace slam
   LoopClosing::LoopClosing()
   {
     ros::NodeHandle nhp("~");
-    pub_num_clusters_ = nhp.advertise<std_msgs::Int32>("num_clusters", 2, true);
-    pub_num_lc_ = nhp.advertise<std_msgs::Int32>("loop_closings_num", 2, true);
+    pub_num_clusters_ = nhp.advertise<std_msgs::Int32>("cluster_num", 2, true);
+    pub_num_lc_ = nhp.advertise<std_msgs::Int32>("loop_closing_num", 2, true);
     pub_queue_ = nhp.advertise<std_msgs::Int32>("loop_closing_queue", 2, true);
     pub_matchings_num_ = nhp.advertise<std_msgs::Int32>("loop_closing_matches_num", 2, true);
     pub_inliers_num_ = nhp.advertise<std_msgs::Int32>("loop_closing_inliers_num", 2, true);
     pub_inliers_img_ = nhp.advertise<sensor_msgs::Image>("loop_closing_inliers_img", 2, true);
     pub_matchings_percentage_ = nhp.advertise<std_msgs::Int32>("loop_closing_matches_percentage", 2, true);
     pub_time_loop_closing_ = nhp.advertise<stereo_slam::TimeLoopClosing>("time_loop_closing", 1);
-    pub_sub_time_loop_closing_ = nhp.advertise<stereo_slam::SubTimeLoopClosing>("sub_time_loop_closing", 1);
   }
 
   void LoopClosing::run()
@@ -304,21 +303,17 @@ namespace slam
           cand_matchings.push_back(cluster_cand_list[matches_2[j].trainIdx]);
         }
 
-        double t0 = ros::Time::now().toSec();
-
         // Estimate the motion
         std::vector<int> inliers;
         cv::Mat rvec, tvec;
         cv::solvePnPRansac(matched_cand_3d_points, matched_query_kp_l,
             graph_->getCameraMatrix(), cv::Mat(), rvec, tvec,
-            false, 100, params_.lc_epipolar_thresh, 0.99, inliers, cv::SOLVEPNP_P3P);  
-
-        sub_time_loop_closing_msg_.motion_estimation = ros::Time::now().toSec() - t0;
+            false, params_.ransac_iterations, params_.lc_epipolar_thresh, 0.99, inliers, cv::SOLVEPNP_P3P);  
 
         // Loop found!
         if (inliers.size() >= params_.lc_min_inliers)
         {
-          tf::Transform estimated_transform = tools::Tools::buildTransformation(rvec, tvec);
+          tf2::Transform estimated_transform = tools::Tools::buildTransformation(rvec, tvec);
           estimated_transform = estimated_transform.inverse();
 
           // Get the inliers per cluster pair
@@ -391,9 +386,9 @@ namespace slam
               if (lc_found) continue;
 
               // Compute correct transform between edges
-              tf::Transform candidate_cluster_pose = graph_->getVertexPose(cluster_pairs[i][1]);
-              tf::Transform frame_cluster_pose_relative_to_camera = graph_->getVertexPoseRelativeToCamera(cluster_pairs[i][0]);
-              tf::Transform edge_1 = candidate_cluster_pose.inverse() * estimated_transform * frame_cluster_pose_relative_to_camera;
+              tf2::Transform candidate_cluster_pose = graph_->getVertexPose(cluster_pairs[i][1]);
+              tf2::Transform frame_cluster_pose_relative_to_camera = graph_->getVertexPoseRelativeToCamera(cluster_pairs[i][0]);
+              tf2::Transform edge_1 = candidate_cluster_pose.inverse() * estimated_transform * frame_cluster_pose_relative_to_camera;
 
               // Estimate the covariance
               cv::Mat J;
@@ -432,11 +427,7 @@ namespace slam
             }
 
             // Update the graph with the new edges
-            double t1 = ros::Time::now().toSec();
-
             graph_->update();
-
-            sub_time_loop_closing_msg_.graph_optimization = ros::Time::now().toSec() - t1;
 
             // Draw the loop closure to image
             drawLoopClosure(cand_kfs,
@@ -453,30 +444,15 @@ namespace slam
             ROS_INFO_STREAM("[Localization:] Method: " << search_method);
             ROS_INFO_STREAM("[Localization:] Inliers: " << inliers.size());
             ROS_INFO("[Localization:] ---------------------------");
-
-            publishSubTimeloopClosing();
-
             return true;
           }
         }
-
-        publishSubTimeloopClosing();
-
       }
     }
 
     return false;
   }
 
-  void LoopClosing::publishSubTimeloopClosing()
-  {
-    if (pub_sub_time_loop_closing_.getNumSubscribers() > 0)
-    {
-      sub_time_loop_closing_msg_.header.stamp = ros::Time::now();
-      pub_sub_time_loop_closing_.publish(sub_time_loop_closing_msg_);
-      sub_time_loop_closing_msg_.graph_optimization = 0;
-    }
-  }
 
   void LoopClosing::getCandidates(int cluster_id, std::vector< std::pair<int,float> >& candidates)
   {
@@ -555,7 +531,7 @@ namespace slam
     fs.release();
 
     // Set the properties of the cluster
-    tf::Transform vertex_camera_pose = graph_->getVertexCameraPose(id, true);
+    tf2::Transform vertex_camera_pose = graph_->getVertexCameraPose(id, true);
     Cluster cluster_tmp(id, frame_id, vertex_camera_pose, kp_l, kp_r, desc, empty, points);
     cluster = cluster_tmp;
 

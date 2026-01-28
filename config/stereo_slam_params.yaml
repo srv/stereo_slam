@@ -1,0 +1,11 @@
+stereo_slam:
+  refine: false
+  distance_between_keyframes: 0.3
+  # working_directory: 
+  feature_detector_selection: ORB
+  lc_min_inliers: 30
+  lc_epipolar_thresh: 1
+  map_frame_id: /girona500/map
+  lc_neighbors: 5
+  lc_discard_window: 20
+  ransac_iterations: 2000

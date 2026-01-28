@@ -8,8 +8,7 @@
 
 #include <ros/ros.h>
 #include <image_geometry/stereo_camera_model.h>
-#include <tf/transform_datatypes.h>
-#include <tf_conversions/tf_eigen.h>
+#include <tf2/LinearMath/Transform.h>
 #include <pcl_ros/transforms.h>
 
 #include <opencv2/opencv.hpp>
@@ -98,7 +97,7 @@ public:
   /** \brief Set camera pose
    * \param camera pose
    */
-  inline void setCameraPose(const tf::Transform& camera_pose){camera_pose_ = camera_pose;}
+  inline void setCameraPose(const tf2::Transform& camera_pose){camera_pose_ = camera_pose;}
 
   /** \brief Set pointcloud
    * \param pointcloud
@@ -121,7 +120,7 @@ public:
 
   /** \brief Get camera pose
    */
-  inline tf::Transform getCameraPose() const {return camera_pose_;}
+  inline tf2::Transform getCameraPose() const {return camera_pose_;}
 
   /** \brief Return the clustering for the current frame
    */
@@ -204,7 +203,7 @@ private:
 
   std::vector<Eigen::Vector4f> cluster_centroids_; //!> Central point for every cluster
 
-  tf::Transform camera_pose_; //!> Camera world position for this frame
+  tf2::Transform camera_pose_; //!> Camera world position for this frame
 
   ros::Time stamp_; //!> Store the frame timestamp
 

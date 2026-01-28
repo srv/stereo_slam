@@ -11,7 +11,9 @@
 #include <ros/ros.h>
 #include <std_msgs/Int32.h>
 #include <nav_msgs/Odometry.h>
-#include <tf/transform_broadcaster.h>
+#include <tf2/LinearMath/Transform.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <image_geometry/pinhole_camera_model.h>
 
 #include <opencv2/opencv.hpp>
@@ -95,7 +97,7 @@ public:
    * \param Sigma information
    * \param Inliers
    */
-  void addEdge(int i, int j, tf::Transform edge, cv::Mat sigma, int inliers);
+  void addEdge(int i, int j, tf2::Transform edge, cv::Mat sigma, int inliers);
 
   /** \brief Optimize the graph
    */
@@ -132,27 +134,27 @@ public:
    * \param vertex id
    * \param set to true to lock the graph
    */
-  tf::Transform getVertexPose(int vertex_id, bool lock = true);
+  tf2::Transform getVertexPose(int vertex_id, bool lock = true);
 
   /** \brief Get frame pose
    * @return true if frame pose can be extracted, false otherwise
    * \param frame id
    * \param output graph frame pose
    */
-  bool getFramePose(int frame_id, tf::Transform& frame_pose);
+  bool getFramePose(int frame_id, tf2::Transform& frame_pose);
 
   /** \brief Get the graph vertex pose relative to camera
    * @return graph vertex pose relative to camera
    * \param vertex id
    */
-  tf::Transform getVertexPoseRelativeToCamera(int id);
+  tf2::Transform getVertexPoseRelativeToCamera(int id);
 
   /** \brief Get the camera pose of some specific vertex
    * @return graph vertex camera pose
    * \param vertex id
    * \param true to lock the graph
    */
-  tf::Transform getVertexCameraPose(int id, bool lock = true);
+  tf2::Transform getVertexCameraPose(int id, bool lock = true);
 
   /** \brief Save the graph to file
    */
@@ -161,7 +163,7 @@ public:
   /** \brief Set the transformation between camera and robot frame 
    * \param the transform
    */
-  inline void setCamera2Robot(const tf::Transform& camera2robot){camera2robot_ = camera2robot;}
+  inline void setCamera2Robot(const tf2::Transform& camera2robot){camera2robot_ = camera2robot;}
 
   /** \brief Set the odom frame
    * \param the odom frame id
@@ -205,7 +207,7 @@ protected:
    * @return the corrected pose
    * \param The pose to be corrected
    */
-  tf::Transform correctClusterPose(tf::Transform initial_pose);
+  tf2::Transform correctClusterPose(tf2::Transform initial_pose);
 
   /** \brief Return all possible combinations of 2 elements of the input vector
    * @return the list of combinations
@@ -226,7 +228,7 @@ protected:
    * @return the vertex id
    * \param Vertex pose
    */
-  int addVertex(tf::Transform pose);
+  int addVertex(tf2::Transform pose);
 
   /** \brief Save the frame to the default location
    * \param the frame to be drawn
@@ -236,7 +238,7 @@ protected:
   /** \brief Publishes the graph camera pose
    * \param Camera pose
    */
-  void publishUpdatedPose(tf::Transform camera_pose);
+  void publishUpdatedPose(tf2::Transform camera_pose);
 
   /** \brief Publishes all the graph
    */
@@ -254,9 +256,9 @@ private:
 
   std::vector< std::pair< int,int > > cluster_frame_relation_; //!> Stores the cluster/frame relation (cluster_id, frame_id)
 
-  std::vector<tf::Transform> local_cluster_poses_; //!> Stores the cluster poses relative to camera frame
+  std::vector<tf2::Transform> local_cluster_poses_; //!> Stores the cluster poses relative to camera frame
 
-  std::vector<tf::Transform> initial_cluster_pose_history_; //!> Stores the initial cluster poses, before graph update.
+  std::vector<tf2::Transform> initial_cluster_pose_history_; //!> Stores the initial cluster poses, before graph update.
 
   std::vector<double> frame_stamps_; //> Stores the frame timestamps
 
@@ -264,7 +266,7 @@ private:
 
   boost::mutex mutex_frame_queue_; //!> Mutex for the insertion of new frames into the graph
 
-  tf::Transform camera2robot_; //!> Transformation between camera and robot frame
+  tf2::Transform camera2robot_; //!> Transformation between camera and robot frame
 
   std::string odom_frame_id_; //!> Odom frame 
 
