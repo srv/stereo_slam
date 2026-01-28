@@ -12,6 +12,7 @@
 #include <nav_msgs/Odometry.h>
 #include <boost/filesystem.hpp>
 #include <g2o/types/slam3d/vertex_se3.h>
+#include <tf2/LinearMath/Transform.h>
 
 namespace tools
 {
@@ -26,15 +27,15 @@ public:
   typedef pcl::PointCloud<Point>  PointCloud;
 
 
-  /** \brief convert a Eigen::Vector4f to tf::Transform
-    * @return tf::Transform matrix
+  /** \brief convert a Eigen::Vector4f to tf2::Transform
+    * @return tf2::Transform matrix
     * \param in of type Eigen::Vector4f
     */
-  static tf::Transform vector4fToTransform(Eigen::Vector4f in)
+  static tf2::Transform vector4fToTransform(Eigen::Vector4f in)
   {
-    tf::Transform out;
+    tf2::Transform out;
     out.setIdentity();
-    tf::Vector3 t_out(in[0], in[1], in[2]);
+    tf2::Vector3 t_out(in[0], in[1], in[2]);
     out.setOrigin(t_out);
     return out;
   }
@@ -44,20 +45,20 @@ public:
     * \param input Eigen::Vector4f
     * \param input transformation
     */
-  static tf::Transform transformVector4f(Eigen::Vector4f in, tf::Transform transform)
+  static tf2::Transform transformVector4f(Eigen::Vector4f in, tf2::Transform transform)
   {
-    tf::Transform in_tf = vector4fToTransform(in);
+    tf2::Transform in_tf = vector4fToTransform(in);
     return transform * in_tf;
   }
 
-  /** \brief convert a tf::transform to Eigen::Isometry3d
+  /** \brief convert a tf2::transform to Eigen::Isometry3d
     * @return Eigen::Isometry3d matrix
-    * \param in of type tf::transform
+    * \param in of type tf2::transform
     */
-  static Eigen::Isometry3d tfToIsometry(tf::Transform in)
+  static Eigen::Isometry3d tfToIsometry(tf2::Transform in)
   {
-    tf::Vector3 t_in = in.getOrigin();
-    tf::Quaternion q_in = in.getRotation();
+    tf2::Vector3 t_in = in.getOrigin();
+    tf2::Quaternion q_in = in.getRotation();
     Eigen::Vector3d t_out(t_in.x(), t_in.y(), t_in.z());
     Eigen::Quaterniond q_out;
     q_out.setIdentity();
@@ -70,26 +71,26 @@ public:
     return out;
   }
 
-  /** \brief convert a Eigen::Isometry3d to tf::transform
-    * @return tf::transform matrix
+  /** \brief convert a Eigen::Isometry3d to tf2::transform
+    * @return tf2::transform matrix
     * \param in of type Eigen::Isometry3d
     */
-  static tf::Transform isometryToTf(Eigen::Isometry3d in)
+  static tf2::Transform isometryToTf(Eigen::Isometry3d in)
   {
     Eigen::Vector3d t_in = in.translation();
     Eigen::Quaterniond q_in = (Eigen::Quaterniond)in.rotation();
-    tf::Vector3 t_out(t_in.x(), t_in.y(), t_in.z());
-    tf::Quaternion q_out(q_in.x(), q_in.y(), q_in.z(), q_in.w());
-    tf::Transform out(q_out, t_out);
+    tf2::Vector3 t_out(t_in.x(), t_in.y(), t_in.z());
+    tf2::Quaternion q_out(q_in.x(), q_in.y(), q_in.z(), q_in.w());
+    tf2::Transform out(q_out, t_out);
     return out;
   }
 
-  /** \brief Convert odometry message to tf::Transform
+  /** \brief Convert odometry message to tf2::Transform
     * @return the trasnformation matrix
     * \param rvec cv matrix with the rotation angles
     * \param tvec cv matrix with the transformation x y z
     */
-  static tf::Transform odomTotf(nav_msgs::Odometry odom_msg)
+  static tf2::Transform odomTotf(nav_msgs::Odometry odom_msg)
   {
     // Get the data
     double tx = odom_msg.pose.pose.position.x;
@@ -104,15 +105,15 @@ public:
     // Sanity check
     if(qx == 0.0 && qy == 0.0 && qz == 0.0 && qw == 1.0)
     {
-      tf::Transform odom;
+      tf2::Transform odom;
       odom.setIdentity();
       return odom;
     }
     else
     {
-      tf::Vector3 tf_trans(tx, ty, tz);
-      tf::Quaternion tf_q (qx, qy, qz, qw);
-      tf::Transform odom(tf_q, tf_trans);
+      tf2::Vector3 tf_trans(tx, ty, tz);
+      tf2::Quaternion tf_q (qx, qy, qz, qw);
+      tf2::Transform odom(tf_q, tf_trans);
       return odom;
     }
   }
@@ -180,14 +181,14 @@ public:
     }
   }
 
-  /** \brief get the pose of vertex in format tf::Transform
-    * @return tf::Transform pose matrix
+  /** \brief get the pose of vertex in format tf2::Transform
+    * @return tf2::Transform pose matrix
     * \param vertex
     */
-  static tf::Transform getVertexPose(g2o::VertexSE3* v)
+  static tf2::Transform getVertexPose(g2o::VertexSE3* v)
   {
     Eigen::Isometry3d pose_eigen = v->estimate();
-    tf::Transform pose_tf = tools::Tools::isometryToTf(pose_eigen);
+    tf2::Transform pose_tf = tools::Tools::isometryToTf(pose_eigen);
     return pose_tf;
   }
 
@@ -196,9 +197,9 @@ public:
     * \param pose_1 transformation matrix of pose 1
     * \param pose_2 transformation matrix of pose 2
     */
-  static double poseDiff3D(tf::Transform pose_1, tf::Transform pose_2)
+  static double poseDiff3D(tf2::Transform pose_1, tf2::Transform pose_2)
   {
-    tf::Vector3 d = pose_1.getOrigin() - pose_2.getOrigin();
+    tf2::Vector3 d = pose_1.getOrigin() - pose_2.getOrigin();
     return sqrt(d.x()*d.x() + d.y()*d.y() + d.z()*d.z());
   }
 
@@ -207,9 +208,9 @@ public:
     * \param pose_1 transformation matrix of pose 1
     * \param pose_2 transformation matrix of pose 2
     */
-  static double poseDiff2D(tf::Transform pose_1, tf::Transform pose_2)
+  static double poseDiff2D(tf2::Transform pose_1, tf2::Transform pose_2)
   {
-    tf::Vector3 d = pose_1.getOrigin() - pose_2.getOrigin();
+    tf2::Vector3 d = pose_1.getOrigin() - pose_2.getOrigin();
     return sqrt(d.x()*d.x() + d.y()*d.y());
   }
 
@@ -239,27 +240,27 @@ public:
     * \param rvec cv matrix with the rotation angles
     * \param tvec cv matrix with the transformation x y z
     */
-  static tf::Transform buildTransformation(cv::Mat rvec, cv::Mat tvec)
+  static tf2::Transform buildTransformation(cv::Mat rvec, cv::Mat tvec)
   {
     if (rvec.empty() || tvec.empty())
-      return tf::Transform();
+      return tf2::Transform();
 
-    tf::Vector3 axis(rvec.at<double>(0, 0),
+    tf2::Vector3 axis(rvec.at<double>(0, 0),
                      rvec.at<double>(1, 0),
                      rvec.at<double>(2, 0));
     double angle = norm(rvec);
-    tf::Quaternion quaternion(axis, angle);
+    tf2::Quaternion quaternion(axis, angle);
 
-    tf::Vector3 translation(tvec.at<double>(0, 0), tvec.at<double>(1, 0),
+    tf2::Vector3 translation(tvec.at<double>(0, 0), tvec.at<double>(1, 0),
         tvec.at<double>(2, 0));
 
-    return tf::Transform(quaternion, translation);
+    return tf2::Transform(quaternion, translation);
   }
 
-  static cv::Point3f transformPoint(cv::Point3f point, tf::Transform base)
+  static cv::Point3f transformPoint(cv::Point3f point, tf2::Transform base)
   {
-    tf::Vector3 p_tf(point.x, point.y, point.z);
-    tf::Vector3 p_tf_world = base * p_tf;
+    tf2::Vector3 p_tf(point.x, point.y, point.z);
+    tf2::Vector3 p_tf_world = base * p_tf;
     cv::Point3f new_point(p_tf_world.x(), p_tf_world.y(), p_tf_world.z());
     return new_point;
   }

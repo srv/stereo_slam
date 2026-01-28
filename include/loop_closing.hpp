@@ -20,7 +20,6 @@
 #include "cluster.hpp"
 #include "graph.hpp"
 #include "stereo_slam/TimeLoopClosing.h"
-#include "stereo_slam/SubTimeLoopClosing.h"
 
 namespace slam
 {
@@ -114,8 +113,6 @@ protected:
    */
   bool closeLoopWithCluster(Cluster candidate, std::string search_method);
 
-  void publishSubTimeloopClosing();
-
   /** \brief Get the best candidates to close a loop by hash
    * \param Cluster identifier
    * \param The list of best candidates
@@ -189,9 +186,7 @@ private:
 
   stereo_slam::TimeLoopClosing time_loop_closing_msg_; //! Message to publish time metrics
 
-  stereo_slam::SubTimeLoopClosing sub_time_loop_closing_msg_; //! Message to publish specific time metrics
-
-  ros::Publisher pub_time_loop_closing_, pub_sub_time_loop_closing_; //!> Time loop closing thread publisher
+  ros::Publisher pub_time_loop_closing_; //!> Time loop closing thread publisher
 
 };
 

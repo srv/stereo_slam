@@ -1,42 +1,47 @@
-<package>
+<?xml version="1.0"?>
+<package format="2">
+
   <name>stereo_slam</name>
-  <version>0.0.1</version>
+  <version>1.0.0</version>
+
   <description>Stereo Slam</description>
-  <author email="pl.negre@uib.cat">Pep Lluis Negre</author>
-  <maintainer email="bo-miquel.nordfeldt@uib.es">Bo Miquel Nordfeldt Fiol</maintainer>
-  <license>BSD</license>
+
   <url type="website">https://github.com/srv/stereo_slam</url>
   <url type="bugtracker">https://github.com/srv/stereo_slam/issues</url>
+  
+  <author email="pl.negre@uib.cat">Pep Lluis Negre</author>
+  <maintainer email="bo-miquel.nordfeldt@uib.es">Bo Miquel Nordfeldt-Fiol</maintainer>
+  
+  <license>BSD-4-Clause</license>
 
+  <!-- Build tool -->
   <buildtool_depend>catkin</buildtool_depend>
 
-  <build_depend>roscpp</build_depend>
-  <build_depend>nav_msgs</build_depend>
-  <build_depend>tf</build_depend>
-  <build_depend>sensor_msgs</build_depend>
-  <build_depend>geometry_msgs</build_depend>
-  <build_depend>image_transport</build_depend>
-  <build_depend>message_filters</build_depend>
-  <build_depend>message_generation</build_depend>
-  <build_depend>cv_bridge</build_depend>
-  <build_depend>image_geometry</build_depend>
-  <build_depend>libg2o</build_depend>
-  <build_depend>pcl_ros</build_depend>
-  <build_depend>cmake_modules</build_depend>
-  <build_depend>tf_conversions</build_depend>
+  <!-- System Dependencies -->
+  <depend>eigen</depend> 
+  <depend>libsuitesparse-dev</depend>
 
-  <run_depend>roscpp</run_depend>
-  <run_depend>nav_msgs</run_depend>
-  <run_depend>tf</run_depend>
-  <run_depend>sensor_msgs</run_depend>
-  <run_depend>geometry_msgs</run_depend>
-  <run_depend>image_transport</run_depend>
-  <run_depend>message_filters</run_depend>
-  <run_depend>message_runtime</run_depend>
-  <run_depend>cv_bridge</run_depend>
-  <run_depend>image_geometry</run_depend>
-  <run_depend>libg2o</run_depend>
-  <run_depend>pcl_ros</run_depend>
-  <run_depend>tf_conversions</run_depend>
+  <!-- ROS Dependencies (Build + Exec) -->
+  <depend>tf2</depend>
+  <depend>roscpp</depend>
+  <depend>libg2o</depend>
+  <depend>tf2_ros</depend>
+  <depend>pcl_ros</depend>
+  <depend>nav_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>image_geometry</depend>
+  <depend>image_transport</depend>
+  <depend>message_filters</depend>
+  <depend>tf2_geometry_msgs</depend>
+
+  <!-- Only Build -->
+  <build_depend>cmake_modules</build_depend>
+  <build_depend>message_generation</build_depend>
+
+  <!-- Only Exec -->
+  <exec_depend>message_runtime</exec_depend>
 
 </package>

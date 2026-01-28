@@ -14,9 +14,11 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <image_transport/subscriber_filter.h>
 #include <image_geometry/stereo_camera_model.h>
-#include <tf/transform_datatypes.h>
-#include <tf/transform_listener.h>
-#include <tf/transform_broadcaster.h>
+#include <tf2/LinearMath/Transform.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include <opencv2/opencv.hpp>
 
@@ -114,7 +116,7 @@ protected:
    */
   bool getRobot2CameraTf(nav_msgs::Odometry odom_msg,
                          sensor_msgs::Image img_msg,
-                         tf::StampedTransform &transform);
+                         tf2::Transform& transform);
 
   /** \brief Decide if new keyframe is needed
    * @return True if new keyframe will be inserted into the graph
@@ -134,7 +136,7 @@ protected:
    * \param covariance of the transformation
    * \param number of inliers for the refined pose
    */
-  bool refinePose(Frame c_frame, Frame p_frame, tf::Transform& out, cv::Mat& sigma, int& num_inliers);
+  bool refinePose(Frame c_frame, Frame p_frame, tf2::Transform& out, cv::Mat& sigma, int& num_inliers);
 
 private:
 
@@ -142,9 +144,11 @@ private:
 
   trackingState state_; //!> Tracking state
 
-  tf::StampedTransform robot2camera_; //!> Transformation between robot frame (base link) and camera frame.
+  tf2::Transform robot2camera_; //!> Transformation between robot frame (base link) and camera frame.
 
-  tf::TransformListener tf_listener_; //!> Listen for tf between robot and camera.
+  tf2_ros::Buffer tf_buffer_;
+
+  tf2_ros::TransformListener tf_listener_; //!> Listen for tf between robot and camera.
 
   Frame c_frame_; //!> Current frame
 
@@ -164,15 +168,15 @@ private:
 
   Graph* graph_; //!> Graph
 
-  tf::Transform last_fixed_frame_pose_; //!> Stores the last fixed frame pose
+  tf2::Transform last_fixed_frame_pose_; //!> Stores the last fixed frame pose
 
   Eigen::Vector4f last_min_pt_, last_max_pt_; // Stores the last fixed frame minimum and maximum points
 
   int frame_id_; //!> Processed frames counter
 
-  std::vector<tf::Transform> odom_pose_history_; //!> Stores the odometry poses, relative to camera frame
+  std::vector<tf2::Transform> odom_pose_history_; //!> Stores the odometry poses, relative to camera frame
 
-  tf::Transform prev_robot_pose_; //!> Stores the previous corrected odometry pose
+  tf2::Transform prev_robot_pose_; //!> Stores the previous corrected odometry pose
 
   ros::WallTime jump_time_; //!> Stores the time at which the jump starts
 

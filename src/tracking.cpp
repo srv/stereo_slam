@@ -7,7 +7,7 @@ namespace slam
 {
 
   Tracking::Tracking(Publisher *f_pub, Graph *graph)
-    : f_pub_(f_pub), graph_(graph), frame_id_(0), jump_detected_(false), secs_to_filter_(10.0)
+    : tf_listener_{tf_buffer_}, f_pub_(f_pub), graph_(graph), frame_id_(0), jump_detected_(false), secs_to_filter_(10.0)
   {}
 
   void Tracking::run()
@@ -65,7 +65,7 @@ namespace slam
   {
     double t0 = ros::Time::now().toSec();
 
-    tf::Transform c_odom_robot = tools::Tools::odomTotf(*odom_msg);
+    tf2::Transform c_odom_robot = tools::Tools::odomTotf(*odom_msg);
     // double timestamp = l_img_msg->header.stamp.toSec();
 
     cv::Mat l_img, r_img;
@@ -101,7 +101,7 @@ namespace slam
       prev_robot_pose_ = c_odom_robot;
 
       // For the first frame, its estimated pose will coincide with odometry
-      tf::Transform c_odom_camera = c_odom_robot * robot2camera_;
+      tf2::Transform c_odom_camera = c_odom_robot * robot2camera_;
       c_frame_.setCameraPose(c_odom_camera);
 
       // Publish stereo matches
@@ -131,22 +131,22 @@ namespace slam
       f_pub_->publishStereoMatches(c_frame_);
 
       // Get the pose of the last frame id
-      tf::Transform last_frame_pose;
+      tf2::Transform last_frame_pose;
       bool graph_ready = graph_->getFramePose(frame_id_ - 1, last_frame_pose);
       if (!graph_ready) return;
 
       // Previous/current frame odometry difference
-      tf::Transform c_camera_odom_pose = c_odom_robot * robot2camera_;
-      tf::Transform odom_diff = odom_pose_history_[odom_pose_history_.size()-1].inverse() * c_camera_odom_pose;
+      tf2::Transform c_camera_odom_pose = c_odom_robot * robot2camera_;
+      tf2::Transform odom_diff = odom_pose_history_[odom_pose_history_.size()-1].inverse() * c_camera_odom_pose;
 
       // Refine its position relative to the previous frame
-      tf::Transform correction;
-      tf::Transform c_camera_pose;
+      tf2::Transform correction;
+      tf2::Transform c_camera_pose;
       int num_inliers = 0;
       if (params_.refine)
       {
         cv::Mat sigma;
-        tf::Transform p2c_diff;
+        tf2::Transform p2c_diff;
         bool succeed = refinePose(p_frame_, c_frame_, p2c_diff, sigma, num_inliers);
         double error = tools::Tools::poseDiff3D(p2c_diff, odom_diff);
         bool refine_valid = succeed && error < 0.3;
@@ -180,14 +180,14 @@ namespace slam
       if (is_new_keyframe)
       {
         // Store the camera odometry for this keyframe
-        tf::Transform c_odom_camera = c_odom_robot * robot2camera_;
+        tf2::Transform c_odom_camera = c_odom_robot * robot2camera_;
         odom_pose_history_.push_back(c_odom_camera);
       }
       time_tracking_msg_.need_new_keyframe = ros::Time::now().toSec() - t4;
     }
 
     // Convert camera to robot pose
-    tf::Transform robot_pose = c_frame_.getCameraPose() * robot2camera_.inverse();
+    tf2::Transform robot_pose = c_frame_.getCameraPose() * robot2camera_.inverse();
 
     // Detect a big jump
     double jump = tools::Tools::poseDiff3D(robot_pose, prev_robot_pose_);
@@ -201,7 +201,7 @@ namespace slam
       jump_detected_ = false;
     }
 
-    tf::Transform pose = robot_pose;
+    tf2::Transform pose = robot_pose;
     if (jump_detected_)
     {
       // Filter big jumps
@@ -220,13 +220,13 @@ namespace slam
       double y = factor * c_y + (1-factor) * p_y;
       double z = factor * c_z + (1-factor) * p_z;
 
-      tf::Vector3 filtered_pose(x, y, z);
+      tf2::Vector3 filtered_pose(x, y, z);
       pose.setOrigin(filtered_pose);
     }
 
     // Publish
     nav_msgs::Odometry pose_msg = *odom_msg;
-    tf::poseTFToMsg(pose, pose_msg.pose.pose);
+    tf2::toMsg(pose, pose_msg.pose.pose);
     pub_pose_.publish(pose_msg);
 
     // Store
@@ -242,8 +242,8 @@ namespace slam
   }
 
   bool Tracking::getRobot2CameraTf(nav_msgs::Odometry odom_msg,
-                                  sensor_msgs::Image img_msg,
-                                  tf::StampedTransform &transform)
+                                   sensor_msgs::Image img_msg,
+                                   tf2::Transform& transform)
   {
     // Init the transform
     transform.setIdentity();
@@ -251,12 +251,10 @@ namespace slam
     try
     {
       // Extract the transform
-      tf_listener_.lookupTransform(odom_msg.child_frame_id,
-          img_msg.header.frame_id,
-          ros::Time(0),
-          transform);
+      geometry_msgs::TransformStamped tf_msg = tf_buffer_.lookupTransform(odom_msg.child_frame_id, img_msg.header.frame_id, ros::Time(0));
+      tf2::fromMsg(tf_msg.transform, transform);
     }
-    catch (tf::TransformException &ex)
+    catch (tf2::TransformException &ex)
     {
       ROS_WARN("%s", ex.what());
       return false;
@@ -323,7 +321,7 @@ namespace slam
     return false;
   }
 
-  bool Tracking::refinePose(Frame query, Frame candidate, tf::Transform& out, cv::Mat& sigma, int& num_inliers)
+  bool Tracking::refinePose(Frame query, Frame candidate, tf2::Transform& out, cv::Mat& sigma, int& num_inliers)
   {
     // Init
     out.setIdentity();

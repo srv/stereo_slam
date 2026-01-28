@@ -7,7 +7,7 @@
 #define CLUSTER_HPP
 
 #include <ros/ros.h>
-#include <tf/transform_datatypes.h>
+#include <tf2/LinearMath/Transform.h>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/features2d/features2d.hpp>
@@ -26,7 +26,7 @@ public:
 
   /** \brief Class constructor
    */
-  Cluster(int id, int frame_id, tf::Transform camera_pose, std::vector<cv::KeyPoint> kp_l, std::vector<cv::KeyPoint> kp_r, cv::Mat orb_desc, cv::Mat sift_desc, std::vector<cv::Point3f> points);
+  Cluster(int id, int frame_id, tf2::Transform camera_pose, std::vector<cv::KeyPoint> kp_l, std::vector<cv::KeyPoint> kp_r, cv::Mat orb_desc, cv::Mat sift_desc, std::vector<cv::Point3f> points);
 
   /** \brief Computes and returns the 3D points in world coordinates
    * @return the 3D points in world coordinates
@@ -63,7 +63,7 @@ public:
 
   /** \brief Get camera pose
    */
-  inline tf::Transform getCameraPose() const {return camera_pose_;}
+  inline tf2::Transform getCameraPose() const {return camera_pose_;}
 
 private:
 
@@ -72,7 +72,7 @@ private:
 
   int frame_id_; //!> Corresponding frame id
 
-  tf::Transform camera_pose_; //!> Camera world position
+  tf2::Transform camera_pose_; //!> Camera world position
 
   std::vector<cv::KeyPoint> kp_l_; //!> left cv::KeyPoints.
 
