@@ -31,6 +31,7 @@ find_package(
     std_msgs
     cv_bridge
     sensor_msgs
+    rosgraph_msgs
     cmake_modules
     geometry_msgs
     image_geometry
@@ -94,7 +95,8 @@ include_directories(include
   ${G2O_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS})
 
-# Localization node
+# Executables
+add_executable(clock_extender src/clock_extender.cpp)
 add_executable(localization
   src/node.cpp
   src/frame.cpp
@@ -104,11 +106,11 @@ add_executable(localization
   src/loop_closing.cpp
   src/cluster.cpp
   src/hash.cpp)
-target_link_libraries(localization
-  ${EIGEN3_LIBRARIES}
-  ${OpenCV_LIBRARIES}
-  ${SUITESPARSE_LIBRARIES}
-  ${G2O_LIBRARIES}
-  cholmod
-  ${catkin_LIBRARIES})
+
+# Dependencies
+add_dependencies(clock_extender ${catkin_EXPORTED_TARGETS})
 add_dependencies(localization ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+# Linking
+target_link_libraries(clock_extender ${catkin_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(localization ${EIGEN3_LIBRARIES} ${OpenCV_LIBRARIES} ${SUITESPARSE_LIBRARIES} ${G2O_LIBRARIES} cholmod ${catkin_LIBRARIES})

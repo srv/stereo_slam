@@ -38,7 +38,7 @@ public:
     double lc_epipolar_thresh;          //!> Maximum reprojection error allowed.
     long unsigned int lc_min_inliers;   //!> Minimum number of inliers to close a loop.
     int ransac_iterations;              //!> Number of RANSAC iterations for the solvePnPRansac
-    std::string working_directory;      //!> Directory where all output files will be stored.
+    std::string working_path;      //!> Directory where all output files will be stored.
 
     // Default settings
     Params ()
@@ -48,7 +48,7 @@ public:
       lc_discard_window  = 15;
       lc_epipolar_thresh = 2.0;
       ransac_iterations  = 100;
-      working_directory  = "";
+      working_path  = "";
     }
   };
 

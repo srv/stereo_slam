@@ -19,7 +19,7 @@ namespace slam
     graph_optimizer_.setAlgorithm(solver);
 
     // Remove locking file if exists
-    std::string lock_file = params_.working_directory + ".graph.lock";
+    std::string lock_file = params_.working_path + ".graph.lock";
     if (boost::filesystem::exists(lock_file))
       remove(lock_file.c_str());
 
@@ -30,6 +30,9 @@ namespace slam
     pub_robot_pose_ = nhp.advertise<nav_msgs::Odometry>("graph_robot_odometry", 1);
     pub_camera_pose_ = nhp.advertise<nav_msgs::Odometry>("graph_camera_odometry", 1);
     pub_num_keyframes_ = nhp.advertise<std_msgs::Int32>("keyframe_num", 1);
+
+    // ROS timer.
+    timer_ = nhp.createWallTimer(ros::WallDuration(15.0), &Graph::timerCallback, this);
   }
 
   void Graph::run()
@@ -536,8 +539,8 @@ namespace slam
     std::string frame_id_str = tools::Tools::convertTo5digits(frame.getId());
 
     // Save keyframe
-    std::string l_kf = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
-    std::string r_kf = params_.working_directory + "keyframes/" + frame_id_str + "_right.jpg";
+    std::string l_kf = params_.working_path + "keyframes/" + frame_id_str + "_left.jpg";
+    std::string r_kf = params_.working_path + "keyframes/" + frame_id_str + "_right.jpg";
     cv::imwrite(l_kf, l_img);
     cv::imwrite(r_kf, r_img);
 
@@ -551,16 +554,16 @@ namespace slam
       for (uint j=0; j<clusters[i].size(); j++)
         cv::circle(c_img, kp[clusters[i][j]].pt, 5, color, -1);
     }
-    std::string clusters_file = params_.working_directory + "clusters/" + frame_id_str + ".jpg";
+    std::string clusters_file = params_.working_path + "clusters/" + frame_id_str + ".jpg";
     cv::imwrite(clusters_file, c_img);
   }
 
   void Graph::saveGraph()
   {
     std::string lock_file, vertices_file, edges_file;
-    vertices_file = params_.working_directory + "graph_vertices.txt";
-    edges_file = params_.working_directory + "graph_edges.txt";
-    lock_file = params_.working_directory + ".graph.lock";
+    vertices_file = params_.working_path + "graph_vertices.txt";
+    edges_file = params_.working_path + "graph_edges.txt";
+    lock_file = params_.working_path + ".graph.lock";
 
     // Wait until lock file has been released
     while(boost::filesystem::exists(lock_file));
@@ -646,8 +649,8 @@ namespace slam
 
           // Write
           f_edges <<
-            e->vertices()[0]->id() << "," <<
-            e->vertices()[1]->id() << "," <<
+            frame_a << "," <<
+            frame_b << "," <<
             inliers << "," <<
             std::setprecision(9) <<
             pose_0.getOrigin().x() << "," <<
@@ -747,6 +750,16 @@ namespace slam
       graph_msg.qw = qw;
       pub_graph_.publish(graph_msg);
     }
+  }
+
+  void Graph::timerCallback(const ros::WallTimerEvent& event)
+  {
+
+    ROS_WARN_STREAM("[Graph->timerCallback:] Writing files!");
+
+    // Saves keyframe map poses and loop closure edges to files.
+    saveGraph();
+
   }
 
 } //namespace slam

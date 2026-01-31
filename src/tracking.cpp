@@ -22,7 +22,7 @@ namespace slam
     pub_time_tracking_ = nhp.advertise<stereo_slam::TimeTracking>("time_tracking", 1);
 
     // Create directory to store the keyframes
-    std::string keyframes_dir = params_.working_directory + "keyframes";
+    std::string keyframes_dir = params_.working_path + "keyframes";
     if (boost::filesystem::is_directory(keyframes_dir))
       boost::filesystem::remove_all(keyframes_dir);
     boost::filesystem::path dir1(keyframes_dir);
@@ -30,7 +30,7 @@ namespace slam
       ROS_ERROR("[Localization:] ERROR -> Impossible to create the keyframes directory.");
 
     // Create directory to store the clusters
-    std::string clusters_dir = params_.working_directory + "clusters";
+    std::string clusters_dir = params_.working_path + "clusters";
     if (boost::filesystem::is_directory(clusters_dir))
       boost::filesystem::remove_all(clusters_dir);
     boost::filesystem::path dir2(clusters_dir);

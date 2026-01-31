@@ -62,7 +62,7 @@ Parameters
 
 * `refine` - Refine odometry (true/false).
 * `distance_between_keyframes` - Minimum distance (m) between keyframes.
-* `working_directory` - Directory where all output files will be stored.
+* `working_path` - Directory where all output files will be stored.
 * `feature_detector_selection` - Name of the feature detector to be used (ORB or SIFT).
 * `lc_min_inliers` - Minimum number of inliers to close a loop.
 * `lc_epipolar_thresh` - Maximum reprojection error allowed.

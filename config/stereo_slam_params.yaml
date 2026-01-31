@@ -1,11 +1,11 @@
 stereo_slam:
-  refine: false
   distance_between_keyframes: 0.3
-  # working_directory: 
   feature_detector_selection: ORB
-  lc_min_inliers: 30
-  lc_epipolar_thresh: 1
-  map_frame_id: /girona500/map
-  lc_neighbors: 5
   lc_discard_window: 20
+  lc_epipolar_thresh: 1
+  lc_min_inliers: 30
+  lc_neighbors: 5
+  map_frame_id: /girona500/map
   ransac_iterations: 2000
+  refine: false
+  working_path: /home/bomiquel/Documents/recerca/slam/single_slam/data/stereo_slam/uji/raw/2024_07_04/experiment_0_square_3/execution_1

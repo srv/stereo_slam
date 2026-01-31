@@ -48,13 +48,13 @@ public:
   struct Params
   {
     std::string map_frame_id;      //!> Frame of the slam output
-    std::string working_directory; //!> Directory where all output files will be stored.
+    std::string working_path; //!> Directory where all output files will be stored.
 
     // Default settings
     Params ()
     {
       map_frame_id = "map";
-      working_directory = "";
+      working_path = "";
     }
   };
 
@@ -244,6 +244,11 @@ protected:
    */
   void publishGraph();
 
+  /** \brief Callback that is called when the timer is triggered.
+   *  \param[in] event ros::WallTimerEvent.
+   */
+  void timerCallback(const ros::WallTimerEvent& event);
+
 private:
 
   Params params_; //!> Stores parameters.
@@ -275,6 +280,8 @@ private:
   cv::Mat camera_matrix_; //!> The camera matrix
 
   image_geometry::PinholeCameraModel camera_model_; //!> Pinhole left camera model
+
+  ros::WallTimer timer_; //!> Timer to write the last map update to disk.
 
   ros::Publisher pub_graph_; //!> Graph publisher
 
