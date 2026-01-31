@@ -1,13 +1,13 @@
 <launch>
 
     <!-- Robots parameters -->
-    <arg name = "robot_name"         default = "girona500"/>
+    <arg name = "robot_name"         default = "sparus2"/>
 
     <!-- Camera parameters -->
-    <arg name = "camera_name"        default = "stereo_ch3"/>
+    <arg name = "camera_name"        default = "flir_spinnaker_stereo_camera"/>
     <arg name = "resolution"         default = "full"/>
-    <arg name = "slave_camera_name"  default = "right"/>
-    <arg name = "master_camera_name" default = "left"/>
+    <arg name = "slave_camera_name"  default = "starboard"/>
+    <arg name = "master_camera_name" default = "port"/>
 
     <!-- Image flags -->
     <arg name = "enable_decimate_x1" default = "false"/>
@@ -24,55 +24,42 @@
     <!-- Bagfiles parameters -->
     <param name = "/use_sim_time"    value = "true"/>
 
-    <!-- UJI -->
-    <!-- 2024_07_02/experiment_0_proc -->
-    <!-- <arg name = "bagfile" default = "/home/bomiquel/datasets/bagfiles/uji/2024_07_02/experiment_0_proc/2024-07-02-16-33-14.bag"/> -->
-    <!-- 2024_07_03/experiment_0_square_1_proc -->
-    <!-- <arg name = "bagfile" default = "/home/bomiquel/datasets/bagfiles/uji/2024_07_03/experiment_0_square_1_proc/2024-07-03-11-37-31.bag"/> -->
-    <!-- 2024_07_04/experiment_0_square_2_proc -->
-    <!-- <arg name = "bagfile" default = "/home/bomiquel/datasets/bagfiles/uji/2024_07_04/experiment_0_square_2_proc/2024-07-04-13-08-50.bag"/> -->
-    <!-- 2024_07_04/experiment_0_square_3_proc -->
-    <arg name = "bagfile" default = "/home/bomiquel/datasets/bagfiles/uji/2024_07_04/experiment_0_square_3_proc/2024-07-04-13-22-00.bag"/>
+    <!-- Cabrera 2025/02/04 -->
+    <arg name = "bagfile" default = "/home/bomiquel/datasets/bagfiles/cabrera/2025_02_04/14_21_39_proc/sparus2_stereo_camera_2025-02-04-14-21-39_0.bag
+                                     /home/bomiquel/datasets/bagfiles/cabrera/2025_02_04/14_21_39_proc/sparus2_stereo_camera_2025-02-04-14-22-39_1.bag
+                                     /home/bomiquel/datasets/bagfiles/cabrera/2025_02_04/14_21_39_proc/sparus2_stereo_camera_2025-02-04-14-23-39_2.bag
+                                     /home/bomiquel/datasets/bagfiles/cabrera/2025_02_04/14_21_39_proc/sparus2_stereo_camera_2025-02-04-14-24-39_3.bag
+                                     /home/bomiquel/datasets/bagfiles/cabrera/2025_02_04/14_21_39_proc/sparus2_stereo_camera_2025-02-04-14-25-39_4.bag"/>
+
+    <!-- Cabrera 2025/10/29 -->
+    <!-- <arg name = "bagfile" default = "/home/bomiquel/datasets/bagfiles/cabrera/2025_10_29/12_56_53_proc_3/sparus2_stereo_camera_2025-10-29-11-56-53_0.bag
+                                     /home/bomiquel/datasets/bagfiles/cabrera/2025_10_29/12_56_53_proc_3/sparus2_stereo_camera_2025-10-29-11-59-11_1.bag
+                                     /home/bomiquel/datasets/bagfiles/cabrera/2025_10_29/12_56_53_proc_3/sparus2_stereo_camera_2025-10-29-12-01-12_2.bag
+                                     /home/bomiquel/datasets/bagfiles/cabrera/2025_10_29/12_56_53_proc_3/sparus2_stereo_camera_2025-10-29-12-03-12_3.bag
+                                     /home/bomiquel/datasets/bagfiles/cabrera/2025_10_29/12_56_53_proc_3/sparus2_stereo_camera_2025-10-29-12-05-12_4.bag"/> -->
 
     <!-- Static TF's -->
-    <node pkg = "tf" type = "static_transform_publisher" name = "girona500_base_link_to_stereo_down" args = "0.57 -0.062 0.505 0.0 0.0 0.0 $(arg robot_name)/base_link $(arg robot_name)/stereo_down 30" />
-    <node pkg = "tf" type = "static_transform_publisher" name = "girona500_stereo_down_to_left_optical" args = "0.0 0.0 0.0 1.57 0.0 0.0 $(arg robot_name)/stereo_down $(arg robot_name)/stereo_down/left_optical 30" />
+    <node pkg = "tf" type = "static_transform_publisher" name = "sparus2_base_link_to_left_optical" args = "0.422270 -0.065000 0.042600 1.570796 0.000000 0.000000 /sparus2/base_link /sparus2/camera_port 30" />
 
     <group ns = "$(arg robot_name)">
 
         <!-- Initial pose and orientation parameters -->  
-        <!-- UJI 2024_07_02/experiment_0_proc -->
-        <!-- <arg name = "t_x" default = "7.256682862"/> 
-        <arg name = "t_y" default = "0.605927856"/> 
-        <arg name = "t_z" default = "-1.758014793"/> 
-        <arg name = "q_x" default = "-0.002890934"/>
-        <arg name = "q_y" default = "0.030017629"/>
-        <arg name = "q_z" default = "0.998787796"/>
-        <arg name = "q_w" default = "0.038904031"/> -->
-        <!-- UJI 2024_07_03/experiment_0_square_1_proc -->
-        <!-- <arg name = "t_x" default = "-0.098869452"/> 
-        <arg name = "t_y" default = "0.192996936"/>
-        <arg name = "t_z" default = "-1.778576607"/> 
-        <arg name = "q_x" default = "-0.022258513"/>
-        <arg name = "q_y" default = "0.021376555"/>
-        <arg name = "q_z" default = "-0.052030298"/>
-        <arg name = "q_w" default = "0.998168548"/> -->
-        <!-- UJI 2024_07_04/experiment_0_square_2_proc -->
-        <!-- <arg name = "t_x" default = "-0.037046177"/> 
-        <arg name = "t_y" default = "0.269914678"/> 
-        <arg name = "t_z" default = "-1.800492732"/> 
-        <arg name = "q_x" default = "-0.029828077"/>
-        <arg name = "q_y" default = "0.000048010"/>
-        <arg name = "q_z" default = "-0.027061236"/>
-        <arg name = "q_w" default = "0.999188657"/> -->
-        <!-- UJI 2024_07_04/experiment_0_square_3_proc -->
-        <arg name = "t_x" default = "1.000167367"/> 
-        <arg name = "t_y" default = "3.366724544"/> 
-        <arg name = "t_z" default = "-1.801609401"/> 
-        <arg name = "q_x" default = "0.032461234"/>
-        <arg name = "q_y" default = "-0.013343311"/>
-        <arg name = "q_z" default = "-0.264775157"/>
-        <arg name = "q_w" default = "0.963671283"/>
+        <!-- Cabrera 2025/02/04 -->
+        <arg name = "t_x" default = "28.824602333472"/> 
+        <arg name = "t_y" default = "58.9221115387944"/> 
+        <arg name = "t_z" default = "-2.90542054176331"/> 
+        <arg name = "q_x" default = "0.034667875632095"/>
+        <arg name = "q_y" default = "-0.062374205023327"/>
+        <arg name = "q_z" default = "-0.028935960660611"/>
+        <arg name = "q_w" default = "0.9970307453271"/>
+        <!-- Cabrera 2025/10/29 12:56:53 -->
+        <!-- <arg name = "t_x" default = "-1.887629119"/> 
+        <arg name = "t_y" default = "14.933912181"/> 
+        <arg name = "t_z" default = "2.347713096"/> 
+        <arg name = "q_x" default = "0.089764679"/>
+        <arg name = "q_y" default = "-0.065461730"/>
+        <arg name = "q_z" default = "0.721156554"/>
+        <arg name = "q_w" default = "0.683805740"/> -->
 
         <!-- Sends initial pose -->
         <node pkg = "viso2_ros" type = "initial_pose_server_node" name = "initial_pose_server_node" output = "screen">
@@ -153,7 +140,7 @@
     <!-- Extend clok -->
     <node pkg = "stereo_slam" type = "clock_extender" name = "clock_extender" required = "true" output = "screen" if = "$(eval enable_extra_clock == true)">
         <param name = "extra_time"       value = "5"/>
-        <param name = "gap_threshold"    value = "100"/>
+        <param name = "gap_threshold"    value = "15"/>
         <param name = "watch_interval"   value = "5"/>
     </node>
 
@@ -164,7 +151,7 @@
     <node pkg = "stereo_slam" 
           type = "delayed_rosbag_play.sh" 
           name = "rosbag" 
-          args = "--delay 90 --rosbag-args '-r 1 --clock $(arg bagfile) --topics /$(arg robot_name)/$(arg camera_name)/$(arg master_camera_name)/camera_info 
+          args = "--delay 10 --rosbag-args '-r 1 --clock $(arg bagfile) --topics /$(arg robot_name)/$(arg camera_name)/$(arg master_camera_name)/camera_info 
                                                                                  /$(arg robot_name)/$(arg camera_name)/$(arg master_camera_name)/image_raw 
                                                                                  /$(arg robot_name)/$(arg camera_name)/$(arg slave_camera_name)/camera_info 
                                                                                  /$(arg robot_name)/$(arg camera_name)/$(arg slave_camera_name)/image_raw
@@ -174,7 +161,7 @@
     <node pkg = "stereo_slam" 
           type = "delayed_rosbag_play.sh" 
           name = "rosbag" 
-          args = "--delay 90 --rosbag-args '-r 1 --clock $(arg bagfile) --topics /$(arg robot_name)/$(arg camera_name)/$(arg master_camera_name)/camera_info 
+          args = "--delay 10 --rosbag-args '-r 1 --clock $(arg bagfile) --topics /$(arg robot_name)/$(arg camera_name)/$(arg master_camera_name)/camera_info 
                                                                                  /$(arg robot_name)/$(arg camera_name)/$(arg master_camera_name)/image_raw 
                                                                                  /$(arg robot_name)/$(arg camera_name)/$(arg slave_camera_name)/camera_info 
                                                                                  /$(arg robot_name)/$(arg camera_name)/$(arg slave_camera_name)/image_raw

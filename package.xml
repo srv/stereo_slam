@@ -2,7 +2,7 @@
 <package format="2">
 
   <name>stereo_slam</name>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
 
   <description>Stereo Slam</description>
 
@@ -32,6 +32,7 @@
   <depend>cv_bridge</depend>
   <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>
+  <depend>rosgraph_msgs</depend>
   <depend>image_geometry</depend>
   <depend>image_transport</depend>
   <depend>message_filters</depend>

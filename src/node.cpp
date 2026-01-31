@@ -16,7 +16,7 @@ void readParams(slam::Tracking::Params &tracking_params, slam::Graph::Params &gr
   ros::NodeHandle nhp("~");
   nhp.param("refine",                     tracking_params.refine,                     false);
   nhp.param("distance_between_keyframes", tracking_params.dist_keyframes,             0.5);
-  nhp.param("working_directory",          tracking_params.working_directory,          ros::package::getPath("stereo_slam") + "/output/");
+  nhp.param("working_path",               tracking_params.working_path,          ros::package::getPath("stereo_slam") + "/output/");
   nhp.param("feature_detector_selection", tracking_params.feature_detector_selection, std::string("ORB"));
   nhp.param("lc_min_inliers",             tracking_params.lc_min_inliers,             30);
   nhp.param("lc_epipolar_thresh",         tracking_params.lc_epipolar_thresh,         1.0);
@@ -25,16 +25,18 @@ void readParams(slam::Tracking::Params &tracking_params, slam::Graph::Params &gr
   nhp.param("lc_discard_window",          loop_closing_params.lc_discard_window,      20); 
   nhp.param("ransac_iterations",          loop_closing_params.ransac_iterations,      150);
   
+  if (tracking_params.working_path[-1] != '/')
+    tracking_params.working_path += '/';
 
-  graph_params.working_directory         = tracking_params.working_directory;
-  loop_closing_params.working_directory  = tracking_params.working_directory;
+  graph_params.working_path              = tracking_params.working_path;
+  loop_closing_params.working_path       = tracking_params.working_path;
   loop_closing_params.lc_min_inliers     = tracking_params.lc_min_inliers;
   loop_closing_params.lc_epipolar_thresh = tracking_params.lc_epipolar_thresh;
 
   ROS_INFO_STREAM("PARAMETER SETTING:               " << std::endl <<
-                  "TRACKING WORKING DIRECTORY     = " << tracking_params.working_directory << std::endl <<
-                  "GRAPH WORKING DIRECTORY        = " << graph_params.working_directory << std::endl <<
-                  "LOOP CLOSING WORKING DIRECTORY = " << loop_closing_params.working_directory << std::endl <<
+                  "TRACKING WORKING DIRECTORY     = " << tracking_params.working_path << std::endl <<
+                  "GRAPH WORKING DIRECTORY        = " << graph_params.working_path << std::endl <<
+                  "LOOP CLOSING WORKING DIRECTORY = " << loop_closing_params.working_path << std::endl <<
                   "FEATURE DETECTOR               = " << tracking_params.feature_detector_selection << std::endl <<
                   "DISTANCE BETWEEN KEYFRAMES     = " << tracking_params.dist_keyframes << std::endl <<
                   "MAP FRAME NAME                 = " << graph_params.map_frame_id << std::endl <<
@@ -74,17 +76,15 @@ int main(int argc, char **argv)
   loop_closing.setGraph(&graph);
 
   // Create the output directory
-  std::string output_dir = tracking_params.working_directory;
-  if (boost::filesystem::is_directory(output_dir))
+  std::string output_dir = tracking_params.working_path;
+  if (!boost::filesystem::is_directory(output_dir))
   {
-    ROS_ERROR_STREAM("[Localization:] ERROR -> The output directory already exists: " << output_dir);
-    return 0;
-  }
-  boost::filesystem::path dir0(output_dir);
-  if (!boost::filesystem::create_directory(dir0))
-  {
-    ROS_ERROR("[Localization:] ERROR -> Impossible to create the output directory.");
-    return 0;
+    boost::filesystem::path dir0(output_dir);
+    if (!boost::filesystem::create_directory(dir0))
+    {
+      ROS_ERROR("[Localization:] ERROR -> Impossible to create the output directory.");
+      return 0;
+    }
   }
 
   // Launch threads

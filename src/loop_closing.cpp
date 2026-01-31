@@ -20,14 +20,14 @@ namespace slam
   void LoopClosing::run()
   {
     // Init
-    execution_dir_ = params_.working_directory + "haloc";
+    execution_dir_ = params_.working_path + "haloc";
     if (boost::filesystem::is_directory(execution_dir_))
       boost::filesystem::remove_all(execution_dir_);
     boost::filesystem::path dir1(execution_dir_);
     if (!boost::filesystem::create_directory(dir1))
       ROS_ERROR("[Localization:] ERROR -> Impossible to create the loop_closing directory.");
 
-    loop_closures_dir_ = params_.working_directory + "loop_closures";
+    loop_closures_dir_ = params_.working_path + "loop_closures";
     if (boost::filesystem::is_directory(loop_closures_dir_))
       boost::filesystem::remove_all(loop_closures_dir_);
     boost::filesystem::path dir2(loop_closures_dir_);
@@ -499,7 +499,7 @@ namespace slam
     std::sort(all_matchings.begin(), all_matchings.end(), tools::Tools::sortByMatching);
 
     // Retrieve the best n matches
-    uint max_size = 5;
+    uint max_size = 3;
     if (max_size > all_matchings.size()) max_size = all_matchings.size();
     for (uint i=0; i<max_size; i++)
       candidates.push_back(all_matchings[i]);
@@ -559,7 +559,7 @@ namespace slam
     for (i=0; i<cand_kfs.size(); i++)
     {
       std::string frame_id_str = tools::Tools::convertTo5digits(cand_kfs[i]);
-      std::string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
+      std::string keyframe_file = params_.working_path + "keyframes/" + frame_id_str + "_left.jpg";
       cv::Mat kf = cv::imread(keyframe_file, cv::IMREAD_COLOR);
 
       // Add the keyframe identifier
@@ -589,7 +589,7 @@ namespace slam
 
     // Read the current keyframe
     std::string frame_id_str = tools::Tools::convertTo5digits(c_cluster_.getFrameId());
-    std::string keyframe_file = params_.working_directory + "keyframes/" + frame_id_str + "_left.jpg";
+    std::string keyframe_file = params_.working_path + "keyframes/" + frame_id_str + "_left.jpg";
     cv::Mat current_kf_tmp = cv::imread(keyframe_file, cv::IMREAD_COLOR);
 
     int definitive_inliers = 0;
