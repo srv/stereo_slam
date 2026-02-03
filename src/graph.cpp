@@ -43,6 +43,8 @@ namespace slam
       // Process new frame
       if(checkNewFrameInQueue())
       {
+        timer_.stop();
+
         double t0 = ros::Time::now().toSec();
 
         processNewFrame();
@@ -59,6 +61,8 @@ namespace slam
           time_graph_msg_.total = ros::Time::now().toSec() - t0;
           pub_time_graph_.publish(time_graph_msg_);
         }
+
+        timer_.start();
       }
       r.sleep();
     }
