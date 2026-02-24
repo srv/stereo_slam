@@ -42,7 +42,6 @@ namespace slam
       orb = cv::ORB::create(1500, 1.2, 8, 10, 0, 2, cv::ORB::HARRIS_SCORE, 10);
       orb->detectAndCompute (l_img_gray, cv::noArray(), l_kp, l_desc);
       orb->detectAndCompute (r_img_gray, cv::noArray(), r_kp, r_desc);
-      ROS_INFO_STREAM("[Localization:] USING ORB");
     }
     else if (feature_detector_ == "SIFT")
     {
@@ -51,7 +50,6 @@ namespace slam
       sift = cv::xfeatures2d::SIFT::create();
       sift->detectAndCompute(l_img_gray, cv::noArray(), l_kp, l_desc);
       sift->detectAndCompute(r_img_gray, cv::noArray(), r_kp, r_desc);
-      ROS_INFO_STREAM("[Localization:] USING SIFT");
     }
     else
     {

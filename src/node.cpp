@@ -16,7 +16,7 @@ void readParams(slam::Tracking::Params &tracking_params, slam::Graph::Params &gr
   ros::NodeHandle nhp("~");
   nhp.param("refine",                     tracking_params.refine,                     false);
   nhp.param("distance_between_keyframes", tracking_params.dist_keyframes,             0.5);
-  nhp.param("working_path",               tracking_params.working_path,          ros::package::getPath("stereo_slam") + "/output/");
+  nhp.param("working_path",               tracking_params.working_path,               ros::package::getPath("stereo_slam") + "/output/");
   nhp.param("feature_detector_selection", tracking_params.feature_detector_selection, std::string("ORB"));
   nhp.param("lc_min_inliers",             tracking_params.lc_min_inliers,             30);
   nhp.param("lc_epipolar_thresh",         tracking_params.lc_epipolar_thresh,         1.0);
