@@ -161,7 +161,7 @@
     <node pkg = "stereo_slam" 
           type = "delayed_rosbag_play.sh" 
           name = "rosbag" 
-          args = "--delay 10 --rosbag-args '-r 1 --clock $(arg bagfile) --topics /$(arg robot_name)/$(arg camera_name)/$(arg master_camera_name)/camera_info 
+          args = "--delay 0 --rosbag-args '-r 1 --clock $(arg bagfile) --topics  /$(arg robot_name)/$(arg camera_name)/$(arg master_camera_name)/camera_info 
                                                                                  /$(arg robot_name)/$(arg camera_name)/$(arg master_camera_name)/image_raw 
                                                                                  /$(arg robot_name)/$(arg camera_name)/$(arg slave_camera_name)/camera_info 
                                                                                  /$(arg robot_name)/$(arg camera_name)/$(arg slave_camera_name)/image_raw
